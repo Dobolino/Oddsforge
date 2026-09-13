@@ -65,6 +65,7 @@ quantbot backtest --league bundesliga --bankroll 1000   # Walk-Forward Metriken
 
 ## Tutorial und Anleitungen
 
+- `docs/SCHNELLSTART_WINDOWS.md`: Einsteiger-Anleitung, von Null bis Dashboard, mit genau den Befehlen zum Abtippen.
 - `docs/INSTALLATION_WINDOWS.md`: einfache Windows-Installation Schritt für Schritt.
 - `docs/GLOSSAR_DE.md`: deutsches Glossar aller Begriffe (Edge, EV, Kelly, CLV, ...).
 - `docs/TUTORIAL.md`: Schritt-für-Schritt-Anleitung (CLI, Python-API, Backtest, Monte Carlo, Arbitrage, Realdaten).
