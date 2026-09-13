@@ -84,7 +84,7 @@ def test_dixon_coles_fallback_on_non_convergence(monkeypatch, caplog) -> None:  
         x0 = args[1]
         return SimpleNamespace(x=x0, success=False, message="forced non-convergence")
 
-    monkeypatch.setattr("quantbot.models.poisson.minimize", fake_minimize)
+    monkeypatch.setattr("quantbot.models.dixon_coles.minimize", fake_minimize)
 
     model = DixonColesModel(min_matches=10)
     with caplog.at_level(logging.WARNING):

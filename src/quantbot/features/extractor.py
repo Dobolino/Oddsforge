@@ -63,7 +63,8 @@ class _TeamRecord:
     xg_for: list[float] = field(default_factory=list)
     xg_against: list[float] = field(default_factory=list)
     points: list[int] = field(default_factory=list)
-    last_kickoff: object | None = None  # datetime | None
+    kickoffs: list[datetime] = field(default_factory=list)
+    last_kickoff: datetime | None = None
     matches_played: int = 0
 
 
@@ -78,15 +79,21 @@ class FeatureExtractor:
     Args:
         form_window: Number of recent matches used for rolling averages.
         elo_factory: Callable producing a fresh ``EloModel`` for Elo diffs.
+        time_decay_xi: Daily decay rate applied to rolling averages and form
+            points (0 = equal weight, identical to a plain mean).
     """
 
     def __init__(
         self,
         form_window: int = 5,
         elo_factory: Callable[[], EloModel] | None = None,
+        time_decay_xi: float = 0.0,
     ) -> None:
+        if time_decay_xi < 0.0:
+            raise ValueError("time_decay_xi must be non-negative")
         self.form_window = form_window
         self._elo_factory = elo_factory
+        self.time_decay_xi = time_decay_xi
 
     def _make_elo(self) -> EloModel:
         if self._elo_factory is not None:
@@ -180,10 +187,42 @@ class FeatureExtractor:
         home.points.append(3 if outcome is MatchOutcome.HOME else 1 if outcome is MatchOutcome.DRAW else 0)
         away.points.append(3 if outcome is MatchOutcome.AWAY else 1 if outcome is MatchOutcome.DRAW else 0)
 
+        home.kickoffs.append(match.kickoff)
+        away.kickoffs.append(match.kickoff)
         home.last_kickoff = match.kickoff
         away.last_kickoff = match.kickoff
         home.matches_played += 1
         away.matches_played += 1
+
+    def _wavg(
+        self,
+        values: Sequence[float],
+        kickoffs: Sequence[datetime],
+        target: datetime,
+    ) -> float:
+        """Time-decayed mean over the last ``form_window`` observations.
+
+        With ``time_decay_xi == 0`` this is a plain mean, so behavior is
+        unchanged when decay is disabled.
+        """
+
+        import math
+
+        w = self.form_window
+        recent_v = list(values[-w:])
+        if not recent_v:
+            return 0.0
+        if self.time_decay_xi <= 0.0:
+            return sum(recent_v) / len(recent_v)
+        recent_k = list(kickoffs[-w:])
+        weights = [
+            math.exp(-self.time_decay_xi * ((target - k).total_seconds() / 86400.0))
+            for k in recent_k
+        ]
+        total_w = sum(weights)
+        if total_w <= 0.0:
+            return sum(recent_v) / len(recent_v)
+        return sum(weight * v for weight, v in zip(weights, recent_v, strict=True)) / total_w
 
     def _rest_days(self, record: _TeamRecord | None, match: Match) -> float:
         if record is None or record.last_kickoff is None:
@@ -201,20 +240,25 @@ class FeatureExtractor:
         away_id = match.away_team.team_id
         home = records.get(home_id)
         away = records.get(away_id)
-        w = self.form_window
+        t = match.kickoff
+
+        def wavg(record: _TeamRecord | None, attr: str) -> float:
+            if record is None:
+                return 0.0
+            return self._wavg(getattr(record, attr), record.kickoffs, t)
 
         return {
             "elo_diff": elo.rating(home_id) - elo.rating(away_id),
-            "home_form_points": _avg(home.points, w) if home else 0.0,
-            "away_form_points": _avg(away.points, w) if away else 0.0,
-            "home_goals_for_avg": _avg(home.goals_for, w) if home else 0.0,
-            "home_goals_against_avg": _avg(home.goals_against, w) if home else 0.0,
-            "away_goals_for_avg": _avg(away.goals_for, w) if away else 0.0,
-            "away_goals_against_avg": _avg(away.goals_against, w) if away else 0.0,
-            "home_xg_for_avg": _avg(home.xg_for, w) if home else 0.0,
-            "home_xg_against_avg": _avg(home.xg_against, w) if home else 0.0,
-            "away_xg_for_avg": _avg(away.xg_for, w) if away else 0.0,
-            "away_xg_against_avg": _avg(away.xg_against, w) if away else 0.0,
+            "home_form_points": wavg(home, "points"),
+            "away_form_points": wavg(away, "points"),
+            "home_goals_for_avg": wavg(home, "goals_for"),
+            "home_goals_against_avg": wavg(home, "goals_against"),
+            "away_goals_for_avg": wavg(away, "goals_for"),
+            "away_goals_against_avg": wavg(away, "goals_against"),
+            "home_xg_for_avg": wavg(home, "xg_for"),
+            "home_xg_against_avg": wavg(home, "xg_against"),
+            "away_xg_for_avg": wavg(away, "xg_for"),
+            "away_xg_against_avg": wavg(away, "xg_against"),
             "home_rest_days": self._rest_days(home, match),
             "away_rest_days": self._rest_days(away, match),
             "home_matches_played": float(home.matches_played) if home else 0.0,
