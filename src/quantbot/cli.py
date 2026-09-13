@@ -16,6 +16,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from quantbot import __version__
+from quantbot.i18n import DEFAULT_LANGUAGE, t
 from quantbot.orchestrator import QuantBotOrchestrator
 from quantbot.schemas import League, SignalType
 
@@ -28,6 +29,16 @@ app = typer.Typer(
 console = Console()
 
 _DEFAULT_SEASON = "2024-2025"
+
+
+def _lang(value: str | None) -> str:
+    """Resolve the UI language: explicit flag, else the configured default."""
+
+    if value:
+        return value.lower() if value.lower() in ("de", "en") else DEFAULT_LANGUAGE
+    from quantbot.config import get_settings
+
+    return get_settings().language
 
 
 def _parse_as_of(value: str | None) -> datetime | None:
@@ -59,10 +70,7 @@ def _build_provider(live: bool, league: League):  # type: ignore[no-untyped-def]
     fd = settings.football_data_api_key
     odds = settings.the_odds_api_key
     if fd is None or odds is None:
-        console.print(
-            "[red]Live mode needs QUANTBOT_FOOTBALL_DATA_API_KEY and "
-            "QUANTBOT_THE_ODDS_API_KEY in your environment or .env file.[/red]"
-        )
+        console.print(f"[red]{t('live_keys_missing', _lang(None))}[/red]")
         raise typer.Exit(code=1)
 
     return build_live_provider(
@@ -74,34 +82,30 @@ def _build_provider(live: bool, league: League):  # type: ignore[no-untyped-def]
 
 
 @app.command()
-def info() -> None:
+def info(lang: str = typer.Option(None, "--lang", help="UI language: de or en.")) -> None:
     """Show system and model specification."""
 
+    lg = _lang(lang)
     spec = QuantBotOrchestrator().info()
     table = Table(title=f"QuantBot v{__version__}", show_header=False)
     table.add_column("Key", style="cyan")
     table.add_column("Value", style="white")
-    table.add_row("Model", str(spec["model"]))
-    table.add_row("Data provider", str(spec["provider"]))
-    table.add_row("Margin method", str(spec["market_method"]))
-    table.add_row("Initial bankroll", str(spec["initial_bankroll"]))
-    table.add_row("Automated betting", "disabled (decision support only)")
+    table.add_row(t("info.model", lg), str(spec["model"]))
+    table.add_row(t("info.provider", lg), str(spec["provider"]))
+    table.add_row(t("info.margin", lg), str(spec["market_method"]))
+    table.add_row(t("info.bankroll", lg), str(spec["initial_bankroll"]))
+    table.add_row(t("info.autobet", lg), t("info.autobet_value", lg))
     console.print(table)
     console.print(
-        Panel(
-            "Guardrails: zero data leakage, no automated betting, "
-            "probability over prediction, strict layer separation.",
-            title="Guardrails",
-            border_style="green",
-        )
+        Panel(t("guardrails.body", lg), title=t("guardrails.title", lg), border_style="green")
     )
 
 
 @app.command()
-def status() -> None:
+def status(lang: str = typer.Option(None, "--lang", help="UI language: de or en.")) -> None:
     """Alias for info."""
 
-    info()
+    info(lang=lang)
 
 
 @app.command()
@@ -110,29 +114,28 @@ def predict(
     season: str = typer.Option(_DEFAULT_SEASON, help="Season, e.g. 2024-2025."),
     as_of: str = typer.Option(None, "--as-of", help="Prediction date YYYY-MM-DD (UTC)."),
     live: bool = typer.Option(False, "--live", help="Use real data (needs API keys)."),
+    lang: str = typer.Option(None, "--lang", help="UI language: de or en."),
 ) -> None:
     """Show bet signals, Kelly stakes, and rejection reasons."""
 
+    lg = _lang(lang)
     orchestrator = QuantBotOrchestrator(provider=_build_provider(live, league))
     try:
         reports = orchestrator.predict(league, season, _parse_as_of(as_of))
     except ValueError as exc:
         console.print(f"[red]{exc}[/red]")
         if not live:
-            console.print(
-                "[dim]The demo data covers premier_league and bundesliga. "
-                "For other leagues use --live with API keys.[/dim]"
-            )
+            console.print(f"[dim]{t('no_demo', lg)}[/dim]")
         raise typer.Exit(code=1) from exc
 
-    table = Table(title=f"Signals: {league.value} {season}")
-    table.add_column("Match", style="cyan")
-    table.add_column("Signal", style="magenta")
-    table.add_column("Edge", justify="right")
-    table.add_column("EV", justify="right")
-    table.add_column("Stake %", justify="right")
-    table.add_column("Conf", justify="right")
-    table.add_column("Reason", style="dim")
+    table = Table(title=t("sig.title", lg).format(league=league.value, season=season))
+    table.add_column(t("col.match", lg), style="cyan")
+    table.add_column(t("col.signal", lg), style="magenta")
+    table.add_column(t("col.edge", lg), justify="right")
+    table.add_column(t("col.ev", lg), justify="right")
+    table.add_column(t("col.stake", lg), justify="right")
+    table.add_column(t("col.conf", lg), justify="right")
+    table.add_column(t("col.reason", lg), style="dim")
 
     for report in reports:
         signal = report.signal
@@ -151,7 +154,7 @@ def predict(
 
     console.print(table)
     n_bets = sum(1 for r in reports if r.signal.is_bet)
-    console.print(f"{len(reports)} matches evaluated, {n_bets} value signals.")
+    console.print(t("sig.footer", lg).format(n=len(reports), k=n_bets))
 
 
 @app.command()
@@ -160,9 +163,11 @@ def backtest(
     season: str = typer.Option(_DEFAULT_SEASON, help="Season, e.g. 2024-2025."),
     bankroll: float = typer.Option(1000.0, help="Initial bankroll."),
     live: bool = typer.Option(False, "--live", help="Use real data (needs API keys)."),
+    lang: str = typer.Option(None, "--lang", help="UI language: de or en."),
 ) -> None:
     """Run a walk-forward backtest and show metrics."""
 
+    lg = _lang(lang)
     orchestrator = QuantBotOrchestrator(provider=_build_provider(live, league), initial_bankroll=bankroll)
     try:
         result = orchestrator.run_backtest(league, season)
@@ -171,23 +176,23 @@ def backtest(
         raise typer.Exit(code=1) from exc
     m = result.metrics
 
-    table = Table(title=f"Backtest: {league.value} {season}")
-    table.add_column("Metric", style="cyan")
-    table.add_column("Value", justify="right", style="white")
-    table.add_row("Matches evaluated", str(result.n_evaluated))
-    table.add_row("Bets placed", str(result.n_bets))
-    table.add_row("No-bet decisions", str(result.n_no_bet))
-    table.add_row("Initial bankroll", f"{result.initial_bankroll:.2f}")
-    table.add_row("Final bankroll", f"{result.final_bankroll:.2f}")
-    table.add_row("Total return", f"{m.total_return * 100:.2f}%")
-    table.add_row("ROI (yield)", f"{m.roi * 100:.2f}%")
-    table.add_row("Win rate", f"{m.win_rate * 100:.2f}%")
-    table.add_row("Profit factor", _fmt(m.profit_factor, 2))
-    table.add_row("Sharpe", _fmt(m.sharpe, 3))
-    table.add_row("Sortino", _fmt(m.sortino, 3))
-    table.add_row("Max drawdown", f"{m.max_drawdown * 100:.2f}%")
-    table.add_row("Avg CLV", _fmt(m.avg_clv))
-    table.add_row("Beat-CLV rate", "-" if m.beat_clv_rate is None else f"{m.beat_clv_rate * 100:.2f}%")
+    table = Table(title=t("bt.title", lg).format(league=league.value, season=season))
+    table.add_column(t("col.metric", lg), style="cyan")
+    table.add_column(t("col.value", lg), justify="right", style="white")
+    table.add_row(t("bt.matches_eval", lg), str(result.n_evaluated))
+    table.add_row(t("bt.bets", lg), str(result.n_bets))
+    table.add_row(t("bt.no_bets", lg), str(result.n_no_bet))
+    table.add_row(t("bt.initial", lg), f"{result.initial_bankroll:.2f}")
+    table.add_row(t("bt.final", lg), f"{result.final_bankroll:.2f}")
+    table.add_row(t("bt.total_return", lg), f"{m.total_return * 100:.2f}%")
+    table.add_row(t("bt.roi", lg), f"{m.roi * 100:.2f}%")
+    table.add_row(t("bt.win_rate", lg), f"{m.win_rate * 100:.2f}%")
+    table.add_row(t("bt.profit_factor", lg), _fmt(m.profit_factor, 2))
+    table.add_row(t("bt.sharpe", lg), _fmt(m.sharpe, 3))
+    table.add_row(t("bt.sortino", lg), _fmt(m.sortino, 3))
+    table.add_row(t("bt.max_dd", lg), f"{m.max_drawdown * 100:.2f}%")
+    table.add_row(t("bt.avg_clv", lg), _fmt(m.avg_clv))
+    table.add_row(t("bt.beat_clv", lg), "-" if m.beat_clv_rate is None else f"{m.beat_clv_rate * 100:.2f}%")
     console.print(table)
 
 

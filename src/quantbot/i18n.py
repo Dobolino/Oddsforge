@@ -1,0 +1,208 @@
+"""Lightweight internationalization for the CLI and dashboard.
+
+German ("de") and English ("en"). ``t(key, lang)`` looks up a UI string and
+falls back to German, then to the key itself. ``GLOSSARY`` holds the glossary
+content in both languages.
+"""
+
+from __future__ import annotations
+
+LANGUAGES: tuple[str, ...] = ("de", "en")
+DEFAULT_LANGUAGE = "de"
+
+_STRINGS: dict[str, dict[str, str]] = {
+    # Shared / branding
+    "tagline": {"de": "Nur Entscheidungshilfe. Keine automatischen Wetten.",
+                "en": "Decision support only. No automated betting."},
+    "guardrail.stakes": {"de": "Nur theoretische Einsätze", "en": "Theoretical stakes only"},
+    "guardrail.prob": {"de": "Wahrscheinlichkeiten, keine Prognosen", "en": "Probabilities, not predictions"},
+    "guardrail.sim": {"de": "Simuliert auf Demodaten", "en": "Simulated on dummy data"},
+    "guardrails.body": {
+        "de": "Leitplanken: kein Data Leakage, keine automatischen Wetten, Wahrscheinlichkeit vor Prognose, strikte Schichtentrennung.",
+        "en": "Guardrails: zero data leakage, no automated betting, probability over prediction, strict layer separation.",
+    },
+    # Nav / pages
+    "nav.pages": {"de": "Seiten", "en": "Pages"},
+    "page.signals": {"de": "Aktuelle Value-Signale", "en": "Upcoming Value Signals"},
+    "page.insights": {"de": "Modell-Einblicke & Ergebnisse", "en": "Model Insights & Scorelines"},
+    "page.backtest": {"de": "Backtest-Auswertung", "en": "Backtest Performance"},
+    "page.glossary": {"de": "Glossar", "en": "Glossary"},
+    # Controls
+    "ctrl.language": {"de": "Sprache", "en": "Language"},
+    "ctrl.league": {"de": "Liga", "en": "League"},
+    "ctrl.season": {"de": "Saison", "en": "Season"},
+    "ctrl.as_of": {"de": "Prognosedatum (Stand)", "en": "Prediction date (as of)"},
+    # Signals page
+    "sig.intro": {
+        "de": "Signale vergleichen Modellwahrscheinlichkeiten mit margenfreien Marktpreisen. Edge, Erwartungswert und ein Fractional-Kelly-Einsatz je Spiel.",
+        "en": "Signals compare model probabilities against margin-free market prices. Edge, expected value and a fractional-Kelly stake per fixture.",
+    },
+    "sig.matches": {"de": "Ausgewertete Spiele", "en": "Matches evaluated"},
+    "sig.values": {"de": "Value-Signale", "en": "Value signals"},
+    "sig.avg_edge": {"de": "Ø Edge", "en": "Avg edge"},
+    "sig.avg_stake": {"de": "Ø Kelly-Einsatz", "en": "Avg Kelly stake"},
+    "sig.table": {"de": "Signale", "en": "Signals"},
+    # Columns
+    "col.match": {"de": "Spiel", "en": "Match"},
+    "col.signal": {"de": "Signal", "en": "Signal"},
+    "col.odds": {"de": "Quote", "en": "Odds"},
+    "col.edge": {"de": "Edge", "en": "Edge"},
+    "col.ev": {"de": "EV", "en": "EV"},
+    "col.stake": {"de": "Einsatz %", "en": "Stake %"},
+    "col.conf": {"de": "Konfidenz", "en": "Confidence"},
+    "col.reason": {"de": "Begründung", "en": "Rationale"},
+    "col.metric": {"de": "Kennzahl", "en": "Metric"},
+    "col.value": {"de": "Wert", "en": "Value"},
+    "col.data_quality": {"de": "Datenqualität", "en": "Data quality"},
+    # Insights page
+    "ins.intro": {
+        "de": "Die Dixon-Coles Ergebnis-Matrix und wie jedes Modell die 1X2-Wahrscheinlichkeit aufteilt.",
+        "en": "The Dixon-Coles scoreline matrix and how each model splits the 1X2 probability.",
+    },
+    "ins.heat": {"de": "Dixon-Coles Ergebniswahrscheinlichkeiten", "en": "Dixon-Coles scoreline probabilities"},
+    "ins.heat_hint": {"de": "Zeilen = Heimtore, Spalten = Auswärtstore. Farbe skaliert mit Wahrscheinlichkeit.",
+                      "en": "Rows = home goals, columns = away goals. Cell shade scales with probability."},
+    "ins.compare": {"de": "Modellvergleich", "en": "Model comparison"},
+    "ins.compare_hint": {"de": "P(Heim / Unentschieden / Auswärts) je Modell.", "en": "P(Home / Draw / Away) per model."},
+    "ins.home": {"de": "Heim", "en": "Home"},
+    "ins.draw": {"de": "Remis", "en": "Draw"},
+    "ins.away": {"de": "Auswärts", "en": "Away"},
+    "ins.home_goals": {"de": "Heimtore", "en": "Home goals"},
+    "ins.away_goals": {"de": "Auswärtstore", "en": "Away goals"},
+    # Backtest page
+    "bt.intro": {
+        "de": "Streng chronologisch. Die Schlussquote fliesst nur in den CLV, nie in die Entscheidung.",
+        "en": "Strictly chronological. The closing line feeds only Closing Line Value, never the decision.",
+    },
+    "bt.roi": {"de": "ROI (Yield)", "en": "ROI (yield)"},
+    "bt.final": {"de": "Endkapital", "en": "Final bankroll"},
+    "bt.max_dd": {"de": "Max Drawdown", "en": "Max drawdown"},
+    "bt.beat_clv": {"de": "Beat-CLV-Rate", "en": "Beat-CLV rate"},
+    "bt.equity": {"de": "Bankroll-Verlauf", "en": "Bankroll equity curve"},
+    "bt.equity_hint": {"de": "Bankroll nach jeder abgerechneten Wette.", "en": "Bankroll after each settled bet."},
+    "bt.clv": {"de": "CLV je Wette", "en": "Closing Line Value per bet"},
+    "bt.clv_hint": {"de": "Positiv heisst, die Einstiegsquote war besser als die Schlussquote.",
+                    "en": "Positive means the entry price beat the close."},
+    "bt.metrics": {"de": "Alle Kennzahlen", "en": "Full metric set"},
+    "bt.from": {"de": "von", "en": "from"},
+    "bt.beat_close": {"de": "Schluss geschlagen", "en": "Beat close"},
+    "bt.worse_close": {"de": "Schlechter als Schluss", "en": "Worse than close"},
+    # Glossary page
+    "glossary.intro": {
+        "de": "Was die Begriffe bedeuten, in einfacher Sprache. QuantBot wettet nicht selbst, es bewertet nur.",
+        "en": "What the terms mean, in plain language. QuantBot does not bet; it only evaluates.",
+    },
+    # CLI-only strings
+    "info.model": {"de": "Modell", "en": "Model"},
+    "info.provider": {"de": "Datenquelle", "en": "Data provider"},
+    "info.margin": {"de": "Margen-Methode", "en": "Margin method"},
+    "info.bankroll": {"de": "Startkapital", "en": "Initial bankroll"},
+    "info.autobet": {"de": "Automatische Wetten", "en": "Automated betting"},
+    "info.autobet_value": {"de": "deaktiviert (nur Entscheidungshilfe)", "en": "disabled (decision support only)"},
+    "guardrails.title": {"de": "Leitplanken", "en": "Guardrails"},
+    "sig.footer": {"de": "{n} Spiele ausgewertet, {k} Value-Signale.", "en": "{n} matches evaluated, {k} value signals."},
+    "sig.title": {"de": "Signale: {league} {season}", "en": "Signals: {league} {season}"},
+    "bt.title": {"de": "Backtest: {league} {season}", "en": "Backtest: {league} {season}"},
+    "bt.matches_eval": {"de": "Ausgewertete Spiele", "en": "Matches evaluated"},
+    "bt.bets": {"de": "Platzierte Wetten", "en": "Bets placed"},
+    "bt.no_bets": {"de": "Keine-Wette-Entscheidungen", "en": "No-bet decisions"},
+    "bt.initial": {"de": "Startkapital", "en": "Initial bankroll"},
+    "bt.total_return": {"de": "Gesamtrendite", "en": "Total return"},
+    "bt.win_rate": {"de": "Trefferquote", "en": "Win rate"},
+    "bt.profit_factor": {"de": "Profit Factor", "en": "Profit factor"},
+    "bt.sharpe": {"de": "Sharpe", "en": "Sharpe"},
+    "bt.sortino": {"de": "Sortino", "en": "Sortino"},
+    "bt.avg_clv": {"de": "Ø CLV", "en": "Avg CLV"},
+    "no_demo": {
+        "de": "Die Demodaten decken premier_league und bundesliga ab. Für andere Ligen --live mit API-Keys nutzen.",
+        "en": "The demo data covers premier_league and bundesliga. For other leagues use --live with API keys.",
+    },
+    "live_keys_missing": {
+        "de": "Der Live-Modus braucht QUANTBOT_FOOTBALL_DATA_API_KEY und QUANTBOT_THE_ODDS_API_KEY in der Umgebung oder .env.",
+        "en": "Live mode needs QUANTBOT_FOOTBALL_DATA_API_KEY and QUANTBOT_THE_ODDS_API_KEY in your environment or .env file.",
+    },
+}
+
+
+def t(key: str, lang: str = DEFAULT_LANGUAGE) -> str:
+    entry = _STRINGS.get(key, {})
+    return entry.get(lang) or entry.get(DEFAULT_LANGUAGE) or key
+
+
+# Glossary: sections of (term, de-definition, en-definition).
+GLOSSARY: list[dict[str, object]] = [
+    {
+        "title": {"de": "Signale", "en": "Signals"},
+        "items": [
+            ("VALUE_HOME / VALUE_DRAW / VALUE_AWAY",
+             "Value auf Heimsieg, Unentschieden oder Auswärtssieg. Die Quote ist im Verhältnis zur geschätzten Wahrscheinlichkeit zu hoch.",
+             "Value on a home win, draw or away win. The odds are too high relative to the estimated probability."),
+            ("NO_BET",
+             "Keine Empfehlung. Die Begründung nennt den Grund, etwa zu wenig Edge oder Datenqualität.",
+             "No recommendation. The rationale states why, e.g. too little edge or data quality."),
+        ],
+    },
+    {
+        "title": {"de": "Wahrscheinlichkeit & Quoten", "en": "Probability & Odds"},
+        "items": [
+            ("P(Home/Draw/Away)",
+             "Schätzung des Modells, wie oft ein Ergebnis eintritt. Die drei Werte ergeben 100 Prozent.",
+             "The model's estimate of how often an outcome occurs. The three add up to 100 percent."),
+            ("Quote / Odds",
+             "Dezimalquote. Auszahlung pro Einheit Einsatz. 2.0 heisst 1 Einsatz wird zu 2.",
+             "Decimal odds. Payout per unit staked. 2.0 means 1 staked returns 2."),
+            ("Faire Wahrscheinlichkeit / Fair probability",
+             "Marktwahrscheinlichkeit nach Herausrechnen der Buchmacher-Marge.",
+             "Market probability after removing the bookmaker margin."),
+            ("Overround / Marge",
+             "Aufschlag des Buchmachers. Die impliziten Wahrscheinlichkeiten summieren über 100 Prozent.",
+             "The bookmaker's margin. Implied probabilities sum to more than 100 percent."),
+        ],
+    },
+    {
+        "title": {"de": "Value & Einsatz", "en": "Value & Staking"},
+        "items": [
+            ("Edge",
+             "Modellwahrscheinlichkeit minus faire Marktwahrscheinlichkeit. Positiv heisst, das Modell hält das Ergebnis für wahrscheinlicher als der Markt.",
+             "Model probability minus fair market probability. Positive means the model rates the outcome higher than the market."),
+            ("EV (Erwartungswert)",
+             "Erwarteter Gewinn pro Einheit Einsatz. 0.10 heisst im Schnitt 10 Prozent Gewinn, wenn das Modell recht hat.",
+             "Expected value per unit staked. 0.10 means 10 percent average profit if the model is right."),
+            ("Kelly-Einsatz / Kelly stake",
+             "Vorgeschlagener Einsatz als Anteil der Bankroll. Fractional Kelly senkt das Risiko. Rein theoretisch.",
+             "Suggested stake as a fraction of bankroll. Fractional Kelly lowers risk. Purely theoretical."),
+            ("Konfidenz / Confidence",
+             "Wie sicher das Modell ist (0 bis 100), aus Ensemble-Einigkeit und Datenqualität.",
+             "How confident the model is (0 to 100), from ensemble agreement and data quality."),
+        ],
+    },
+    {
+        "title": {"de": "Backtest-Kennzahlen", "en": "Backtest metrics"},
+        "items": [
+            ("ROI / Yield", "Gewinn geteilt durch gesamten Einsatz, in Prozent.",
+             "Profit divided by total staked, in percent."),
+            ("Profit Factor", "Bruttogewinne geteilt durch Bruttoverluste. Über 1 ist profitabel.",
+             "Gross wins divided by gross losses. Above 1 is profitable."),
+            ("Sharpe / Sortino", "Rendite im Verhältnis zur Schwankung. Sortino bestraft nur Abwärtsrisiko. Höher ist besser.",
+             "Return relative to volatility. Sortino penalizes only downside. Higher is better."),
+            ("Max Drawdown", "Grösster Rückgang vom Höchststand zum Tief. Kleiner ist besser.",
+             "Largest peak-to-trough decline. Smaller is better."),
+            ("Risk of Ruin", "Wahrscheinlichkeit, dass die Bankroll unter eine kritische Grenze fällt (Monte Carlo).",
+             "Probability the bankroll falls below a critical threshold (Monte Carlo)."),
+        ],
+    },
+    {
+        "title": {"de": "Markt & CLV", "en": "Market & CLV"},
+        "items": [
+            ("CLV (Closing Line Value)",
+             "Vergleich deiner Einstiegsquote mit der Schlussquote. Positiv heisst, du hattest eine bessere Quote als der Markt am Ende.",
+             "Your entry price versus the closing price. Positive means you got a better price than the final market."),
+            ("Beat-CLV-Rate", "Anteil der Wetten, bei denen du die Schlussquote geschlagen hast.",
+             "Share of bets where you beat the closing price."),
+            ("Arbitrage / Surebet", "Beste Quoten mehrerer Buchmacher ergeben zusammen unter 100 Prozent, ein risikoloser Gewinn ist möglich.",
+             "Best odds across bookmakers sum below 100 percent, allowing a risk-free profit."),
+            ("Line Shopping", "Für jedes Ergebnis die beste Quote über alle Buchmacher suchen.",
+             "Finding the best odds per outcome across all bookmakers."),
+        ],
+    },
+]

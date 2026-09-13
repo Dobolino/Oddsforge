@@ -59,6 +59,7 @@ class Settings(BaseSettings):
     env: Environment = Environment.DEVELOPMENT
     log_level: str = "INFO"
     log_json: bool = False
+    language: str = "de"
 
     # --- Data provider credentials ---
     football_data_api_key: SecretStr | None = None
@@ -76,6 +77,14 @@ class Settings(BaseSettings):
 
     # --- Hard guardrail: never automate betting in v1 ---
     allow_automated_betting: bool = Field(default=False, frozen=True)
+
+    @field_validator("language")
+    @classmethod
+    def _validate_language(cls, value: str) -> str:
+        lang = value.lower()
+        if lang not in {"de", "en"}:
+            raise ValueError("language must be 'de' or 'en'")
+        return lang
 
     @field_validator("log_level")
     @classmethod

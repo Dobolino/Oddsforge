@@ -11,7 +11,7 @@ runner = CliRunner()
 
 
 def test_info_command() -> None:
-    result = runner.invoke(app, ["info"])
+    result = runner.invoke(app, ["info", "--lang", "en"])
     assert result.exit_code == 0
     assert "QuantBot" in result.stdout
     assert "disabled" in result.stdout  # automated betting guardrail
@@ -24,7 +24,7 @@ def test_status_alias() -> None:
 
 
 def test_predict_command_default() -> None:
-    result = runner.invoke(app, ["predict"])
+    result = runner.invoke(app, ["predict", "--lang", "en"])
     assert result.exit_code == 0
     assert "Signals" in result.stdout
     assert "evaluated" in result.stdout
@@ -45,7 +45,7 @@ def test_predict_rejects_bad_date() -> None:
 
 
 def test_backtest_command() -> None:
-    result = runner.invoke(app, ["backtest", "--league", "premier_league"])
+    result = runner.invoke(app, ["backtest", "--league", "premier_league", "--lang", "en"])
     assert result.exit_code == 0
     assert "Backtest" in result.stdout
     assert "ROI" in result.stdout
