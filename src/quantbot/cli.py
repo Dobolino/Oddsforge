@@ -146,6 +146,34 @@ def backtest(
     console.print(table)
 
 
+@app.command()
+def dashboard(
+    port: int = typer.Option(8501, help="Port for the Streamlit server."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print the command without launching."),
+) -> None:
+    """Launch the Streamlit dashboard as a subprocess."""
+
+    import subprocess
+    import sys
+
+    from quantbot.dashboard import app_path
+
+    command = [
+        sys.executable,
+        "-m",
+        "streamlit",
+        "run",
+        str(app_path()),
+        "--server.port",
+        str(port),
+    ]
+    if dry_run:
+        console.print(" ".join(command))
+        return
+    console.print(f"Starting dashboard on http://localhost:{port} (Ctrl+C to stop)")
+    subprocess.run(command, check=True)
+
+
 def main() -> None:
     """Console-script entry point."""
 

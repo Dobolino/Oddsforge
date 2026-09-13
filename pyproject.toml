@@ -21,6 +21,7 @@ dependencies = [
     "typer>=0.12",
     "rich>=13.7",
     "streamlit>=1.38",
+    "plotly>=5.22",
 ]
 
 [project.optional-dependencies]
