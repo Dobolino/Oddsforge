@@ -32,7 +32,7 @@ dev = [
 ]
 
 [project.scripts]
-quantbot = "quantbot.cli:app"
+quantbot = "quantbot.cli:main"
 
 [build-system]
 requires = ["hatchling"]

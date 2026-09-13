@@ -27,20 +27,19 @@ Oddsforge/
 ├── .env.example
 ├── README.md
 ├── src/quantbot/
-│   ├── __init__.py
 │   ├── config.py          # pydantic-settings, Guardrails
 │   ├── logging.py         # rich / JSON Logging
-│   └── schemas/           # Pydantic v2 Domain-Modelle
-│       ├── base.py
-│       ├── enums.py
-│       ├── match.py
-│       ├── odds.py
-│       ├── market.py
-│       ├── prediction.py
-│       └── signal.py
-└── tests/
-    ├── test_config.py
-    └── test_schemas.py
+│   ├── orchestrator.py    # End-to-End Pipeline
+│   ├── cli.py             # Typer + Rich CLI
+│   ├── schemas/           # Pydantic v2 Domain-Modelle
+│   ├── data/              # Provider-Abstraktion, DummyDataProvider
+│   ├── features/          # leckfreie Feature-Extraktion
+│   ├── models/            # Elo, Dixon-Coles, ML, Ensemble
+│   ├── markets/           # Margin-Removal (Shin), Market Engine
+│   ├── analysis/          # Value, Calibration, Confidence
+│   ├── decision/          # Kelly-Sizing, No-Bet-Rules, Decision Engine
+│   └── backtest/          # Walk-Forward, Execution, Metrics, CLV
+└── tests/                 # 145 Tests
 ```
 
 ## Setup
@@ -54,6 +53,14 @@ uv pip install -e ".[dev]"
 
 ```bash
 uv run pytest
+```
+
+## CLI
+
+```bash
+quantbot info                                   # System- und Modellspezifikation
+quantbot predict --league premier_league        # Wettsignale, Kelly-Stakes, Rejection Reasons
+quantbot backtest --league bundesliga --bankroll 1000   # Walk-Forward Metriken
 ```
 
 ## Konfiguration
