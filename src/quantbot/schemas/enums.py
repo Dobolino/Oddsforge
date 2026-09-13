@@ -14,10 +14,13 @@ class MatchOutcome(str, Enum):
 
 
 class League(str, Enum):
-    """Leagues supported in the MVP. Extend as new competitions are added."""
+    """Supported competitions. Extend as new ones are added."""
 
     PREMIER_LEAGUE = "premier_league"
     BUNDESLIGA = "bundesliga"
+    LA_LIGA = "la_liga"
+    SERIE_A = "serie_a"
+    LIGUE_1 = "ligue_1"
     CHAMPIONS_LEAGUE = "champions_league"
 
 

@@ -63,9 +63,13 @@ quantbot predict --league premier_league        # Wettsignale, Kelly-Stakes, Rej
 quantbot backtest --league bundesliga --bankroll 1000   # Walk-Forward Metriken
 ```
 
-## Tutorial
+## Tutorial und Anleitungen
 
-Eine Schritt-für-Schritt-Anleitung (Installation, CLI, Python-API, Backtest, Monte Carlo, Arbitrage, Realdaten) findest du in `docs/TUTORIAL.md`.
+- `docs/INSTALLATION_WINDOWS.md`: einfache Windows-Installation Schritt für Schritt.
+- `docs/GLOSSAR_DE.md`: deutsches Glossar aller Begriffe (Edge, EV, Kelly, CLV, ...).
+- `docs/TUTORIAL.md`: Schritt-für-Schritt-Anleitung (CLI, Python-API, Backtest, Monte Carlo, Arbitrage, Realdaten).
+
+Realdaten aktivieren: API-Keys in `.env` eintragen (siehe `.env.example`), dann `quantbot predict --league premier_league --live`. Unterstützte Ligen: premier_league, bundesliga, la_liga, serie_a, ligue_1, champions_league.
 
 ## Konfiguration
 

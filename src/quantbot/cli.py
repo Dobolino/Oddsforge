@@ -44,6 +44,35 @@ def _fmt(value: float | None, digits: int = 4) -> str:
     return "-" if value is None else f"{value:.{digits}f}"
 
 
+def _build_provider(live: bool, league: League):  # type: ignore[no-untyped-def]
+    """Return a data provider. Live needs both API keys in the environment."""
+
+    if not live:
+        return None  # orchestrator falls back to the dummy provider
+
+    from pathlib import Path
+
+    from quantbot.config import get_settings
+    from quantbot.data.providers import build_live_provider
+
+    settings = get_settings()
+    fd = settings.football_data_api_key
+    odds = settings.the_odds_api_key
+    if fd is None or odds is None:
+        console.print(
+            "[red]Live mode needs QUANTBOT_FOOTBALL_DATA_API_KEY and "
+            "QUANTBOT_THE_ODDS_API_KEY in your environment or .env file.[/red]"
+        )
+        raise typer.Exit(code=1)
+
+    return build_live_provider(
+        football_api_key=fd.get_secret_value(),
+        the_odds_api_key=odds.get_secret_value(),
+        leagues=[league],
+        cache_dir=Path.home() / ".quantbot" / "cache",
+    )
+
+
 @app.command()
 def info() -> None:
     """Show system and model specification."""
@@ -80,11 +109,21 @@ def predict(
     league: League = typer.Option(League.PREMIER_LEAGUE, help="League to predict."),
     season: str = typer.Option(_DEFAULT_SEASON, help="Season, e.g. 2024-2025."),
     as_of: str = typer.Option(None, "--as-of", help="Prediction date YYYY-MM-DD (UTC)."),
+    live: bool = typer.Option(False, "--live", help="Use real data (needs API keys)."),
 ) -> None:
     """Show bet signals, Kelly stakes, and rejection reasons."""
 
-    orchestrator = QuantBotOrchestrator()
-    reports = orchestrator.predict(league, season, _parse_as_of(as_of))
+    orchestrator = QuantBotOrchestrator(provider=_build_provider(live, league))
+    try:
+        reports = orchestrator.predict(league, season, _parse_as_of(as_of))
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        if not live:
+            console.print(
+                "[dim]The demo data covers premier_league and bundesliga. "
+                "For other leagues use --live with API keys.[/dim]"
+            )
+        raise typer.Exit(code=1) from exc
 
     table = Table(title=f"Signals: {league.value} {season}")
     table.add_column("Match", style="cyan")
@@ -120,11 +159,16 @@ def backtest(
     league: League = typer.Option(League.PREMIER_LEAGUE, help="League to backtest."),
     season: str = typer.Option(_DEFAULT_SEASON, help="Season, e.g. 2024-2025."),
     bankroll: float = typer.Option(1000.0, help="Initial bankroll."),
+    live: bool = typer.Option(False, "--live", help="Use real data (needs API keys)."),
 ) -> None:
     """Run a walk-forward backtest and show metrics."""
 
-    orchestrator = QuantBotOrchestrator(initial_bankroll=bankroll)
-    result = orchestrator.run_backtest(league, season)
+    orchestrator = QuantBotOrchestrator(provider=_build_provider(live, league), initial_bankroll=bankroll)
+    try:
+        result = orchestrator.run_backtest(league, season)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
     m = result.metrics
 
     table = Table(title=f"Backtest: {league.value} {season}")
