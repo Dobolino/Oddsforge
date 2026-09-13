@@ -24,10 +24,13 @@ from quantbot.i18n import DEFAULT_LANGUAGE, GLOSSARY, LANGUAGES, t
 
 
 def _render() -> None:  # pragma: no cover - requires Streamlit runtime
+    from pathlib import Path
+
     from quantbot.config import get_settings
     from quantbot.models import DixonColesModel, EloModel, LogisticRegressionModel
     from quantbot.orchestrator import QuantBotOrchestrator
     from quantbot.schemas import League
+    from quantbot.tracking import build_rounds
 
     st.set_page_config(page_title="QuantBot", page_icon="⚽", layout="wide")
     st.sidebar.title(f"QuantBot v{__version__}")
@@ -44,6 +47,7 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
 
     pages = {
         "signals": t("page.signals", lang),
+        "tracker": t("page.tracker", lang),
         "insights": t("page.insights", lang),
         "backtest": t("page.backtest", lang),
         "glossary": t("page.glossary", lang),
@@ -52,10 +56,33 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     league = st.sidebar.selectbox(t("ctrl.league", lang), list(League), format_func=lambda lg: lg.value)
     season = st.sidebar.text_input(t("ctrl.season", lang), "2024-2025")
 
-    orchestrator = QuantBotOrchestrator()
+    # API keys: paste here instead of editing files. Both filled -> real data.
+    with st.sidebar.expander(t("keys.title", lang)):
+        fd_key = st.text_input(t("keys.football", lang), type="password")
+        odds_key = st.text_input(t("keys.odds", lang), type="password")
+        st.caption(t("keys.hint", lang))
+
+    provider = None
+    if fd_key and odds_key:
+        try:
+            from quantbot.data.providers import build_live_provider
+
+            provider = build_live_provider(fd_key, odds_key, [league], cache_dir=Path.home() / ".quantbot" / "cache")
+            st.sidebar.success(t("mode.live", lang))
+        except Exception:  # noqa: BLE001
+            st.sidebar.warning(t("mode.live_failed", lang))
+            provider = None
+    else:
+        st.sidebar.info(t("mode.demo", lang))
+
+    orchestrator = QuantBotOrchestrator(provider=provider)
 
     if page == "glossary":
         _glossary_page(lang)
+        return
+
+    if page == "tracker":
+        _tracker_page(lang, orchestrator.provider, league, season, build_rounds)
         return
 
     universe = orchestrator.universe(league, season)
@@ -130,6 +157,50 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
             st.plotly_chart(clv_distribution_figure(clvs), use_container_width=True)
         st.subheader(t("bt.metrics", lang))
         st.table(metrics_dataframe(m))
+
+
+def _tracker_page(lang, provider, league, season, build_rounds) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
+    import pandas as pd
+
+    st.header(t("page.tracker", lang))
+    st.caption(t("track.intro", lang))
+    try:
+        view = build_rounds(provider, league, season, hold_out_last=1)
+    except ValueError as exc:
+        st.warning(str(exc))
+        return
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric(t("track.hit_rate", lang), "-" if view.hit_rate is None else f"{view.hit_rate:.1f}%")
+    c2.metric(t("track.settled_bets", lang), view.total_bets)
+    c3.metric(t("track.correct", lang), view.total_correct)
+
+    for r in reversed(view.rounds):
+        label = r["label"]
+        if r["upcoming"]:
+            label += f" ({t('track.upcoming_label', lang)})"
+        elif r["hit_rate"] is not None:
+            label += f" · {r['correct']}/{r['bets']} · {r['hit_rate']:.0f}%"
+        with st.expander(label, expanded=r["upcoming"]):
+            if not r["entries"]:
+                st.caption("-")
+                continue
+            rows = []
+            for e in r["entries"]:
+                if e["settled"]:
+                    outcome = t("track.hit", lang) if e["correct"] else t("track.miss", lang)
+                    result = e["actual"]
+                else:
+                    outcome = t("track.pending", lang)
+                    result = "-"
+                rows.append({
+                    t("col.match", lang): e["match"],
+                    t("track.tip", lang): e["tip"],
+                    t("col.odds", lang): e["odds"],
+                    t("track.result", lang): result,
+                    "": outcome,
+                })
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 
 def _glossary_page(lang: str) -> None:  # pragma: no cover - requires Streamlit runtime

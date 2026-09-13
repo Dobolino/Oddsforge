@@ -27,6 +27,32 @@ _STRINGS: dict[str, dict[str, str]] = {
     "page.insights": {"de": "Modell-Einblicke & Ergebnisse", "en": "Model Insights & Scorelines"},
     "page.backtest": {"de": "Backtest-Auswertung", "en": "Backtest Performance"},
     "page.glossary": {"de": "Glossar", "en": "Glossary"},
+    "page.tracker": {"de": "Verlauf", "en": "History"},
+    # Tracker page
+    "track.intro": {
+        "de": "Was der Bot vorgeschlagen hat und wie es ausging, Woche für Woche. Die letzte Woche zeigt die kommenden Tipps.",
+        "en": "What the bot suggested and how it turned out, week by week. The last week shows the upcoming tips.",
+    },
+    "track.hit_rate": {"de": "Trefferquote gesamt", "en": "Overall hit rate"},
+    "track.settled_bets": {"de": "Abgerechnete Tipps", "en": "Settled tips"},
+    "track.correct": {"de": "Richtig", "en": "Correct"},
+    "track.upcoming_label": {"de": "kommende Woche", "en": "upcoming"},
+    "track.tip": {"de": "Tipp", "en": "Tip"},
+    "track.result": {"de": "Ergebnis", "en": "Result"},
+    "track.hit": {"de": "Treffer", "en": "Hit"},
+    "track.miss": {"de": "Daneben", "en": "Miss"},
+    "track.pending": {"de": "offen", "en": "pending"},
+    # API keys
+    "keys.title": {"de": "API-Schlüssel (für echte Daten)", "en": "API keys (for real data)"},
+    "keys.football": {"de": "Football-Data.org Schlüssel", "en": "Football-Data.org key"},
+    "keys.odds": {"de": "The Odds API Schlüssel", "en": "The Odds API key"},
+    "keys.hint": {
+        "de": "Leer lassen für Demodaten. Mit beiden Schlüsseln laufen echte Spiele.",
+        "en": "Leave empty for demo data. With both keys real matches are used.",
+    },
+    "mode.demo": {"de": "Modus: Demodaten", "en": "Mode: demo data"},
+    "mode.live": {"de": "Modus: echte Daten", "en": "Mode: real data"},
+    "mode.live_failed": {"de": "Echte Daten nicht erreichbar, nutze Demodaten.", "en": "Real data unavailable, using demo data."},
     # Controls
     "ctrl.language": {"de": "Sprache", "en": "Language"},
     "ctrl.league": {"de": "Liga", "en": "League"},
