@@ -54,6 +54,8 @@ Was du dort machst:
 3. Zwischen den Seiten wechseln: Signale, Modell-Einblicke, Backtest, Glossar.
 4. Die Seite Glossar erklärt dir jeden Begriff.
 
+4. Auf der Seite Verlauf siehst du Woche für Woche, was der Bot getippt hat und ob es Treffer oder Daneben war, plus die Trefferquote und die Tipps für die kommende Woche.
+
 Zum Beenden: im Terminal die Tasten Strg und C zusammen drücken.
 
 Lieber ohne Browser, nur Text? Dann statt dem Dashboard:
@@ -74,6 +76,18 @@ Dafür brauchst du zwei kostenlose Schlüssel.
 2. The Odds API: Konto anlegen auf https://the-odds-api.com/ und den Key kopieren.
 
 ### Schritt 2: Schlüssel eintragen
+
+Der einfachste Weg ist direkt im Dashboard, ohne Dateien zu bearbeiten:
+
+1. Starte das Dashboard: `quantbot dashboard`
+2. Klicke links auf den Bereich "API-Schlüssel (für echte Daten)".
+3. Füge deine zwei Schlüssel in die zwei Felder ein.
+4. Sobald beide ausgefüllt sind, schaltet die Seite auf echte Daten um. Links steht dann "Modus: echte Daten". Sind die Felder leer, läuft die Demo.
+
+Die Schlüssel bleiben nur auf deinem PC. Sie werden nicht verschickt.
+
+Alternativer Weg über eine Datei (falls du lieber die Textbefehle nutzt):
+
 1. Kopiere im Ordner `C:\Oddsforge` die Datei `.env.example` und nenne die Kopie `.env`.
 2. Öffne `.env` mit dem Editor und trage ein:
 
@@ -85,6 +99,8 @@ QUANTBOT_THE_ODDS_API_KEY=dein_odds_api_key
 3. Speichern und schliessen.
 
 ### Schritt 3: Mit echten Daten starten
+
+Im Dashboard passiert das automatisch, sobald die Schlüssel eingetragen sind. Für die Textbefehle:
 
 ```
 cd C:\Oddsforge
