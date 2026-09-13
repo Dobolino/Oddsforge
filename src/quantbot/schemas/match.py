@@ -27,10 +27,14 @@ class MatchResult(QuantBotModel):
     """Final score of a finished match.
 
     Only present for historical matches. Never available at prediction time.
+    ``home_xg`` / ``away_xg`` are optional expected-goals values; when absent,
+    feature builders fall back to actual goals as a documented proxy.
     """
 
     home_goals: int = Field(ge=0)
     away_goals: int = Field(ge=0)
+    home_xg: float | None = Field(default=None, ge=0.0)
+    away_xg: float | None = Field(default=None, ge=0.0)
 
     @property
     def outcome(self) -> MatchOutcome:
