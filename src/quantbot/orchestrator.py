@@ -12,16 +12,21 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+from quantbot.analysis.calibration import BaseCalibrator
 from quantbot.analysis.confidence import DataQualitySignals
 from quantbot.analysis.engine import AnalysisEngine, AnalysisResult
 from quantbot.backtest.engine import BacktestResult, WalkForwardBacktester
 from quantbot.data.base import BaseDataProvider
 from quantbot.data.dummy import DummyDataProvider
 from quantbot.decision.engine import DecisionEngine
+from quantbot.logging import get_logger
 from quantbot.markets.odds import MarketEngine
 from quantbot.models.base import BaseModel
+from quantbot.models.calibrated import CalibratedModel
 from quantbot.models.elo import EloModel
 from quantbot.schemas import InjuryStatus, League, Match, ValueSignal
+
+logger = get_logger(__name__)
 
 _FAR_FUTURE = datetime(2100, 1, 1, tzinfo=timezone.utc)
 
@@ -53,9 +58,15 @@ class QuantBotOrchestrator:
         analysis_engine: AnalysisEngine | None = None,
         decision_engine: DecisionEngine | None = None,
         initial_bankroll: float = 1000.0,
+        calibrator: BaseCalibrator | None = None,
     ) -> None:
         self.provider = provider or DummyDataProvider()
-        self.model = model or EloModel()
+        base_model = model or EloModel()
+        # Optionally wrap the model so calibrated probabilities reach the
+        # Value Engine.
+        self.model = (
+            CalibratedModel(base_model, calibrator) if calibrator is not None else base_model
+        )
         self.market_engine = market_engine or MarketEngine()
         self.analysis_engine = analysis_engine or AnalysisEngine()
         self.decision_engine = decision_engine or DecisionEngine()
@@ -121,6 +132,16 @@ class QuantBotOrchestrator:
             )
             signal = self.decision_engine.decide(analysis, market)
             reports.append(SignalReport(match=match, signal=signal, analysis=analysis))
+
+        n_bets = sum(1 for r in reports if r.signal.is_bet)
+        logger.info(
+            "Predicted %s %s as of %s: %d matches, %d value signals",
+            league.value,
+            season,
+            as_of.isoformat(),
+            len(reports),
+            n_bets,
+        )
         return reports
 
     # --- Backtest ---

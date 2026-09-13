@@ -60,6 +60,7 @@ def metrics_dataframe(metrics: BacktestMetrics) -> pd.DataFrame:
         ("Win rate", pct(metrics.win_rate)),
         ("Profit factor", f"{metrics.profit_factor:.2f}"),
         ("Sharpe", f"{metrics.sharpe:.3f}"),
+        ("Sortino", f"{metrics.sortino:.3f}"),
         ("Max drawdown", pct(metrics.max_drawdown)),
         ("Avg CLV", "-" if metrics.avg_clv is None else f"{metrics.avg_clv:.4f}"),
         (

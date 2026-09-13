@@ -18,8 +18,11 @@ from collections.abc import Sequence
 import numpy as np
 from scipy.optimize import minimize
 
+from quantbot.logging import get_logger
 from quantbot.models.base import BaseModel, ModelPrediction
 from quantbot.schemas import Match, Prediction, ScoreMatrix
+
+logger = get_logger(__name__)
 
 
 def _dixon_coles_tau(
@@ -161,12 +164,63 @@ class DixonColesModel(BaseModel):
             constraints=constraints,
             options={"maxiter": 500, "ftol": 1e-8},
         )
-        params = result.x
+
+        if getattr(result, "success", False):
+            self._apply_params(result.x, n)
+        else:
+            message = getattr(result, "message", "unknown reason")
+            logger.warning(
+                "DixonColes SLSQP did not converge (%s); using moment-based fallback.",
+                message,
+            )
+            self._apply_moment_fallback(ordered)
+        self._is_fitted = True
+
+    def _apply_params(self, params: np.ndarray, n: int) -> None:
         self._attack = {t: float(params[i]) for t, i in self._team_index.items()}
         self._defense = {t: float(params[n + i]) for t, i in self._team_index.items()}
         self._home_adv = float(params[2 * n])
         self._rho = float(params[2 * n + 1])
-        self._is_fitted = True
+
+    def _apply_moment_fallback(self, ordered: Sequence[Match]) -> None:
+        """Stable closed-form fallback when the MLE fails to converge.
+
+        Uses log goal rates relative to the league average as attack/defense,
+        mean-centered attack for identifiability, zero low-score dependence.
+        """
+
+        scored: dict[str, list[int]] = {t: [] for t in self._teams}
+        conceded: dict[str, list[int]] = {t: [] for t in self._teams}
+        home_goals_total = 0
+        away_goals_total = 0
+        for m in ordered:
+            assert m.result is not None
+            h, a = m.home_team.team_id, m.away_team.team_id
+            scored[h].append(m.result.home_goals)
+            conceded[h].append(m.result.away_goals)
+            scored[a].append(m.result.away_goals)
+            conceded[a].append(m.result.home_goals)
+            home_goals_total += m.result.home_goals
+            away_goals_total += m.result.away_goals
+
+        all_goals = [g for goals in scored.values() for g in goals]
+        league_mean = max(sum(all_goals) / len(all_goals), 0.1) if all_goals else 1.0
+
+        def _log_rate(values: list[int]) -> float:
+            avg = sum(values) / len(values) if values else league_mean
+            return math.log(max(avg, 0.1) / league_mean)
+
+        raw_attack = {t: _log_rate(scored[t]) for t in self._teams}
+        mean_attack = sum(raw_attack.values()) / len(raw_attack) if raw_attack else 0.0
+        self._attack = {t: raw_attack[t] - mean_attack for t in self._teams}
+        self._defense = {t: _log_rate(conceded[t]) for t in self._teams}
+        mean_defense = sum(self._defense.values()) / len(self._defense) if self._defense else 0.0
+        self._defense = {t: self._defense[t] - mean_defense for t in self._teams}
+        n_matches = max(len(ordered), 1)
+        self._home_adv = math.log(
+            max(home_goals_total / n_matches, 0.1) / max(away_goals_total / n_matches, 0.1)
+        )
+        self._rho = 0.0
 
     # --- Predict ---
 

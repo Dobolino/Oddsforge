@@ -18,9 +18,12 @@ from quantbot.backtest.execution import ExecutionSimulator, SettledBet
 from quantbot.backtest.metrics import BacktestMetrics, compute_metrics
 from quantbot.data.base import BaseDataProvider
 from quantbot.decision.engine import DecisionEngine
+from quantbot.logging import get_logger
 from quantbot.markets.odds import MarketEngine
 from quantbot.models.base import BaseModel, NotFittedError
 from quantbot.schemas import InjuryStatus, Match, MatchStatus, ValueSignal
+
+logger = get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -86,7 +89,8 @@ class WalkForwardBacktester:
                 self.model.fit_until(universe, as_of)
                 masked = self._mask(match)
                 prediction = self.model.predict(masked)
-            except (ValueError, NotFittedError):
+            except (ValueError, NotFittedError) as exc:
+                logger.debug("Skip %s: model not ready (%s)", match.match_id, exc)
                 self._bump_counts(team_counts, match)
                 continue
 
@@ -139,6 +143,14 @@ class WalkForwardBacktester:
             self._bump_counts(team_counts, match)
 
         metrics = compute_metrics(settled, curve, self.initial_bankroll)
+        logger.info(
+            "Backtest done: %d evaluated, %d bets, %d no-bet, bankroll %.2f -> %.2f",
+            n_evaluated,
+            n_bets,
+            len(signals) - n_bets,
+            self.initial_bankroll,
+            bankroll,
+        )
         return BacktestResult(
             initial_bankroll=self.initial_bankroll,
             final_bankroll=bankroll,

@@ -17,10 +17,13 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from quantbot.logging import get_logger
 from quantbot.schemas import Match, MatchOutcome, MatchResult
 
 if TYPE_CHECKING:
     from quantbot.models.elo import EloModel
+
+logger = get_logger(__name__)
 
 # Label encoding, aligned with OUTCOME_ORDER.
 OUTCOME_TO_LABEL: dict[MatchOutcome, int] = {
@@ -143,6 +146,7 @@ class FeatureExtractor:
             elo._update(m)  # noqa: SLF001 - intentional incremental update
             self._absorb(records, m)
 
+        logger.debug("Built training set: %d samples from %d matches", len(features), len(finished))
         return features, labels
 
     # --- Internals ---

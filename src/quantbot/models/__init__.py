@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from quantbot.models.base import BaseModel, ModelPrediction, NotFittedError
+from quantbot.models.calibrated import CalibratedModel
 from quantbot.models.elo import EloModel
 from quantbot.models.ensemble import EnsembleModel, multiclass_brier
 from quantbot.models.ml import GradientBoostingModel, LogisticRegressionModel
@@ -17,5 +18,6 @@ __all__ = [
     "LogisticRegressionModel",
     "GradientBoostingModel",
     "EnsembleModel",
+    "CalibratedModel",
     "multiclass_brier",
 ]

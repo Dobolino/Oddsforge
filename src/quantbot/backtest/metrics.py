@@ -26,6 +26,7 @@ class BacktestMetrics:
     win_rate: float
     profit_factor: float
     sharpe: float
+    sortino: float
     max_drawdown: float
     avg_clv: float | None
     beat_clv_rate: float | None
@@ -53,6 +54,24 @@ def sharpe_ratio(returns: Sequence[float]) -> float:
     if std < 1e-12:  # numerically flat returns
         return 0.0
     return float(arr.mean() / std)
+
+
+def sortino_ratio(returns: Sequence[float], target: float = 0.0) -> float:
+    """Mean excess return over downside deviation (returns below ``target``).
+
+    Zero when undefined (<2 bets). Infinite when there is upside but no
+    downside, mirroring how profit factor treats a lossless record.
+    """
+
+    if len(returns) < 2:
+        return 0.0
+    arr = np.asarray(returns, dtype=float)
+    excess = float(arr.mean() - target)
+    downside = np.minimum(arr - target, 0.0)
+    downside_dev = float(np.sqrt(np.mean(downside**2)))
+    if downside_dev < 1e-12:
+        return math.inf if excess > 0.0 else 0.0
+    return excess / downside_dev
 
 
 def compute_metrics(
@@ -98,6 +117,7 @@ def compute_metrics(
         win_rate=(wins / n) if n > 0 else 0.0,
         profit_factor=profit_factor,
         sharpe=sharpe_ratio(returns),
+        sortino=sortino_ratio(returns),
         max_drawdown=max_drawdown(bankroll_curve) if bankroll_curve else 0.0,
         avg_clv=avg_clv,
         beat_clv_rate=beat_clv_rate,

@@ -140,6 +140,7 @@ def backtest(
     table.add_row("Win rate", f"{m.win_rate * 100:.2f}%")
     table.add_row("Profit factor", _fmt(m.profit_factor, 2))
     table.add_row("Sharpe", _fmt(m.sharpe, 3))
+    table.add_row("Sortino", _fmt(m.sortino, 3))
     table.add_row("Max drawdown", f"{m.max_drawdown * 100:.2f}%")
     table.add_row("Avg CLV", _fmt(m.avg_clv))
     table.add_row("Beat-CLV rate", "-" if m.beat_clv_rate is None else f"{m.beat_clv_rate * 100:.2f}%")

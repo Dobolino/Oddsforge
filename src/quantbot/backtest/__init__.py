@@ -9,6 +9,13 @@ from quantbot.backtest.metrics import (
     compute_metrics,
     max_drawdown,
     sharpe_ratio,
+    sortino_ratio,
+)
+from quantbot.backtest.montecarlo import (
+    BetSpec,
+    MonteCarloResult,
+    bet_specs_from_result,
+    monte_carlo_bankroll,
 )
 
 __all__ = [
@@ -20,4 +27,9 @@ __all__ = [
     "compute_metrics",
     "max_drawdown",
     "sharpe_ratio",
+    "sortino_ratio",
+    "BetSpec",
+    "MonteCarloResult",
+    "bet_specs_from_result",
+    "monte_carlo_bankroll",
 ]

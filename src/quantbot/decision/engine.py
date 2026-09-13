@@ -11,12 +11,15 @@ from __future__ import annotations
 from quantbot.analysis.engine import AnalysisResult
 from quantbot.decision.rules import NoBetRules
 from quantbot.decision.sizing import KellySizer
+from quantbot.logging import get_logger
 from quantbot.schemas import (
     MarketData,
     MatchOutcome,
     SignalType,
     ValueSignal,
 )
+
+logger = get_logger(__name__)
 
 _OUTCOME_TO_SIGNAL: dict[MatchOutcome, SignalType] = {
     MatchOutcome.HOME: SignalType.VALUE_HOME,
@@ -57,6 +60,9 @@ class DecisionEngine:
         )
 
         if not result.passed:
+            logger.debug(
+                "NO_BET %s: %s", analysis.match_id, "; ".join(result.reasons)
+            )
             return ValueSignal(
                 match_id=analysis.match_id,
                 timestamp=market.timestamp,
@@ -83,6 +89,14 @@ class DecisionEngine:
             )
 
         signal_type = _OUTCOME_TO_SIGNAL[candidate.outcome]
+        logger.debug(
+            "%s %s: edge=%.4f ev=%.4f stake=%.4f",
+            signal_type.value,
+            analysis.match_id,
+            candidate.edge,
+            candidate.expected_value,
+            stake,
+        )
         return ValueSignal(
             match_id=analysis.match_id,
             timestamp=market.timestamp,
