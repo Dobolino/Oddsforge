@@ -63,6 +63,10 @@ quantbot predict --league premier_league        # Wettsignale, Kelly-Stakes, Rej
 quantbot backtest --league bundesliga --bankroll 1000   # Walk-Forward Metriken
 ```
 
+## Tutorial
+
+Eine Schritt-für-Schritt-Anleitung (Installation, CLI, Python-API, Backtest, Monte Carlo, Arbitrage, Realdaten) findest du in `docs/TUTORIAL.md`.
+
 ## Konfiguration
 
 Kopiere `.env.example` nach `.env`. Alle Variablen tragen das Präfix `QUANTBOT_`.
