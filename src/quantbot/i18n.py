@@ -401,6 +401,12 @@ _STRINGS: dict[str, dict[str, str]] = {
         "de": "Nur Spiele in diesem Zeitraum kommen auf Tipps und Tippschein.",
         "en": "Only matches in this window appear on Tips and the tip slip.",
     },
+    "ctrl.date_range_empty_hint": {
+        "de": "Spieltag-Fenster und Saison stehen links in der Sidebar — "
+              "Zeitraum oder Saison anpassen und die Seite neu laden.",
+        "en": "Matchday window and season are in the left sidebar — "
+              "adjust the range or season and reload the page.",
+    },
     "ctrl.range_today": {"de": "Heute", "en": "Today"},
     "ctrl.range_3d": {"de": "3 Tage", "en": "3 days"},
     "ctrl.range_7d": {"de": "7 Tage", "en": "7 days"},
