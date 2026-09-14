@@ -136,7 +136,7 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
 
     st.set_page_config(page_title="QuantBot", page_icon="⚽", layout="wide")
     st.sidebar.title(f"QuantBot v{__version__}")
-    st.sidebar.caption("Stand: Tippschein HTML-Fix · Alle Ligen")
+    st.sidebar.caption("Stand: Tippschein-Navigation Fix")
 
     default_lang = get_settings().language if get_settings().language in LANGUAGES else DEFAULT_LANGUAGE
     lang = st.sidebar.radio(
@@ -177,6 +177,11 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     }
     visible = pages_for(ux_mode)
     pages = {k: all_pages[k] for k in visible}
+    # Apply deferred navigation BEFORE the radio widget is created — Streamlit
+    # forbids mutating a widget's session_state key after it is instantiated.
+    pending = st.session_state.pop("pending_nav_page", None)
+    if pending in pages:
+        st.session_state["nav_page"] = pending
     if "nav_page" not in st.session_state or st.session_state["nav_page"] not in pages:
         st.session_state["nav_page"] = next(iter(pages))
     page = st.sidebar.radio(
@@ -528,8 +533,9 @@ def _signals_page(lang, ux_mode, C, orchestrator, mode, leagues, season, live) -
             with st.expander(t("sig.all_matches", lang), expanded=False):
                 render_signals_table(signals_dataframe(lg_reports, mode=UXMode.BEGINNER, lang=lang))
         st.info(t("sig.open_slip_hint", lang))
-        if st.button(t("sig.open_slip", lang), type="primary"):
-            st.session_state["nav_page"] = "slip"
+        if st.button(t("sig.open_slip", lang), type="primary", key="open_slip_from_tips"):
+            st.session_state["welcome_dismissed"] = True
+            st.session_state["pending_nav_page"] = "slip"
             st.rerun()
         return
 
