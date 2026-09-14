@@ -146,6 +146,15 @@ def _install_cache():  # pragma: no cover - requires Streamlit runtime
     }
 
 
+def _mask_key(key: str) -> str:
+    """Show only the last four characters of a key; hide the rest."""
+
+    key = (key or "").strip()
+    if len(key) <= 4:
+        return "••••"
+    return "••••" + key[-4:]
+
+
 def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     from pathlib import Path
 
@@ -155,6 +164,21 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     from quantbot.schemas import League
 
     st.set_page_config(page_title="QuantBot", page_icon="⚽", layout="wide")
+    # Let sidebar dropdowns wrap long labels instead of clipping them to "…".
+    st.markdown(
+        """
+        <style>
+        section[data-testid="stSidebar"] div[data-baseweb="select"] div {
+            white-space: normal !important;
+        }
+        ul[data-baseweb="menu"] li {
+            white-space: normal !important;
+            height: auto !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     st.sidebar.title(f"QuantBot v{__version__}")
     st.sidebar.caption(f"Stand: v{__version__} · Spieltag-Fenster · Tippschein-Hero")
 
@@ -232,7 +256,11 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     odds_key = ""
     with st.sidebar.expander(t("keys.title", lang), expanded=False):
         if stored is not None and not st.session_state["keys_edit_mode"]:
-            st.success(t("keys.loaded", lang))
+            fd_key, odds_key = stored
+            st.success(t("keys.active", lang))
+            st.caption(f"Football-Data: {_mask_key(fd_key)}")
+            st.caption(f"The Odds API: {_mask_key(odds_key)}")
+            st.caption(t("keys.autoload", lang))
             c1, c2 = st.columns(2)
             if c1.button(t("keys.change", lang), key="keys_change_btn"):
                 st.session_state["keys_edit_mode"] = True
@@ -241,15 +269,15 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
                 clear_api_keys()
                 st.session_state["keys_edit_mode"] = True
                 st.rerun()
-            fd_key, odds_key = stored
         else:
             fd_key = st.text_input(t("keys.football", lang), type="password", key="fd_key_input")
             odds_key = st.text_input(t("keys.odds", lang), type="password", key="odds_key_input")
             st.caption(t("keys.hint", lang))
             if fd_key and odds_key:
                 save_api_keys(fd_key, odds_key)
-                st.caption(t("keys.saved", lang))
                 st.session_state["keys_edit_mode"] = False
+                st.success(t("keys.saved", lang))
+                st.rerun()
             elif stored is not None and st.button(t("keys.use_saved", lang), key="keys_use_saved"):
                 st.session_state["keys_edit_mode"] = False
                 st.rerun()

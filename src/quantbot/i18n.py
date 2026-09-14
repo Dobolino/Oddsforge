@@ -339,6 +339,14 @@ _STRINGS: dict[str, dict[str, str]] = {
         "de": "Gespeicherte Schlüssel geladen (nicht im Klartext angezeigt).",
         "en": "Saved keys loaded (not shown in plain text).",
     },
+    "keys.active": {
+        "de": "Gespeicherte Schlüssel aktiv. Diese werden gerade verwendet.",
+        "en": "Saved keys active. These are in use right now.",
+    },
+    "keys.autoload": {
+        "de": "Werden bei jedem Start automatisch geladen. Nur die letzten vier Zeichen sind sichtbar.",
+        "en": "Loaded automatically on every start. Only the last four characters are shown.",
+    },
     "keys.saved": {
         "de": "Schlüssel lokal gespeichert. Beim nächsten Start automatisch geladen.",
         "en": "Keys saved locally. They will load automatically next time.",
