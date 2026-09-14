@@ -1,71 +1,64 @@
 # Schnellstart für Windows (für Einsteiger)
 
-Diese Anleitung führt dich in wenigen Schritten von Null bis zum Dashboard. Tippe die Befehle genau so ab. QuantBot wettet nichts selbst, es rechnet und zeigt Hinweise.
+Der einfachste Weg braucht kein Terminal. Du klickst zwei Dateien doppelt an. QuantBot wettet nichts selbst, es rechnet und zeigt Hinweise.
 
-## Teil 1: Einmal einrichten
+## Der einfache Weg (empfohlen)
 
-### Schritt 1: Python installieren
+### 1. Python installieren (nur beim ersten Mal)
 1. Gehe auf https://www.python.org/downloads/windows/
-2. Lade Python 3.11 oder neuer herunter und starte die Datei.
+2. Lade Python 3.11 oder neuer und starte die Datei.
 3. Setze unten das Häkchen bei "Add python.exe to PATH". Wichtig.
-4. Klicke "Install Now" und warte, bis fertig.
+4. Klicke "Install Now".
 
-### Schritt 2: QuantBot herunterladen
-1. Öffne die Projektseite auf GitHub.
-2. Klicke auf den grünen Knopf "Code", dann "Download ZIP".
-3. Entpacke die ZIP-Datei nach `C:\Oddsforge`.
+Falls Python fehlt, öffnet die Startdatei diese Seite automatisch und sagt dir Bescheid.
 
-### Schritt 3: Das Terminal öffnen
-1. Drücke die Windows-Taste, tippe `powershell`, drücke Enter.
-2. Wechsle in den Ordner. Tippe:
+### 2. QuantBot herunterladen
+1. Öffne https://github.com/Dobolino/Oddsforge
+2. Grüner Knopf "Code", dann "Download ZIP".
+3. Entpacke die ZIP-Datei, zum Beispiel nach `C:\Oddsforge`.
+
+### 3. Starten
+Doppelklick auf die Datei
+
+```
+Start QuantBot.bat
+```
+
+Beim ersten Mal richtet sie alles automatisch ein, das dauert ein paar Minuten. Danach öffnet sich das Dashboard von selbst im Browser. Ab dem zweiten Mal startet es sofort.
+
+Zum Beenden einfach das schwarze Fenster schliessen.
+
+### 4. Aktualisieren
+Wenn es eine neue Version gibt, Doppelklick auf
+
+```
+Update QuantBot.bat
+```
+
+Das holt die neueste Version und installiert sie. Deine Schlüssel und Einstellungen bleiben erhalten.
+
+Falls Windows beim Doppelklick warnt (blauer Hinweis "Windows hat den PC geschützt): auf "Weitere Informationen" und dann "Trotzdem ausführen" klicken. Die Dateien sind Teil des Projekts.
+
+Was du im Dashboard machst:
+1. Links oben die Sprache auf Deutsch stellen.
+2. Eine Liga wählen (in der Demo funktionieren Premier League und Bundesliga).
+3. Zwischen den Seiten wechseln: Signale, Match Card, Verlauf, Kalibrierung, Modellvergleich, Backtest, Glossar.
+4. Verlauf zeigt Woche für Woche Tipp gegen Ergebnis. Glossar erklärt jeden Begriff.
+
+In der Demo sind die Spiele erfunden. Die Zahlen sind nur zum Anschauen.
+
+## Der Terminal-Weg (nur für Fortgeschrittene)
+
+Wer lieber tippt, kann auch so einrichten und starten:
 
 ```
 cd C:\Oddsforge
-```
-
-### Schritt 4: Einrichten (dauert ein paar Minuten)
-
-```
 powershell -ExecutionPolicy Bypass -File install.ps1
-```
-
-Wenn am Ende eine Tabelle mit "QuantBot" erscheint, hat alles geklappt.
-
-## Teil 2: Demo starten (ohne Schlüssel, sofort)
-
-Jedes Mal, wenn du QuantBot benutzt, machst du zuerst das:
-
-```
-cd C:\Oddsforge
 .venv\Scripts\activate
-```
-
-Dann das Dashboard im Browser öffnen:
-
-```
 quantbot dashboard
 ```
 
-Es öffnet sich eine Seite auf deinem Computer. Falls nicht, tippe im Browser: http://localhost:8501
-
-Was du dort machst:
-1. Links oben die Sprache auf Deutsch stellen.
-2. Eine Liga wählen (Premier League oder Bundesliga funktionieren in der Demo).
-3. Zwischen den Seiten wechseln: Signale, Modell-Einblicke, Backtest, Glossar.
-4. Die Seite Glossar erklärt dir jeden Begriff.
-
-4. Auf der Seite Verlauf siehst du Woche für Woche, was der Bot getippt hat und ob es Treffer oder Daneben war, plus die Trefferquote und die Tipps für die kommende Woche.
-
-Zum Beenden: im Terminal die Tasten Strg und C zusammen drücken.
-
-Lieber ohne Browser, nur Text? Dann statt dem Dashboard:
-
-```
-quantbot predict
-quantbot backtest
-```
-
-Wichtig: In der Demo sind die Spiele erfunden. Die Zahlen sind nur zum Anschauen.
+Oder ohne Browser: `quantbot predict` und `quantbot backtest`.
 
 ## Teil 3: Echte Spiele der laufenden Saison
 

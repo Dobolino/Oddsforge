@@ -63,9 +63,18 @@ quantbot predict --league premier_league        # Wettsignale, Kelly-Stakes, Rej
 quantbot backtest --league bundesliga --bankroll 1000   # Walk-Forward Metriken
 ```
 
+## Schnellster Start (Windows, ohne Terminal)
+
+1. Python einmal installieren (Häkchen "Add python.exe to PATH").
+2. Projekt als ZIP herunterladen und entpacken.
+3. Doppelklick auf `Start QuantBot.bat` (richtet beim ersten Mal alles ein und öffnet das Dashboard).
+4. Für Updates: Doppelklick auf `Update QuantBot.bat`.
+
+Details in `docs/SCHNELLSTART_WINDOWS.md`.
+
 ## Tutorial und Anleitungen
 
-- `docs/SCHNELLSTART_WINDOWS.md`: Einsteiger-Anleitung, von Null bis Dashboard, mit genau den Befehlen zum Abtippen.
+- `docs/SCHNELLSTART_WINDOWS.md`: Einsteiger-Anleitung, Doppelklick-Weg und Terminal-Weg.
 - `docs/INSTALLATION_WINDOWS.md`: einfache Windows-Installation Schritt für Schritt.
 - `docs/GLOSSAR_DE.md`: deutsches Glossar aller Begriffe (Edge, EV, Kelly, CLV, ...).
 - `docs/TUTORIAL.md`: Schritt-für-Schritt-Anleitung (CLI, Python-API, Backtest, Monte Carlo, Arbitrage, Realdaten).
