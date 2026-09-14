@@ -799,51 +799,53 @@ def _card_page(lang, C, orchestrator, mode, league, season) -> None:  # type: ig
 def _tracker_page(lang, C, provider, mode, leagues, season) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
     import pandas as pd
 
+    from quantbot.tracking import TipHistoryStore, sync_tip_history, tracker_path
+
     st.header(t("page.tracker", lang))
     st.caption(t("track.intro", lang))
     if not isinstance(leagues, list):
         leagues = [leagues]
 
-    for league in leagues:
-        if len(leagues) > 1:
-            st.subheader(league_title(league))
-        try:
-            view = C["rounds"](provider, mode, league.value, season)
-        except ValueError as exc:
-            st.warning(str(exc))
-            continue
+    store = TipHistoryStore(tracker_path(mode))
+    try:
+        view = sync_tip_history(store, provider, leagues, season, mode=mode)
+    except ValueError as exc:
+        st.warning(str(exc))
+        return
 
-        c1, c2, c3 = st.columns(3)
-        c1.metric(t("track.hit_rate", lang), "-" if view.hit_rate is None else f"{view.hit_rate:.1f}%")
-        c2.metric(t("track.settled_bets", lang), view.total_bets)
-        c3.metric(t("track.correct", lang), view.total_correct)
+    st.caption(t("track.persisted", lang).format(path=str(store.path), n=len(store.all_tips())))
 
-        for r in reversed(view.rounds):
-            label = r["label"]
-            if r["upcoming"]:
-                label += f" ({t('track.upcoming_label', lang)})"
-            elif r["hit_rate"] is not None:
-                label += f" · {r['correct']}/{r['bets']} · {r['hit_rate']:.0f}%"
-            with st.expander(label, expanded=r["upcoming"] and len(leagues) == 1):
-                if not r["entries"]:
-                    st.caption("-")
-                    continue
-                rows = []
-                for e in r["entries"]:
-                    if e["settled"]:
-                        outcome = t("track.hit", lang) if e["correct"] else t("track.miss", lang)
-                        result = e["actual"]
-                    else:
-                        outcome = t("track.pending", lang)
-                        result = "-"
-                    rows.append({
-                        t("col.match", lang): e["match"],
-                        t("track.tip", lang): e["tip"],
-                        t("col.odds", lang): e["odds"],
-                        t("track.result", lang): result,
-                        "": outcome,
-                    })
-                st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
+    c1, c2, c3 = st.columns(3)
+    c1.metric(t("track.hit_rate", lang), "-" if view.hit_rate is None else f"{view.hit_rate:.1f}%")
+    c2.metric(t("track.settled_bets", lang), view.total_bets)
+    c3.metric(t("track.correct", lang), view.total_correct)
+
+    for r in reversed(view.rounds):
+        label = r["label"]
+        if r["upcoming"]:
+            label += f" ({t('track.upcoming_label', lang)})"
+        elif r["hit_rate"] is not None:
+            label += f" · {r['correct']}/{r['bets']} · {r['hit_rate']:.0f}%"
+        with st.expander(label, expanded=r["upcoming"] and len(leagues) == 1):
+            if not r["entries"]:
+                st.caption("-")
+                continue
+            rows = []
+            for e in r["entries"]:
+                if e["settled"]:
+                    outcome = t("track.hit", lang) if e["correct"] else t("track.miss", lang)
+                    result = e["actual"]
+                else:
+                    outcome = t("track.pending", lang)
+                    result = "-"
+                rows.append({
+                    t("col.match", lang): e["match"],
+                    t("track.tip", lang): e["tip"],
+                    t("col.odds", lang): e["odds"],
+                    t("track.result", lang): result,
+                    "": outcome,
+                })
+            st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
 
 
 def _glossary_page(lang: str) -> None:  # pragma: no cover - requires Streamlit runtime

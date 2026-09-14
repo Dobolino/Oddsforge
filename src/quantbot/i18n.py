@@ -227,8 +227,12 @@ _STRINGS: dict[str, dict[str, str]] = {
     },
     # Tracker page
     "track.intro": {
-        "de": "Was der Bot vorgeschlagen hat und wie es ausging, Woche für Woche. Die letzte Woche zeigt die kommenden Tipps.",
-        "en": "What the bot suggested and how it turned out, week by week. The last week shows the upcoming tips.",
+        "de": "Was der Bot vorgeschlagen hat und wie es ausging, Woche für Woche. Tipps werden dauerhaft gespeichert und nach dem Spiel abgerechnet.",
+        "en": "What the bot suggested and how it turned out, week by week. Tips are stored persistently and settled after the match.",
+    },
+    "track.persisted": {
+        "de": "Gespeicherter Verlauf ({n} Tipps): {path}",
+        "en": "Saved history ({n} tips): {path}",
     },
     "track.hit_rate": {"de": "Trefferquote gesamt", "en": "Overall hit rate"},
     "track.settled_bets": {"de": "Abgerechnete Tipps", "en": "Settled tips"},
