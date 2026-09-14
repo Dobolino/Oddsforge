@@ -29,15 +29,17 @@ Beim ersten Mal richtet sie alles automatisch ein, das dauert ein paar Minuten. 
 Zum Beenden einfach das schwarze Fenster schliessen.
 
 ### 4. Aktualisieren
-Wenn es eine neue Version gibt, Doppelklick auf
+Doppelklick auf
 
 ```
 Update QuantBot.bat
 ```
 
-Das holt die neueste Version und installiert sie. Deine Schlüssel und Einstellungen bleiben erhalten.
+Das holt **immer den Branch `main`** von GitHub (per Git oder per ZIP), räumt Python-Caches und installiert neu. Am Ende siehst du Version und Git-Stand.
 
-Falls Windows beim Doppelklick warnt (blauer Hinweis "Windows hat den PC geschützt): auf "Weitere Informationen" und dann "Trotzdem ausführen" klicken. Die Dateien sind Teil des Projekts.
+Danach QuantBot **komplett beenden** (schwarzes Fenster schliessen) und erneut mit `Start QuantBot.bat` starten. Links im Dashboard muss mindestens **v0.2.0** stehen und die Seite **Wettschein** sichtbar sein.
+
+Falls Windows warnt (blauer Hinweis): "Weitere Informationen" → "Trotzdem ausführen".
 
 Was du im Dashboard machst:
 1. Beim ersten Start die Willkommenskarte lesen und auf **Verstanden — starten** klicken.

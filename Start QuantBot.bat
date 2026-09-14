@@ -23,7 +23,9 @@ echo.
 echo Starte QuantBot. Der Browser oeffnet sich gleich von selbst.
 echo Zum Beenden dieses Fenster schliessen.
 echo.
-".venv\Scripts\python.exe" -m streamlit run "src\quantbot\dashboard\app.py"
+for /f "delims=" %%V in ('".venv\Scripts\python.exe" -c "import quantbot; print(quantbot.__version__)" 2^>nul') do echo Version: %%V
+echo.
+".venv\Scripts\python.exe" -m streamlit run "src\quantbot\dashboard\app.py" --server.headless true
 goto END
 
 :NOPY
