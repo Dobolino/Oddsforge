@@ -630,6 +630,14 @@ def _signals_page(
                 top = bets[0]
                 st.markdown(f"### {top['match']}")
                 st.html(top["tip_html"])
+                st.caption(
+                    t("sig.beginner_metrics", lang).format(
+                        model=top["model_p"],
+                        edge=top["edge_pp"],
+                        quality=top["quality"],
+                    )
+                )
+                st.caption(t("sig.model_estimate_caption", lang))
                 st.write(top["why"])
                 if len(bets) > 1:
                     st.caption(t("sig.other_matches", lang))
@@ -702,8 +710,11 @@ def _slip_page(
         "boosted": t("slip.style_boosted", lang),
     }
     pref = st.session_state.pop("slip_pref_style", None)
-    style_options = list(style_labels)
-    style_index = style_options.index(pref) if pref in style_options else 0
+    # Beginner: selection only — no “booster” / high-odds accumulator style.
+    style_options = ["safe"] if beginner else list(style_labels)
+    if pref not in style_options:
+        pref = "safe"
+    style_index = style_options.index(pref)
 
     def _controls() -> tuple[str, float, object]:
         style_local = st.radio(
@@ -926,7 +937,10 @@ def _card_page(lang, C, orchestrator, mode, league, season) -> None:  # type: ig
             "": out_lbl[o],
             t("card.fair", lang): c.fair_odds[o],
             t("card.market", lang): c.market_odds[o],
-            t("card.divergence", lang): f"{c.divergence[o]['edge'] * 100:+.1f}% ({t('div.' + c.divergence[o]['tier'], lang)})",
+            t("card.divergence", lang): (
+                f"{c.divergence[o]['edge_pp']:+.1f} pp "
+                f"({t('div.' + c.divergence[o]['tier'], lang)})"
+            ),
         } for o in outcomes]
         st.dataframe(pd.DataFrame(frows), width="stretch", hide_index=True)
         st.markdown(f"**{t('card.decision', lang)}**: {c.signal}  ·  {t('card.stake', lang)}: {c.stake_fraction:.2f}%")

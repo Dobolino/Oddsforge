@@ -184,17 +184,19 @@ def format_ticket(
     kind = (
         "Sicherer Kombi-Schein"
         if slip.style == "safe"
-        else "Kombi mit Quoten-Booster"
+        else "Kombi mit Zusatz-Tipps"
     ) if de else (
         "Safer accumulator"
         if slip.style == "safe"
-        else "Accumulator with odds boosters"
+        else "Accumulator with extra tips"
     )
     lines.append(f"║  {kind:<36}║")
     lines.append("╠══════════════════════════════════════╣")
     for i, leg in enumerate(slip.legs, start=1):
         tip_short = leg.tip.replace("Tipp: ", "").replace("Tip: ", "")
-        role = "  ★ Booster" if leg.role == "boost" else ""
+        role = "  ★ Zusatz" if leg.role == "boost" and de else (
+            "  ★ Extra" if leg.role == "boost" else ""
+        )
         meta = " · ".join(p for p in (leg.kickoff_date, leg.league) if p)
         lines.append(f"║  {i}. {leg.match[:34]:<34}║")
         if meta:
@@ -238,11 +240,11 @@ def ticket_html(
     kind = (
         "Sicherer Kombi"
         if slip.style == "safe"
-        else "Kombi + Quoten-Booster"
+        else "Kombi + Zusatz-Tipps"
     ) if de else (
         "Safer accumulator"
         if slip.style == "safe"
-        else "Accumulator + odds boost"
+        else "Accumulator + extra tips"
     )
     rows: list[str] = []
     for i, leg in enumerate(slip.legs, start=1):
@@ -250,7 +252,11 @@ def ticket_html(
         match_name = escape(leg.match)
         tip_badge = tip_badge_html(tip_kind_from_label(leg.tip), lang, text=tip_short)
         badge = (
-            '<span style="color:#c47a00;font-size:0.8rem;margin-left:0.35rem;">★ Booster</span>'
+            (
+                '<span style="color:#c47a00;font-size:0.8rem;margin-left:0.35rem;">★ Zusatz</span>'
+                if de
+                else '<span style="color:#c47a00;font-size:0.8rem;margin-left:0.35rem;">★ Extra</span>'
+            )
             if leg.role == "boost"
             else ""
         )

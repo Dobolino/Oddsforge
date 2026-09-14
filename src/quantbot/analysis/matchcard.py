@@ -150,7 +150,11 @@ def build_match_card(
     divergence: dict[str, dict[str, object]] = {}
     for o in _ORDER:
         edge = probs[o] - market_probs[o]
-        divergence[o.value] = {"edge": round(edge, 4), "tier": divergence_tier(edge)}
+        divergence[o.value] = {
+            "edge": round(edge, 4),
+            "edge_pp": round(edge * 100.0, 2),
+            "tier": divergence_tier(edge),
+        }
 
     dq = evaluator.data_quality(quality)
     reliability, rel_level = evaluator.reliability_score(

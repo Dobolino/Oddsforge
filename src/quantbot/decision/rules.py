@@ -4,6 +4,8 @@ Each candidate bet must clear every filter. ``evaluate`` collects all failing
 reasons (it does not short-circuit) so the decision output can report every
 reason a bet was rejected. Reasons are bilingual (de/en) plus a technical
 English string for logs and expert mode.
+
+Reason codes use a stable ``NO_BET_*`` / ``VALUE`` vocabulary for audit trails.
 """
 
 from __future__ import annotations
@@ -43,10 +45,11 @@ class NoBetRules:
 
     Args:
         min_ev: Minimum expected value per unit stake.
-        min_edge: Minimum raw edge (model prob minus fair market prob).
+        min_edge: Minimum absolute edge in probability points
+            (``p_model - p_market``). Default 0.03 = 3 percentage points.
         max_overround: Reject markets whose bookmaker margin exceeds this.
         min_data_quality: Minimum 0-100 data-quality score.
-        min_model_confidence: Minimum 0-100 model-confidence score.
+        min_model_confidence: Minimum 0-100 forecast-quality score.
         min_odds / max_odds: Extreme-odds filter (illiquid or unstable prices).
     """
 
@@ -75,9 +78,17 @@ class NoBetRules:
         if metric.expected_value < self.min_ev:
             reasons.append(
                 Reason(
-                    code="low_ev",
-                    de="Der erwartete Gewinn ist zu gering.",
-                    en="The expected value is too low.",
+                    code="NO_BET_LOW_EV",
+                    de=(
+                        "Die erwartete Rendite ist zu gering "
+                        f"(EV {metric.expected_value * 100:.1f}%, "
+                        f"Minimum {self.min_ev * 100:.1f}%)."
+                    ),
+                    en=(
+                        "Expected return is too low "
+                        f"(EV {metric.expected_value * 100:.1f}%, "
+                        f"minimum {self.min_ev * 100:.1f}%)."
+                    ),
                     technical=(
                         f"ev {metric.expected_value:.4f} below minimum {self.min_ev:.4f}"
                     ),
@@ -86,18 +97,27 @@ class NoBetRules:
         if metric.edge < self.min_edge:
             reasons.append(
                 Reason(
-                    code="low_edge",
-                    de="Der Vorteil gegenüber dem Markt ist zu gering.",
-                    en="The edge versus the market is too small.",
+                    code="NO_BET_LOW_EDGE",
+                    de=(
+                        "Der Vorteil gegenüber dem Markt ist zu gering "
+                        f"({metric.edge_pp:+.1f} pp, Minimum "
+                        f"{self.min_edge * 100:.1f} Prozentpunkte)."
+                    ),
+                    en=(
+                        "The edge versus the market is too small "
+                        f"({metric.edge_pp:+.1f} pp, minimum "
+                        f"{self.min_edge * 100:.1f} percentage points)."
+                    ),
                     technical=(
-                        f"edge {metric.edge:.4f} below minimum {self.min_edge:.4f}"
+                        f"edge {metric.edge:.4f} below minimum {self.min_edge:.4f} "
+                        f"({self.min_edge * 100:.1f} percentage points)"
                     ),
                 )
             )
         if overround > self.max_overround:
             reasons.append(
                 Reason(
-                    code="high_overround",
+                    code="NO_BET_HIGH_OVERROUND",
                     de="Die Buchmacher-Marge ist zu hoch.",
                     en="The bookmaker margin is too high.",
                     technical=(
@@ -108,7 +128,7 @@ class NoBetRules:
         if data_quality < self.min_data_quality:
             reasons.append(
                 Reason(
-                    code="low_data_quality",
+                    code="NO_BET_LOW_DATA_QUALITY",
                     de="Zu wenig verlässliche Daten für dieses Spiel.",
                     en="Not enough reliable data for this match.",
                     technical=(
@@ -120,11 +140,11 @@ class NoBetRules:
         if model_confidence < self.min_model_confidence:
             reasons.append(
                 Reason(
-                    code="low_model_confidence",
-                    de="Das Modell ist sich hier zu unsicher.",
-                    en="The model is too uncertain here.",
+                    code="NO_BET_LOW_FORECAST_QUALITY",
+                    de="Die Prognosequalität ist hier zu niedrig.",
+                    en="Forecast quality is too low here.",
                     technical=(
-                        f"model confidence {model_confidence:.1f} below minimum "
+                        f"forecast quality {model_confidence:.1f} below minimum "
                         f"{self.min_model_confidence:.1f}"
                     ),
                 )
@@ -132,7 +152,7 @@ class NoBetRules:
         if metric.decimal_odds < self.min_odds:
             reasons.append(
                 Reason(
-                    code="odds_too_low",
+                    code="NO_BET_ODDS_TOO_LOW",
                     de="Die Quote ist ungewöhnlich niedrig.",
                     en="The odds are unusually low.",
                     technical=(
@@ -143,7 +163,7 @@ class NoBetRules:
         if metric.decimal_odds > self.max_odds:
             reasons.append(
                 Reason(
-                    code="odds_too_high",
+                    code="NO_BET_ODDS_TOO_HIGH",
                     de="Die Quote ist ungewöhnlich hoch oder unsicher.",
                     en="The odds are unusually high or unstable.",
                     technical=(
@@ -156,9 +176,9 @@ class NoBetRules:
 
 
 KELLY_ZERO = Reason(
-    code="kelly_zero",
-    de="Der sinnvolle Einsatz wäre praktisch null.",
-    en="A sensible stake would be practically zero.",
+    code="NO_BET_KELLY_ZERO",
+    de="Der sinnvolle theoretische Einsatz wäre praktisch null.",
+    en="A sensible theoretical stake would be practically zero.",
     technical="kelly stake rounds to zero",
 )
 
@@ -167,11 +187,17 @@ def value_reason(outcome: str, edge: float, ev: float, stake: float) -> Reason:
     """Acceptance reason when a value tip is issued."""
 
     return Reason(
-        code="value",
-        de="Das Modell sieht hier einen Vorteil gegenüber dem Markt.",
-        en="The model sees an advantage versus the market here.",
+        code="VALUE",
+        de=(
+            "Das Modell sieht hier einen Vorteil gegenüber dem Markt "
+            f"({edge * 100:+.1f} pp, erwartete Rendite {ev * 100:+.1f}%)."
+        ),
+        en=(
+            "The model sees an advantage versus the market here "
+            f"({edge * 100:+.1f} pp, expected return {ev * 100:+.1f}%)."
+        ),
         technical=(
-            f"value on {outcome}: edge {edge:.4f}, ev {ev:.4f}, "
-            f"stake {stake:.4f} of bankroll"
+            f"value on {outcome}: edge {edge:.4f} ({edge * 100:.1f} pp), "
+            f"ev {ev:.4f} ({ev * 100:.1f}%), stake {stake:.4f} of bankroll"
         ),
     )

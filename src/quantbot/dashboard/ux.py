@@ -43,10 +43,11 @@ PAGES_BY_MODE: dict[UXMode, tuple[str, ...]] = {
 # Internal keys stay English; display labels are localized in the table builder.
 SIGNAL_COLUMNS_BY_MODE: dict[UXMode, tuple[str, ...]] = {
     UXMode.BEGINNER: ("Match", "Tipp", "Begründung"),
-    UXMode.ADVANCED: ("Match", "Signal", "Odds", "Edge", "EV", "Stake %", "Reason"),
+    UXMode.ADVANCED: ("Match", "Signal", "Model P", "Odds", "Edge", "EV", "Stake %", "Reason"),
     UXMode.EXPERT: (
         "Match",
         "Signal",
+        "Model P",
         "Odds",
         "Edge",
         "EV",
@@ -62,11 +63,12 @@ _COLUMN_LABELS: dict[str, dict[str, str]] = {
     "Tipp": {"de": "Tipp", "en": "Tip"},
     "Begründung": {"de": "Begründung", "en": "Reason"},
     "Signal": {"de": "Tipp", "en": "Signal"},
+    "Model P": {"de": "Modell-P", "en": "Model P"},
     "Odds": {"de": "Quote", "en": "Odds"},
-    "Edge": {"de": "Vorsprung", "en": "Edge"},
-    "EV": {"de": "Erwartungswert", "en": "EV"},
+    "Edge": {"de": "Edge (pp)", "en": "Edge (pp)"},
+    "EV": {"de": "Erwartete Rendite", "en": "Expected return"},
     "Stake %": {"de": "Einsatz %", "en": "Stake %"},
-    "Confidence": {"de": "Modellvertrauen", "en": "Confidence"},
+    "Confidence": {"de": "Prognosequalität", "en": "Forecast quality"},
     "Data quality": {"de": "Datenqualität", "en": "Data quality"},
     "Reason": {"de": "Begründung", "en": "Reason"},
 }

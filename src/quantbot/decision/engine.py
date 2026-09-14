@@ -62,6 +62,7 @@ def _signal_from_reasons(
         rationale="; ".join(r.technical for r in reasons),
         rationale_de="; ".join(r.de for r in reasons),
         rationale_en="; ".join(r.en for r in reasons),
+        reason_codes=tuple(r.code for r in reasons),
         metrics=metrics,
         totals_line=totals_line,
     )

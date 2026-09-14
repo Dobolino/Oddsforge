@@ -25,15 +25,76 @@ _TOTALS: tuple[TotalsSide, ...] = (TotalsSide.OVER, TotalsSide.UNDER)
 
 
 def edge(model_prob: float, fair_market_prob: float) -> float:
-    """Raw edge: model probability minus fair market probability."""
+    """Absolute edge in probability points: ``p_model - p_market``."""
 
     return model_prob - fair_market_prob
+
+
+def relative_edge(model_prob: float, fair_market_prob: float) -> float:
+    """Relative edge: ``(p_model - p_market) / p_market``.
+
+    Distinct from absolute edge (percentage points). A 3 pp gap is not the
+    same as a 3% relative edge.
+    """
+
+    if fair_market_prob <= 0.0:
+        raise ValueError("fair_market_prob must be positive for relative edge")
+    return (model_prob - fair_market_prob) / fair_market_prob
 
 
 def expected_value(model_prob: float, decimal_odds: float) -> float:
     """EV per unit stake: ``(model_prob * decimal_odds) - 1``."""
 
     return (model_prob * decimal_odds) - 1.0
+
+
+def edge_pp(edge_value: float) -> float:
+    """Convert absolute edge to percentage points (0.063 → 6.3)."""
+
+    return edge_value * 100.0
+
+
+def format_edge_pp(edge_value: float | None, *, digits: int = 1) -> str:
+    """Human label for absolute edge, e.g. ``+6.3 pp``."""
+
+    if edge_value is None:
+        return "—"
+    return f"{edge_pp(edge_value):+.{digits}f} pp"
+
+
+def format_ev_pct(ev: float | None, *, digits: int = 1) -> str:
+    """Human label for expected return, e.g. ``+21.0%`` (not raw +0.21)."""
+
+    if ev is None:
+        return "—"
+    return f"{ev * 100.0:+.{digits}f}%"
+
+
+def format_model_prob(prob: float | None, *, digits: int = 1) -> str:
+    """Model probability as a percent, e.g. ``56.3%``."""
+
+    if prob is None:
+        return "—"
+    return f"{prob * 100.0:.{digits}f}%"
+
+
+def assert_metrics_consistent(metrics: ValueMetrics, *, tol: float = 1e-9) -> None:
+    """Raise AssertionError if stored edge/EV disagree with the formulas."""
+
+    expected_edge = edge(metrics.model_prob, metrics.fair_market_prob)
+    expected_ev = expected_value(metrics.model_prob, metrics.decimal_odds)
+    if abs(metrics.edge - expected_edge) > tol:
+        raise AssertionError(
+            f"edge inconsistent: stored={metrics.edge}, "
+            f"expected={expected_edge} from p={metrics.model_prob}, "
+            f"market={metrics.fair_market_prob}"
+        )
+    if abs(metrics.expected_value - expected_ev) > tol:
+        raise AssertionError(
+            f"EV inconsistent: stored={metrics.expected_value}, "
+            f"expected={expected_ev} from p={metrics.model_prob}, "
+            f"odds={metrics.decimal_odds}"
+        )
 
 
 def odds_to_dict(odds: Odds) -> dict[MatchOutcome, float]:

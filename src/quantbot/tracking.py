@@ -65,7 +65,11 @@ class TrackerView:
 
 @dataclass(frozen=True)
 class TipRecord:
-    """One tip locked at prediction time (before kickoff)."""
+    """One tip locked at prediction time (before kickoff).
+
+    Optional audit fields form a lightweight prediction snapshot so later
+    reviews can reconstruct probabilities, market view, and reason codes.
+    """
 
     tip_id: str
     match_id: str
@@ -81,6 +85,16 @@ class TipRecord:
     settled: bool = False
     actual: str | None = None
     correct: bool | None = None
+    # Snapshot / audit trail (optional for backward-compatible JSON loads)
+    fair_market_prob: float | None = None
+    edge: float | None = None
+    expected_value: float | None = None
+    model_confidence: float | None = None
+    data_quality: float | None = None
+    reason_codes: tuple[str, ...] = ()
+    model_name: str | None = None
+    odds_timestamp: str | None = None
+    decision: str | None = None
 
     @property
     def match_label(self) -> str:
@@ -108,12 +122,23 @@ def _model_prob_for_signal(signal) -> float | None:  # type: ignore[no-untyped-d
     return None
 
 
+def _fair_prob_for_signal(signal) -> float | None:  # type: ignore[no-untyped-def]
+    if signal.chosen_outcome is None:
+        return None
+    for metric in signal.metrics:
+        if metric.outcome is signal.chosen_outcome:
+            return float(metric.fair_market_prob)
+    return None
+
+
 def tip_record_from_match_signal(
     match: Match,
     signal,
     *,
     mode: str,
     as_of: datetime,
+    model_name: str | None = None,
+    odds_timestamp: datetime | None = None,
 ) -> TipRecord | None:
     """Build a TipRecord from a leak-free prediction; None if NO_BET."""
 
@@ -121,6 +146,7 @@ def tip_record_from_match_signal(
         return None
     tip_id = f"{match.match_id}::{as_of.isoformat()}"
     tip_value = getattr(signal, "tip_label", None) or signal.chosen_outcome.value
+    codes = tuple(getattr(signal, "reason_codes", ()) or ())
     return TipRecord(
         tip_id=tip_id,
         match_id=match.match_id,
@@ -140,6 +166,21 @@ def tip_record_from_match_signal(
         settled=False,
         actual=None,
         correct=None,
+        fair_market_prob=(
+            None
+            if _fair_prob_for_signal(signal) is None
+            else round(float(_fair_prob_for_signal(signal)), 4)
+        ),
+        edge=None if signal.edge is None else round(float(signal.edge), 6),
+        expected_value=(
+            None if signal.expected_value is None else round(float(signal.expected_value), 6)
+        ),
+        model_confidence=round(float(signal.model_confidence), 1),
+        data_quality=round(float(signal.data_quality), 1),
+        reason_codes=codes,
+        model_name=model_name,
+        odds_timestamp=odds_timestamp.isoformat() if odds_timestamp is not None else None,
+        decision=signal.signal.value,
     )
 
 
@@ -315,7 +356,14 @@ def collect_tip_records(
         )
         analysis = analysis_engine.analyze(prediction, market, entry.decimal_odds(), quality)
         signal = decision.decide(analysis, market)
-        record = tip_record_from_match_signal(match, signal, mode=mode, as_of=as_of)
+        record = tip_record_from_match_signal(
+            match,
+            signal,
+            mode=mode,
+            as_of=as_of,
+            model_name=getattr(model, "name", None) or prediction.model_name,
+            odds_timestamp=entry.timestamp,
+        )
         if record is not None:
             upcoming = week_of[match.match_id] in upcoming_weeks
             if not upcoming and match.result is not None:
@@ -395,8 +443,12 @@ class TipHistoryStore:
         if not self.path.exists():
             return
         data = json.loads(self.path.read_text(encoding="utf-8"))
+        fields = set(TipRecord.__dataclass_fields__)
         for raw in data.get("tips", []):
-            tip = TipRecord(**raw)
+            payload = {k: v for k, v in raw.items() if k in fields}
+            if "reason_codes" in payload and isinstance(payload["reason_codes"], list):
+                payload["reason_codes"] = tuple(payload["reason_codes"])
+            tip = TipRecord(**payload)
             self._by_id[tip.tip_id] = len(self._tips)
             self._tips.append(tip)
 

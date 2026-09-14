@@ -51,6 +51,24 @@ class ValueMetrics(QuantBotModel):
             )
         return self
 
+    @property
+    def edge_pp(self) -> float:
+        """Absolute edge in percentage points (e.g. 6.3 for +6.3 pp)."""
+
+        return self.edge * 100.0
+
+    @property
+    def relative_edge(self) -> float:
+        """Relative edge ``(model - market) / market`` (not percentage points)."""
+
+        return (self.model_prob - self.fair_market_prob) / self.fair_market_prob
+
+    @property
+    def expected_return_pct(self) -> float:
+        """Expected return as percent (EV * 100), e.g. 21.0 for +21%."""
+
+        return self.expected_value * 100.0
+
 
 class ValueSignal(QuantBotModel):
     """Final decision-engine output for one match.
@@ -61,9 +79,10 @@ class ValueSignal(QuantBotModel):
 
     Attributes:
         data_quality: 0-100 completeness/reliability score of the inputs.
-        model_confidence: 0-100 model self-assessed confidence.
+        model_confidence: 0-100 forecast-quality score (not a win probability).
         stake_fraction: Fraction of bankroll (theoretical), 0.0 for NO_BET.
         totals_line: Set when the tip is an Over/Under selection.
+        reason_codes: Stable audit codes (e.g. NO_BET_LOW_EDGE, VALUE).
     """
 
     match_id: str = Field(min_length=1)
@@ -82,6 +101,7 @@ class ValueSignal(QuantBotModel):
     )
     rationale_de: str = Field(default="", description="Plain-language German reason.")
     rationale_en: str = Field(default="", description="Plain-language English reason.")
+    reason_codes: tuple[str, ...] = Field(default_factory=tuple)
     metrics: tuple[ValueMetrics, ...] = Field(default_factory=tuple)
     totals_line: float | None = Field(default=None, gt=0.0)
 
