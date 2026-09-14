@@ -10,6 +10,7 @@ from quantbot.backtest.metrics import BacktestMetrics
 from quantbot.dashboard.ux import (
     SIGNAL_COLUMNS_BY_MODE,
     UXMode,
+    column_label,
     plain_signal_label,
     reason_for_mode,
     tip_badge_html,
@@ -70,7 +71,8 @@ def signals_dataframe(
             }
         )
     columns = list(SIGNAL_COLUMNS_BY_MODE[mode])
-    return pd.DataFrame(rows, columns=columns)
+    df = pd.DataFrame(rows, columns=columns)
+    return df.rename(columns={c: column_label(c, lang) for c in df.columns})
 
 
 def render_signals_table(df: pd.DataFrame) -> None:  # pragma: no cover - Streamlit UI
@@ -80,9 +82,17 @@ def render_signals_table(df: pd.DataFrame) -> None:  # pragma: no cover - Stream
 
     config: dict[str, object] = {}
     for col in df.columns:
-        if col in {"Match", "Tipp", "Signal", "Begründung", "Reason"}:
+        if col in {
+            "Match",
+            "Spiel",
+            "Tipp",
+            "Tip",
+            "Signal",
+            "Begründung",
+            "Reason",
+        }:
             config[col] = st.column_config.TextColumn(col, width="medium")
-        elif col == "Odds":
+        elif col in {"Odds", "Quote"}:
             config[col] = st.column_config.TextColumn(col, width="small", help="Dezimalquote")
         else:
             config[col] = st.column_config.TextColumn(col, width="small")

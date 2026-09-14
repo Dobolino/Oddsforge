@@ -23,15 +23,15 @@ _STRINGS: dict[str, dict[str, str]] = {
     },
     # UX depth modes
     "ux.title": {"de": "Ansicht", "en": "View"},
-    "ux.beginner": {"de": "Anfänger", "en": "Beginner"},
-    "ux.advanced": {"de": "Fortgeschritten", "en": "Advanced"},
-    "ux.expert": {"de": "Experte", "en": "Expert"},
+    "ux.beginner": {"de": "Einfach", "en": "Simple"},
+    "ux.advanced": {"de": "Mehr Details", "en": "More detail"},
+    "ux.expert": {"de": "Pro", "en": "Pro"},
     "ux.beginner_hint": {
         "de": "Nur das Nötigste: ein Tipp, eine Begründung.",
         "en": "Only the essentials: one tip, one reason.",
     },
     "ux.advanced_hint": {
-        "de": "Tipp plus Wahrscheinlichkeiten, Edge und Einsatz.",
+        "de": "Tipp plus Wahrscheinlichkeiten, Vorsprung und Einsatz.",
         "en": "Tip plus probabilities, edge and stake.",
     },
     "ux.expert_hint": {
@@ -54,6 +54,9 @@ _STRINGS: dict[str, dict[str, str]] = {
               "3. Read Tips, then open the tip slip.",
     },
     "welcome.dismiss": {"de": "Verstanden — starten", "en": "Got it — start"},
+    "welcome.go_tips": {"de": "Zu den Tipps", "en": "Go to tips"},
+    "welcome.go_slip": {"de": "Tippschein öffnen", "en": "Open tip slip"},
+    "welcome.later": {"de": "Später", "en": "Later"},
     "matchwarn.title": {
         "de": "Achtung: Teamnamen-Zuordnung unsicher",
         "en": "Warning: uncertain team-name matching",
@@ -332,9 +335,17 @@ _STRINGS: dict[str, dict[str, str]] = {
         "de": "Sichere Kern-Tipps plus zusätzliche Tipps mit höherer Quote, um die Kombi-Quote zu heben.",
         "en": "Safer core tips plus extra higher-odds tips to lift the combined price.",
     },
-    "slip.max_legs": {"de": "Max. Tipps im Schein", "en": "Max tips on the slip"},
+    "slip.max_legs": {"de": "Anzahl Tipps im Schein", "en": "Number of tips on the slip"},
     "slip.core_legs": {"de": "Kern-Tipps", "en": "Core tips"},
     "slip.boost_legs": {"de": "Booster-Tipps", "en": "Booster tips"},
+    "slip.edit_legs": {
+        "de": "Tipps auswählen (Haken weg = raus aus dem Schein)",
+        "en": "Select tips (uncheck = remove from the slip)",
+    },
+    "slip.legs_risk": {
+        "de": "Mehr Tipps = höhere Quote, aber kleinere Chance, dass alles trifft.",
+        "en": "More tips = higher odds, but a lower chance that all hit.",
+    },
     "slip.empty": {
         "de": "Keine Value-Tipps für einen Schein. Oft ist kein Schein die beste Entscheidung.",
         "en": "No value tips for a slip. Often no slip is the best decision.",
@@ -353,6 +364,18 @@ _STRINGS: dict[str, dict[str, str]] = {
               "In practice matches are correlated. Not a call to bet.",
     },
     "slip.col_prob": {"de": "Chance", "en": "Chance"},
+    "track.week_summary": {
+        "de": "Zuletzt abgerechnet: {correct} von {bets} Tipps richtig ({rate}).",
+        "en": "Latest settled: {correct} of {bets} tips correct ({rate}).",
+    },
+    "track.week_summary_none": {
+        "de": "Noch keine abgerechneten Tipps in der Historie.",
+        "en": "No settled tips in the history yet.",
+    },
+    "track.path_expander": {
+        "de": "Technische Speicherung",
+        "en": "Technical storage",
+    },
     # Signals page
     "sig.intro": {
         "de": "Signale vergleichen Modellwahrscheinlichkeiten mit margenfreien Marktpreisen. Edge, Erwartungswert und ein Fractional-Kelly-Einsatz je Spiel.",

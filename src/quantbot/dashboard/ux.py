@@ -40,6 +40,7 @@ PAGES_BY_MODE: dict[UXMode, tuple[str, ...]] = {
 }
 
 # Signal table columns by depth (keys match tables.signals_dataframe output).
+# Internal keys stay English; display labels are localized in the table builder.
 SIGNAL_COLUMNS_BY_MODE: dict[UXMode, tuple[str, ...]] = {
     UXMode.BEGINNER: ("Match", "Tipp", "Begründung"),
     UXMode.ADVANCED: ("Match", "Signal", "Odds", "Edge", "EV", "Stake %", "Reason"),
@@ -55,6 +56,27 @@ SIGNAL_COLUMNS_BY_MODE: dict[UXMode, tuple[str, ...]] = {
         "Reason",
     ),
 }
+
+_COLUMN_LABELS: dict[str, dict[str, str]] = {
+    "Match": {"de": "Spiel", "en": "Match"},
+    "Tipp": {"de": "Tipp", "en": "Tip"},
+    "Begründung": {"de": "Begründung", "en": "Reason"},
+    "Signal": {"de": "Tipp", "en": "Signal"},
+    "Odds": {"de": "Quote", "en": "Odds"},
+    "Edge": {"de": "Vorsprung", "en": "Edge"},
+    "EV": {"de": "Erwartungswert", "en": "EV"},
+    "Stake %": {"de": "Einsatz %", "en": "Stake %"},
+    "Confidence": {"de": "Modellvertrauen", "en": "Confidence"},
+    "Data quality": {"de": "Datenqualität", "en": "Data quality"},
+    "Reason": {"de": "Begründung", "en": "Reason"},
+}
+
+
+def column_label(key: str, lang: str = "de") -> str:
+    entry = _COLUMN_LABELS.get(key, {})
+    if lang.startswith("de"):
+        return entry.get("de", key)
+    return entry.get("en", key)
 
 _SIGNAL_PLAIN: dict[SignalType, dict[str, str]] = {
     SignalType.VALUE_HOME: {"de": "Tipp: Heimsieg", "en": "Tip: home win"},

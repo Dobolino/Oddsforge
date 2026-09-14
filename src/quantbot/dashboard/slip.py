@@ -6,6 +6,7 @@ ranked for win chance or optionally boosted with higher-odds legs.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from html import escape
 from math import prod
@@ -145,6 +146,26 @@ def build_boosted_slip(
 
     chosen = tuple(core + boosters)
     return BettingSlip(legs=chosen, style="boosted")
+
+
+def slip_with_legs(slip: BettingSlip, match_ids: Sequence[str]) -> BettingSlip:
+    """Keep only selected legs (order preserved); empty selection → empty slip."""
+
+    wanted = set(match_ids)
+    kept = tuple(leg for leg in slip.legs if leg.match_id in wanted)
+    return BettingSlip(legs=kept, style=slip.style)
+
+
+def default_leg_count(*, beginner: bool, span_days: int, available: int) -> int:
+    """Sensible default tip count for a date window."""
+
+    if available <= 0:
+        return 1
+    if beginner:
+        # Short kombis: 2–3 tips, never more than available.
+        return min(available, 3)
+    suggested = min(8, max(3, span_days + 1))
+    return min(available, suggested)
 
 
 def format_ticket(

@@ -99,18 +99,21 @@ def test_model_comparison_figure() -> None:
 
 
 def test_signals_dataframe_columns() -> None:
-    from quantbot.dashboard.ux import UXMode
+    from quantbot.dashboard.ux import UXMode, column_label
 
     orchestrator = QuantBotOrchestrator()
     reports = orchestrator.predict(League.PREMIER_LEAGUE, SEASON)
-    df = tables.signals_dataframe(reports)
+    df = tables.signals_dataframe(reports, lang="de")
     assert isinstance(df, pd.DataFrame)
-    assert list(df.columns) == tables.SIGNAL_COLUMNS
+    assert list(df.columns) == [column_label(c, "de") for c in tables.SIGNAL_COLUMNS]
     assert len(df) == len(reports)
 
     beginner = tables.signals_dataframe(reports, mode=UXMode.BEGINNER, lang="de")
-    assert list(beginner.columns) == ["Match", "Tipp", "Begründung"]
+    assert list(beginner.columns) == ["Spiel", "Tipp", "Begründung"]
     assert len(beginner) == len(reports)
+
+    en = tables.signals_dataframe(reports, mode=UXMode.ADVANCED, lang="en")
+    assert "Odds" in list(en.columns)
 
     cards = tables.beginner_tip_cards(reports, lang="de", limit=3)
     assert len(cards) <= 3

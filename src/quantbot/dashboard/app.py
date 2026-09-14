@@ -32,7 +32,9 @@ from quantbot.dashboard.leagues import (
 from quantbot.dashboard.slip import (
     build_boosted_slip,
     build_safe_slip,
+    default_leg_count,
     format_ticket,
+    slip_with_legs,
     ticket_html,
 )
 from quantbot.dashboard.ux import UXMode, pages_for
@@ -136,7 +138,7 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
 
     st.set_page_config(page_title="QuantBot", page_icon="⚽", layout="wide")
     st.sidebar.title(f"QuantBot v{__version__}")
-    st.sidebar.caption(f"Stand: v{__version__} · Verlauf · Cache · Schlüssel · Über/Unter")
+    st.sidebar.caption(f"Stand: v{__version__} · Tippschein-Anzahl · Einfach-Ansicht")
 
     default_lang = get_settings().language if get_settings().language in LANGUAGES else DEFAULT_LANGUAGE
     lang = st.sidebar.radio(
@@ -159,7 +161,8 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
         list(UXMode),
         index=0,
         format_func=lambda m: ux_labels[m],
-        help=t(f"ux.{UXMode.BEGINNER.value}_hint", lang),
+        key="ux_mode",
+        help=t(f"ux.{list(UXMode)[0].value}_hint", lang),
     )
     st.sidebar.caption(t(f"ux.{ux_mode.value}_hint", lang))
 
@@ -413,15 +416,30 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
 
 
 def _welcome_card(lang: str) -> None:  # pragma: no cover - requires Streamlit runtime
-    """First-run onboarding: demo mode, pick a league, stay on Beginner."""
+    """First-run onboarding: demo mode, pick a league, stay on Simple view."""
 
-    if st.session_state.get("welcome_dismissed"):
+    from quantbot.preferences import is_welcome_dismissed, set_welcome_dismissed
+
+    if st.session_state.get("welcome_dismissed") or is_welcome_dismissed():
+        st.session_state["welcome_dismissed"] = True
         return
     with st.container(border=True):
         st.subheader(t("welcome.title", lang))
         st.write(t("welcome.body", lang))
         st.markdown(t("welcome.steps", lang))
-        if st.button(t("welcome.dismiss", lang), type="primary", key="welcome_dismiss"):
+        c1, c2, c3 = st.columns(3)
+        if c1.button(t("welcome.go_tips", lang), type="primary", key="welcome_go_tips"):
+            set_welcome_dismissed()
+            st.session_state["welcome_dismissed"] = True
+            st.session_state["pending_nav_page"] = "signals"
+            st.rerun()
+        if c2.button(t("welcome.go_slip", lang), key="welcome_go_slip"):
+            set_welcome_dismissed()
+            st.session_state["welcome_dismissed"] = True
+            st.session_state["pending_nav_page"] = "slip"
+            st.rerun()
+        if c3.button(t("welcome.later", lang), key="welcome_later"):
+            set_welcome_dismissed()
             st.session_state["welcome_dismissed"] = True
             st.rerun()
 
@@ -610,65 +628,70 @@ def _slip_page(lang, ux_mode, C, orchestrator, mode, leagues, season, live) -> N
         start_d,
         end_d,
     )
+    available = sum(1 for r in reports if r.signal.is_bet)
     span_days = (end_d - start_d).days + 1
-    default_legs = min(8, max(3, span_days + 1))
+    beginner = ux_mode is UXMode.BEGINNER
+    default_legs = default_leg_count(
+        beginner=beginner, span_days=span_days, available=max(available, 1)
+    )
 
-    if ux_mode is UXMode.BEGINNER:
-        style = st.radio(
-            t("slip.style", lang),
-            ["safe", "boosted"],
-            format_func=lambda k: t(f"slip.style_{k}", lang),
-            horizontal=True,
-            help=t("slip.style_safe_hint", lang),
-        )
-        st.caption(t(f"slip.style_{style}_hint", lang))
-        stake = st.number_input(
-            t("slip.stake", lang),
-            min_value=1.0,
-            max_value=1000.0,
-            value=10.0,
-            step=1.0,
-        )
-        if style == "safe":
-            slip = build_safe_slip(reports, lang=lang, max_legs=default_legs)
-        else:
-            slip = build_boosted_slip(reports, lang=lang, core_legs=2, boost_legs=min(3, default_legs - 1))
+    style_labels = {
+        "safe": t("slip.style_safe", lang),
+        "boosted": t("slip.style_boosted", lang),
+    }
+    style = st.radio(
+        t("slip.style", lang),
+        list(style_labels),
+        format_func=lambda k: style_labels[k],
+        horizontal=True,
+        help=t("slip.style_safe_hint", lang),
+    )
+    st.caption(t(f"slip.style_{style}_hint", lang))
+    stake = st.number_input(
+        t("slip.stake", lang),
+        min_value=1.0,
+        max_value=1000.0 if beginner else 10000.0,
+        value=10.0,
+        step=1.0,
+    )
+
+    max_available = max(1, min(8, available or 1))
+    max_legs = st.slider(
+        t("slip.max_legs", lang),
+        min_value=1,
+        max_value=max_available,
+        value=min(default_legs, max_available),
+        help=t("slip.legs_risk", lang),
+    )
+    st.caption(t("slip.legs_risk", lang))
+
+    if style == "safe":
+        slip = build_safe_slip(reports, lang=lang, max_legs=max_legs)
     else:
-        style_labels = {
-            "safe": t("slip.style_safe", lang),
-            "boosted": t("slip.style_boosted", lang),
-        }
-        style = st.radio(
-            t("slip.style", lang),
-            list(style_labels),
-            format_func=lambda k: style_labels[k],
-            horizontal=True,
-        )
-        st.caption(t(f"slip.style_{style}_hint", lang))
-        stake = st.number_input(
-            t("slip.stake", lang),
-            min_value=1.0,
-            max_value=10000.0,
-            value=10.0,
-            step=1.0,
-        )
-        if style == "safe":
-            max_legs = st.slider(
-                t("slip.max_legs", lang),
-                min_value=1,
-                max_value=8,
-                value=default_legs,
-            )
-            slip = build_safe_slip(reports, lang=lang, max_legs=max_legs)
-        else:
+        # Split selected count into core + boosters.
+        core_legs = max(1, (max_legs + 1) // 2) if beginner else max(1, min(2, max_legs))
+        boost_legs = max(0, max_legs - core_legs)
+        if not beginner:
             c1, c2 = st.columns(2)
-            core_legs = c1.slider(t("slip.core_legs", lang), min_value=1, max_value=5, value=2)
-            boost_legs = c2.slider(t("slip.boost_legs", lang), min_value=0, max_value=4, value=2)
-            slip = build_boosted_slip(
-                reports, lang=lang, core_legs=core_legs, boost_legs=boost_legs
-            )
+            core_legs = c1.slider(t("slip.core_legs", lang), min_value=1, max_value=5, value=core_legs)
+            boost_legs = c2.slider(t("slip.boost_legs", lang), min_value=0, max_value=4, value=boost_legs)
+        slip = build_boosted_slip(
+            reports, lang=lang, core_legs=core_legs, boost_legs=boost_legs
+        )
 
     if slip is None or not slip.legs:
+        st.info(t("slip.empty", lang))
+        return
+
+    st.subheader(t("slip.edit_legs", lang))
+    selected_ids: list[str] = []
+    for leg in slip.legs:
+        tip_short = leg.tip.replace("Tipp: ", "").replace("Tip: ", "")
+        label = f"{leg.match} — {tip_short} ({leg.odds:.2f})"
+        if st.checkbox(label, value=True, key=f"slip_leg::{leg.match_id}"):
+            selected_ids.append(leg.match_id)
+    slip = slip_with_legs(slip, selected_ids)
+    if not slip.legs:
         st.info(t("slip.empty", lang))
         return
 
@@ -849,7 +872,19 @@ def _tracker_page(lang, C, provider, mode, leagues, season) -> None:  # type: ig
         st.warning(str(exc))
         return
 
-    st.caption(t("track.persisted", lang).format(path=str(store.path), n=len(store.all_tips())))
+    if view.total_bets > 0 and view.hit_rate is not None:
+        st.success(
+            t("track.week_summary", lang).format(
+                correct=view.total_correct,
+                bets=view.total_bets,
+                rate=f"{view.hit_rate:.0f}%",
+            )
+        )
+    else:
+        st.info(t("track.week_summary_none", lang))
+
+    with st.expander(t("track.path_expander", lang), expanded=False):
+        st.caption(t("track.persisted", lang).format(path=str(store.path), n=len(store.all_tips())))
 
     c1, c2, c3 = st.columns(3)
     c1.metric(t("track.hit_rate", lang), "-" if view.hit_rate is None else f"{view.hit_rate:.1f}%")
