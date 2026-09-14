@@ -248,9 +248,20 @@ _STRINGS: dict[str, dict[str, str]] = {
     "keys.football": {"de": "Football-Data.org Schlüssel", "en": "Football-Data.org key"},
     "keys.odds": {"de": "The Odds API Schlüssel", "en": "The Odds API key"},
     "keys.hint": {
-        "de": "Leer lassen für Demodaten. Mit beiden Schlüsseln laufen echte Spiele.",
-        "en": "Leave empty for demo data. With both keys real matches are used.",
+        "de": "Leer lassen für Demodaten. Mit beiden Schlüsseln laufen echte Spiele. Schlüssel werden nur lokal auf diesem PC gespeichert.",
+        "en": "Leave empty for demo data. With both keys real matches are used. Keys are stored only on this PC.",
     },
+    "keys.loaded": {
+        "de": "Gespeicherte Schlüssel geladen (nicht im Klartext angezeigt).",
+        "en": "Saved keys loaded (not shown in plain text).",
+    },
+    "keys.saved": {
+        "de": "Schlüssel lokal gespeichert. Beim nächsten Start automatisch geladen.",
+        "en": "Keys saved locally. They will load automatically next time.",
+    },
+    "keys.clear": {"de": "Gespeicherte Schlüssel löschen", "en": "Delete saved keys"},
+    "keys.change": {"de": "Schlüssel neu eingeben", "en": "Enter keys again"},
+    "keys.use_saved": {"de": "Gespeicherte Schlüssel verwenden", "en": "Use saved keys"},
     "mode.demo": {"de": "Modus: Demodaten", "en": "Mode: demo data"},
     "mode.live": {"de": "Modus: echte Daten", "en": "Mode: real data"},
     "mode.live_failed": {"de": "Echte Daten nicht erreichbar, nutze Demodaten.", "en": "Real data unavailable, using demo data."},

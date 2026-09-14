@@ -32,6 +32,8 @@ htmlcov/
 .env
 .env.*
 !.env.example
+**/credentials.env
+.quantbot/
 
 # Editor / OS
 .idea/
