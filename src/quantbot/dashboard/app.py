@@ -155,6 +155,27 @@ def _mask_key(key: str) -> str:
     return "••••" + key[-4:]
 
 
+def _clear_local_cache() -> list[str]:
+    """Delete local API caches and the finished-match archive.
+
+    Next load fetches fresh from the APIs (uses some free quota). Stored API
+    keys are NOT touched — only cached data.
+    """
+
+    import shutil
+    from pathlib import Path
+
+    from quantbot.config import DATA_DIR
+
+    removed: list[str] = []
+    targets = [Path.home() / ".quantbot" / "cache", DATA_DIR / "finished"]
+    for target in targets:
+        if target.exists():
+            shutil.rmtree(target, ignore_errors=True)
+            removed.append(str(target))
+    return removed
+
+
 def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     from pathlib import Path
 
@@ -281,6 +302,19 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
             elif stored is not None and st.button(t("keys.use_saved", lang), key="keys_use_saved"):
                 st.session_state["keys_edit_mode"] = False
                 st.rerun()
+
+    with st.sidebar.expander(t("cache.title", lang), expanded=False):
+        if st.session_state.pop("cache_cleared", False):
+            st.success(t("cache.cleared", lang))
+        st.caption(t("cache.hint", lang))
+        if st.button(t("cache.clear", lang), key="cache_clear_btn"):
+            _clear_local_cache()
+            try:
+                st.cache_data.clear()
+            except Exception:  # noqa: BLE001
+                pass
+            st.session_state["cache_cleared"] = True
+            st.rerun()
 
     provider = None
     live = False

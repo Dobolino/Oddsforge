@@ -351,6 +351,16 @@ _STRINGS: dict[str, dict[str, str]] = {
         "de": "Schlüssel lokal gespeichert. Beim nächsten Start automatisch geladen.",
         "en": "Keys saved locally. They will load automatically next time.",
     },
+    "cache.title": {"de": "Zwischenspeicher / Wartung", "en": "Cache / maintenance"},
+    "cache.hint": {
+        "de": "Leert die lokal gespeicherten Spiele und Quoten. Beim nächsten Laden holt die App alles frisch von den APIs. Deine Schlüssel bleiben erhalten.",
+        "en": "Clears locally stored matches and odds. The next load fetches everything fresh from the APIs. Your keys stay saved.",
+    },
+    "cache.clear": {"de": "Zwischenspeicher leeren", "en": "Clear cache"},
+    "cache.cleared": {
+        "de": "Zwischenspeicher geleert. Wähle eine Liga und lade neu.",
+        "en": "Cache cleared. Pick a league and reload.",
+    },
     "keys.clear": {"de": "Gespeicherte Schlüssel löschen", "en": "Delete saved keys"},
     "keys.change": {"de": "Schlüssel neu eingeben", "en": "Enter keys again"},
     "keys.use_saved": {"de": "Gespeicherte Schlüssel verwenden", "en": "Use saved keys"},
