@@ -1,0 +1,14 @@
+[client]
+# Hide the developer toolbar (Deploy button, dev menu) for a clean UI.
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false
+
+[runner]
+# Do not re-run automatically while a file is being saved.
+fastReruns = true
+
+[theme]
+base = "light"
+primaryColor = "#1f6feb"

@@ -31,6 +31,85 @@ def _current_season() -> str:
     return f"{start}-{start + 1}"
 
 
+# --- Cached heavy computations ---
+# Streamlit does not hash arguments whose names start with "_", so the live
+# provider / orchestrator can be passed without being hashed; ``mode`` (demo or
+# live), league and season form the cache key. This stops every page from
+# recomputing models on each click.
+
+def _finished(_provider, mode, league_value, season):  # type: ignore[no-untyped-def]  # pragma: no cover
+    from quantbot.schemas import League
+
+    far = datetime(2100, 1, 1, tzinfo=timezone.utc)
+    return [m for m in _provider.get_matches(League(league_value), season, far) if m.is_finished]
+
+
+def _install_cache():  # pragma: no cover - requires Streamlit runtime
+    """Wrap the expensive calls in st.cache_data (30 min TTL)."""
+
+    cache = st.cache_data(ttl=1800, show_spinner="Berechne …")
+
+    @cache
+    def universe(_orch, mode, league_value, season):
+        from quantbot.schemas import League
+        return _orch.universe(League(league_value), season)
+
+    @cache
+    def predict(_orch, mode, league_value, season, as_of_iso):
+        from quantbot.schemas import League
+        a = datetime.fromisoformat(as_of_iso) if as_of_iso else None
+        return _orch.predict(League(league_value), season, a)
+
+    @cache
+    def cards(_orch, mode, league_value, season):
+        from quantbot.schemas import League
+        return _orch.build_match_cards(League(league_value), season)
+
+    @cache
+    def backtest(_orch, mode, league_value, season):
+        from quantbot.schemas import League
+        return _orch.run_backtest(League(league_value), season)
+
+    @cache
+    def rounds(_provider, mode, league_value, season):
+        from quantbot.schemas import League
+        from quantbot.tracking import build_rounds
+        return build_rounds(_provider, League(league_value), season, hold_out_last=1)
+
+    @cache
+    def calibration(_matches, mode, league_value, season):
+        from quantbot.analysis.evaluation import calibration_report
+        from quantbot.models import EloModel
+        return calibration_report(_matches, EloModel())
+
+    @cache
+    def models(_matches, mode, league_value, season):
+        from quantbot.analysis.evaluation import model_comparison
+        from quantbot.models import DixonColesModel, EloModel, LogisticRegressionModel
+        return model_comparison(
+            {"Elo": EloModel(), "Dixon-Coles": DixonColesModel(min_matches=5),
+             "Logistic": LogisticRegressionModel()},
+            _matches,
+        )
+
+    @cache
+    def ablation(_matches, mode, league_value, season):
+        from quantbot.analysis.diagnostics import ablation_report
+        return ablation_report(_matches)
+
+    @cache
+    def importance(_matches, mode, league_value, season):
+        from quantbot.analysis.diagnostics import feature_importance
+        return feature_importance(_matches)
+
+    return {
+        "universe": universe, "predict": predict, "cards": cards, "backtest": backtest,
+        "rounds": rounds, "calibration": calibration, "models": models,
+        "ablation": ablation, "importance": importance,
+        "finished": st.cache_data(ttl=1800, show_spinner="Berechne …")(_finished),
+    }
+
+
 def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     from pathlib import Path
 
@@ -38,7 +117,6 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     from quantbot.models import DixonColesModel, EloModel, LogisticRegressionModel
     from quantbot.orchestrator import QuantBotOrchestrator
     from quantbot.schemas import League
-    from quantbot.tracking import build_rounds
 
     st.set_page_config(page_title="QuantBot", page_icon="⚽", layout="wide")
     st.sidebar.title(f"QuantBot v{__version__}")
@@ -93,13 +171,16 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     season = st.sidebar.text_input(t("ctrl.season", lang), default_season)
 
     orchestrator = QuantBotOrchestrator(provider=provider)
+    mode = "live" if live else "demo"
+    C = _install_cache()
 
     if page == "glossary":
         _glossary_page(lang)
         return
 
     # Every other page needs matches. Fail softly instead of crashing.
-    if not orchestrator.universe(league, season):
+    uni_all = C["universe"](orchestrator, mode, league.value, season)
+    if not uni_all:
         st.header(pages[page])
         st.warning(t("no_matches", lang).format(league=league.value, season=season))
         if not live:
@@ -107,29 +188,29 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
         return
 
     if page == "tracker":
-        _tracker_page(lang, orchestrator.provider, league, season, build_rounds)
+        _tracker_page(lang, C, orchestrator.provider, mode, league, season)
         return
 
     if page == "card":
-        _card_page(lang, orchestrator, league, season)
+        _card_page(lang, C, orchestrator, mode, league, season)
         return
 
     if page in ("calibration", "models"):
-        _evaluation_page(page, lang, orchestrator.provider, league, season)
+        _evaluation_page(page, lang, C, orchestrator.provider, mode, league, season)
         return
 
     if page == "diagnostics":
-        _diagnostics_page(lang, orchestrator.provider, league, season)
+        _diagnostics_page(lang, C, orchestrator.provider, mode, league, season)
         return
 
-    universe = orchestrator.universe(league, season)
+    universe = uni_all
 
     if page == "signals":
         st.header(t("page.signals", lang))
         default_as_of = orchestrator.default_as_of(league, season).date()
         as_of_date = st.date_input(t("ctrl.as_of", lang), default_as_of)
         as_of = datetime(as_of_date.year, as_of_date.month, as_of_date.day, tzinfo=timezone.utc)
-        reports = orchestrator.predict(league, season, as_of)
+        reports = C["predict"](orchestrator, mode, league.value, season, as_of.isoformat())
         n_bets = sum(1 for r in reports if r.signal.is_bet)
         st.caption(t("sig.intro", lang))
         c1, c2 = st.columns(2)
@@ -181,7 +262,7 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     else:  # backtest
         st.header(t("page.backtest", lang))
         st.caption(t("bt.intro", lang))
-        result = orchestrator.run_backtest(league, season)
+        result = C["backtest"](orchestrator, mode, league.value, season)
         m = result.metrics
         c1, c2, c3, c4 = st.columns(4)
         c1.metric(t("bt.roi", lang), f"{m.roi * 100:.2f}%")
@@ -211,22 +292,22 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
                     st.caption("-")
 
 
-def _diagnostics_page(lang, provider, league, season) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
+def _diagnostics_page(lang, C, provider, mode, league, season) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
+    from pathlib import Path
+
     import pandas as pd
 
-    from quantbot.analysis.diagnostics import ablation_report, feature_importance
     from quantbot.experiments import ExperimentStore, evaluate_run
     from quantbot.models import DixonColesModel, EloModel, LogisticRegressionModel
 
-    universe = [m for m in provider.get_matches(league, season, __import__("datetime").datetime(2100, 1, 1, tzinfo=timezone.utc)) if m.is_finished]
+    universe = C["finished"](provider, mode, league.value, season)
 
     st.header(t("page.diagnostics", lang))
     st.caption(t("diag.intro", lang))
 
     st.subheader(t("diag.ablation", lang))
     st.caption(t("diag.ablation_hint", lang))
-    with st.spinner("..."):
-        rep = ablation_report(universe)
+    rep = C["ablation"](universe, mode, league.value, season)
     if rep["rows"]:
         rows = [{
             t("col.group", lang): r["group"],
@@ -237,7 +318,7 @@ def _diagnostics_page(lang, provider, league, season) -> None:  # type: ignore[n
 
     st.subheader(t("diag.importance", lang))
     st.caption(t("diag.importance_hint", lang))
-    imp = feature_importance(universe)
+    imp = C["importance"](universe, mode, league.value, season)
     if imp:
         st.dataframe(
             pd.DataFrame([{t("col.feature", lang): r["feature"], t("col.importance", lang): r["importance"]} for r in imp]),
@@ -265,20 +346,17 @@ def _diagnostics_page(lang, provider, league, season) -> None:  # type: ignore[n
     )
 
 
-def _evaluation_page(page, lang, provider, league, season) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
+def _evaluation_page(page, lang, C, provider, mode, league, season) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
     import pandas as pd
 
-    from quantbot.analysis.evaluation import calibration_report, model_comparison
     from quantbot.dashboard.components import reliability_diagram_figure
-    from quantbot.models import DixonColesModel, EloModel, LogisticRegressionModel
 
-    universe = provider.get_matches(league, season, __import__("datetime").datetime(2100, 1, 1, tzinfo=timezone.utc))
-    universe = [mm for mm in universe if mm.is_finished]
+    universe = C["finished"](provider, mode, league.value, season)
 
     if page == "calibration":
         st.header(t("page.calibration", lang))
         st.caption(t("cal.intro", lang))
-        report = calibration_report(universe, EloModel())
+        report = C["calibration"](universe, mode, league.value, season)
         if not report["curve"]:
             st.info("Zu wenig Daten." if lang == "de" else "Not enough data.")
             return
@@ -291,11 +369,7 @@ def _evaluation_page(page, lang, provider, league, season) -> None:  # type: ign
     else:  # models
         st.header(t("page.models", lang))
         st.caption(t("models.intro", lang))
-        rows = model_comparison(
-            {"Elo": EloModel(), "Dixon-Coles": DixonColesModel(min_matches=5),
-             "Logistic": LogisticRegressionModel()},
-            universe,
-        )
+        rows = C["models"](universe, mode, league.value, season)
         table = [{
             t("col.model", lang): r["model"],
             t("col.brier", lang): r["brier"],
@@ -306,13 +380,13 @@ def _evaluation_page(page, lang, provider, league, season) -> None:  # type: ign
         st.dataframe(pd.DataFrame(table), use_container_width=True, hide_index=True)
 
 
-def _card_page(lang, orchestrator, league, season) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
+def _card_page(lang, C, orchestrator, mode, league, season) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
     import pandas as pd
 
     st.header(t("page.card", lang))
     st.caption(t("card.intro", lang))
     try:
-        cards = orchestrator.build_match_cards(league, season)
+        cards = C["cards"](orchestrator, mode, league.value, season)
     except ValueError as exc:
         st.warning(str(exc))
         return
@@ -362,13 +436,13 @@ def _card_page(lang, orchestrator, league, season) -> None:  # type: ignore[no-u
     st.caption(t("card.disclaimer", lang))
 
 
-def _tracker_page(lang, provider, league, season, build_rounds) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
+def _tracker_page(lang, C, provider, mode, league, season) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
     import pandas as pd
 
     st.header(t("page.tracker", lang))
     st.caption(t("track.intro", lang))
     try:
-        view = build_rounds(provider, league, season, hold_out_last=1)
+        view = C["rounds"](provider, mode, league.value, season)
     except ValueError as exc:
         st.warning(str(exc))
         return
