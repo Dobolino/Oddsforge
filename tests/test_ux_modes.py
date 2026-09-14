@@ -31,10 +31,13 @@ def test_all_modes_have_pages() -> None:
         assert PAGES_BY_MODE[mode]
 
 
-def test_plain_signal_labels() -> None:
-    assert "Heim" in plain_signal_label(SignalType.VALUE_HOME, "de")
-    assert "home" in plain_signal_label(SignalType.VALUE_HOME, "en").lower()
-    assert "Kein" in plain_signal_label(SignalType.NO_BET, "de")
+def test_tip_kind_from_label_totals() -> None:
+    from quantbot.dashboard.ux import tip_kind_from_label
+    from quantbot.schemas import SignalType
+
+    assert tip_kind_from_label("Tipp: Über 2,5 Tore") is SignalType.VALUE_OVER
+    assert tip_kind_from_label("Tip: under 2.5 goals") is SignalType.VALUE_UNDER
+    assert tip_kind_from_label("Tipp: Heimsieg") is SignalType.VALUE_HOME
 
 
 def test_plain_reason_uses_signal_fields() -> None:

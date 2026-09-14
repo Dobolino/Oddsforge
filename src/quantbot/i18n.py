@@ -85,11 +85,25 @@ _STRINGS: dict[str, dict[str, str]] = {
               "Football is not reliably predictable. Decide yourself and "
               "never stake more than you can afford to lose.",
     },
+    "safety.short": {
+        "de": "Nur Entscheidungshilfe — QuantBot wettet nicht.",
+        "en": "Decision support only — QuantBot does not bet.",
+    },
     "safety.demo": {
         "de": "Du siehst Demodaten mit erfundenen Zahlen. Gut zum Ausprobieren, "
               "nicht zum Wetten.",
         "en": "You are seeing demo data with made-up numbers. Fine for trying "
               "the app, not for real betting.",
+    },
+    "ctrl.window_sidebar": {"de": "Spieltag-Fenster", "en": "Matchday window"},
+    "slip.from_tips": {
+        "de": "Aus Tipps übernommen: Beste Chancen — kurze Kombi mit den Tipps höchster Modellwahrscheinlichkeit.",
+        "en": "Taken from Tips: Best win chance — short slip with the highest-probability tips.",
+    },
+    "slip.adjust": {"de": "Schein anpassen", "en": "Adjust slip"},
+    "track.learn_miss": {
+        "de": "Tipp daneben? Oft war „Kein Tipp“ die bessere Entscheidung — unsichere Spiele werden bewusst ausgelassen.",
+        "en": "Missed a tip? Often „No tip“ was the better call — uncertain matches are skipped on purpose.",
     },
     "sig.beginner_intro": {
         "de": "Hier siehst du den klarsten Tipp für die kommenden Spiele. "
