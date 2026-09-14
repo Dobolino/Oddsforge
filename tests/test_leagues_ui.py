@@ -46,3 +46,31 @@ def test_multi_league_slip_carries_league_and_date() -> None:
     assert "TIPPSCHEIN" in text
     html = ticket_html(slip, lang="de", stake=10.0)
     assert "TIPPSCHEIN" in html
+
+
+def test_ticket_html_renders_compact_markup() -> None:
+    from quantbot.dashboard.slip import BettingSlip, SlipLeg, ticket_html
+    from quantbot.schemas import MatchOutcome
+
+    slip = BettingSlip(
+        legs=(
+            SlipLeg(
+                match_id="1",
+                match="Brighton & Hove vs Arsenal",
+                tip="Tipp: Heimsieg",
+                outcome=MatchOutcome.HOME,
+                odds=1.85,
+                model_prob=0.55,
+                edge=0.05,
+                role="core",
+                league="Premier League",
+                kickoff_date="2026-09-20",
+            ),
+        ),
+        style="safe",
+    )
+    html = ticket_html(slip, lang="de", stake=10.0)
+    assert "<table" in html and "<tr>" in html
+    assert "Brighton &amp; Hove" in html  # escaped ampersand
+    assert "```" not in html
+    assert "\n            <tr>" not in html

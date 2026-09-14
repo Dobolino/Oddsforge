@@ -7,6 +7,7 @@ ranked for win chance or optionally boosted with higher-odds legs.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from html import escape
 from math import prod
 
 from quantbot.dashboard.ux import plain_signal_label
@@ -222,9 +223,10 @@ def ticket_html(
         if slip.style == "safe"
         else "Accumulator + odds boost"
     )
-    rows = []
+    rows: list[str] = []
     for i, leg in enumerate(slip.legs, start=1):
-        tip_short = leg.tip.replace("Tipp: ", "").replace("Tip: ", "")
+        tip_short = escape(leg.tip.replace("Tipp: ", "").replace("Tip: ", ""))
+        match_name = escape(leg.match)
         badge = (
             '<span style="color:#c47a00;font-size:0.8rem;">★ Booster</span>'
             if leg.role == "boost"
@@ -232,22 +234,21 @@ def ticket_html(
         )
         meta = " · ".join(p for p in (leg.kickoff_date, leg.league) if p)
         meta_line = (
-            f'<div style="margin-top:2px;font-size:0.8rem;opacity:0.7;">{meta}</div>'
+            f'<div style="margin-top:2px;font-size:0.8rem;opacity:0.7;">{escape(meta)}</div>'
             if meta
             else ""
         )
         rows.append(
-            f"""
-            <tr>
-              <td style="padding:10px 8px;border-bottom:1px dashed #ccc;vertical-align:top;width:2rem;">{i}.</td>
-              <td style="padding:10px 8px;border-bottom:1px dashed #ccc;">
-                <div style="font-weight:700;">{leg.match}</div>
-                {meta_line}
-                <div style="margin-top:4px;">→ <b>{tip_short}</b> {badge}</div>
-              </td>
-              <td style="padding:10px 8px;border-bottom:1px dashed #ccc;text-align:right;font-size:1.15rem;font-weight:700;">{leg.odds:.2f}</td>
-            </tr>
-            """
+            "<tr>"
+            f'<td style="padding:10px 8px;border-bottom:1px dashed #ccc;vertical-align:top;width:2rem;">{i}.</td>'
+            f'<td style="padding:10px 8px;border-bottom:1px dashed #ccc;">'
+            f'<div style="font-weight:700;">{match_name}</div>'
+            f"{meta_line}"
+            f'<div style="margin-top:4px;">→ <b>{tip_short}</b> {badge}</div>'
+            "</td>"
+            f'<td style="padding:10px 8px;border-bottom:1px dashed #ccc;text-align:right;'
+            f'font-size:1.15rem;font-weight:700;">{leg.odds:.2f}</td>'
+            "</tr>"
         )
     stake_lbl = "Einsatz" if de else "Stake"
     odds_lbl = "Gesamtquote" if de else "Combined odds"
@@ -260,22 +261,24 @@ def ticket_html(
         else "Suggestion only — QuantBot places nothing."
     )
     currency = "€" if de else ""
-    return f"""
-    <div style="
-      max-width:520px;margin:0.5rem 0 1rem 0;padding:1.25rem 1.4rem;
-      background:linear-gradient(180deg,#fffef8 0%,#f7f1e1 100%);
-      color:#1a1a1a;border:2px solid #222;border-radius:6px;
-      box-shadow:4px 4px 0 #222;font-family:ui-monospace,Menlo,Consolas,monospace;
-    ">
-      <div style="text-align:center;letter-spacing:0.18em;font-weight:800;font-size:1.25rem;">{title}</div>
-      <div style="text-align:center;margin:0.35rem 0 0.9rem 0;font-size:0.9rem;">{kind}</div>
-      <table style="width:100%;border-collapse:collapse;">{''.join(rows)}</table>
-      <div style="margin-top:1rem;padding-top:0.75rem;border-top:2px solid #222;">
-        <div style="display:flex;justify-content:space-between;margin:0.25rem 0;"><span>{stake_lbl}</span><b>{stake:.2f} {currency}</b></div>
-        <div style="display:flex;justify-content:space-between;margin:0.25rem 0;"><span>{odds_lbl}</span><b>{slip.combined_odds:.2f}</b></div>
-        <div style="display:flex;justify-content:space-between;margin:0.25rem 0;font-size:1.15rem;"><span>{win_lbl}</span><b>{payout:.2f} {currency}</b></div>
-        <div style="display:flex;justify-content:space-between;margin:0.25rem 0;"><span>{chance_lbl}</span><b>{slip.combined_prob * 100:.1f} %</b></div>
-      </div>
-      <div style="margin-top:0.9rem;text-align:center;font-size:0.8rem;opacity:0.8;">{sub}</div>
-    </div>
-    """
+    return (
+        '<div style="max-width:520px;margin:0.5rem 0 1rem 0;padding:1.25rem 1.4rem;'
+        "background:linear-gradient(180deg,#fffef8 0%,#f7f1e1 100%);"
+        "color:#1a1a1a;border:2px solid #222;border-radius:6px;"
+        'box-shadow:4px 4px 0 #222;font-family:ui-monospace,Menlo,Consolas,monospace;">'
+        f'<div style="text-align:center;letter-spacing:0.18em;font-weight:800;font-size:1.25rem;">{title}</div>'
+        f'<div style="text-align:center;margin:0.35rem 0 0.9rem 0;font-size:0.9rem;">{kind}</div>'
+        f'<table style="width:100%;border-collapse:collapse;">{"".join(rows)}</table>'
+        '<div style="margin-top:1rem;padding-top:0.75rem;border-top:2px solid #222;">'
+        f'<div style="display:flex;justify-content:space-between;margin:0.25rem 0;"><span>{stake_lbl}</span>'
+        f"<b>{stake:.2f} {currency}</b></div>"
+        f'<div style="display:flex;justify-content:space-between;margin:0.25rem 0;"><span>{odds_lbl}</span>'
+        f"<b>{slip.combined_odds:.2f}</b></div>"
+        f'<div style="display:flex;justify-content:space-between;margin:0.25rem 0;font-size:1.15rem;">'
+        f"<span>{win_lbl}</span><b>{payout:.2f} {currency}</b></div>"
+        f'<div style="display:flex;justify-content:space-between;margin:0.25rem 0;"><span>{chance_lbl}</span>'
+        f"<b>{slip.combined_prob * 100:.1f} %</b></div>"
+        "</div>"
+        f'<div style="margin-top:0.9rem;text-align:center;font-size:0.8rem;opacity:0.8;">{sub}</div>'
+        "</div>"
+    )

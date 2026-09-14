@@ -136,7 +136,7 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
 
     st.set_page_config(page_title="QuantBot", page_icon="⚽", layout="wide")
     st.sidebar.title(f"QuantBot v{__version__}")
-    st.sidebar.caption("Stand: Alle Ligen · Datumsbereich · Tippschein")
+    st.sidebar.caption("Stand: Tippschein HTML-Fix · Alle Ligen")
 
     default_lang = get_settings().language if get_settings().language in LANGUAGES else DEFAULT_LANGUAGE
     lang = st.sidebar.radio(
@@ -624,7 +624,8 @@ def _slip_page(lang, ux_mode, C, orchestrator, mode, leagues, season, live) -> N
 
     st.subheader(t("slip.ticket_title", lang))
     st.caption(t("slip.range_note", lang).format(start=start_d.isoformat(), end=end_d.isoformat()))
-    st.markdown(ticket_html(slip, lang=lang, stake=float(stake)), unsafe_allow_html=True)
+    # Streamlit 1.63+: st.markdown(unsafe_allow_html=...) escapes nested HTML as code.
+    st.html(ticket_html(slip, lang=lang, stake=float(stake)))
     with st.expander(t("slip.copy_title", lang), expanded=False):
         st.code(format_ticket(slip, lang=lang, stake=float(stake)), language=None)
 
