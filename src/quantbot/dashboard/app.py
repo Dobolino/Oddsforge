@@ -23,6 +23,14 @@ from quantbot.dashboard.components import (
 from quantbot.i18n import DEFAULT_LANGUAGE, GLOSSARY, LANGUAGES, t
 
 
+def _current_season() -> str:
+    """Season label for today, e.g. '2026-2027' from August 2026 on."""
+
+    now = datetime.now(timezone.utc)
+    start = now.year if now.month >= 7 else now.year - 1
+    return f"{start}-{start + 1}"
+
+
 def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     from pathlib import Path
 
@@ -58,7 +66,6 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     }
     page = st.sidebar.radio(t("nav.pages", lang), list(pages), format_func=lambda k: pages[k])
     league = st.sidebar.selectbox(t("ctrl.league", lang), list(League), format_func=lambda lg: lg.value)
-    season = st.sidebar.text_input(t("ctrl.season", lang), "2024-2025")
 
     # API keys: paste here instead of editing files. Both filled -> real data.
     with st.sidebar.expander(t("keys.title", lang)):
@@ -67,11 +74,13 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
         st.caption(t("keys.hint", lang))
 
     provider = None
+    live = False
     if fd_key and odds_key:
         try:
             from quantbot.data.providers import build_live_provider
 
             provider = build_live_provider(fd_key, odds_key, [league], cache_dir=Path.home() / ".quantbot" / "cache")
+            live = True
             st.sidebar.success(t("mode.live", lang))
         except Exception:  # noqa: BLE001
             st.sidebar.warning(t("mode.live_failed", lang))
@@ -79,10 +88,22 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     else:
         st.sidebar.info(t("mode.demo", lang))
 
+    # Demo data only exists for 2024-2025; live data uses the current season.
+    default_season = _current_season() if live else "2024-2025"
+    season = st.sidebar.text_input(t("ctrl.season", lang), default_season)
+
     orchestrator = QuantBotOrchestrator(provider=provider)
 
     if page == "glossary":
         _glossary_page(lang)
+        return
+
+    # Every other page needs matches. Fail softly instead of crashing.
+    if not orchestrator.universe(league, season):
+        st.header(pages[page])
+        st.warning(t("no_matches", lang).format(league=league.value, season=season))
+        if not live:
+            st.info(t("no_matches_demo", lang))
         return
 
     if page == "tracker":

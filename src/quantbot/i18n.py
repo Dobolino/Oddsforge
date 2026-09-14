@@ -144,6 +144,14 @@ _STRINGS: dict[str, dict[str, str]] = {
     "mode.demo": {"de": "Modus: Demodaten", "en": "Mode: demo data"},
     "mode.live": {"de": "Modus: echte Daten", "en": "Mode: real data"},
     "mode.live_failed": {"de": "Echte Daten nicht erreichbar, nutze Demodaten.", "en": "Real data unavailable, using demo data."},
+    "no_matches": {
+        "de": "Keine Spiele für {league} {season} gefunden.",
+        "en": "No matches found for {league} {season}.",
+    },
+    "no_matches_demo": {
+        "de": "Die Demodaten decken nur die Saison 2024-2025 ab. Für andere Ligen und Saisons oben die API-Schlüssel eintragen.",
+        "en": "The demo data only covers the 2024-2025 season. For other leagues and seasons enter the API keys above.",
+    },
     # Controls
     "ctrl.language": {"de": "Sprache", "en": "Language"},
     "ctrl.league": {"de": "Liga", "en": "League"},
