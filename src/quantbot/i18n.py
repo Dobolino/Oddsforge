@@ -31,6 +31,33 @@ _STRINGS: dict[str, dict[str, str]] = {
     "page.card": {"de": "Match Card", "en": "Match Card"},
     "page.calibration": {"de": "Kalibrierung", "en": "Calibration"},
     "page.models": {"de": "Modellvergleich", "en": "Model comparison"},
+    "page.diagnostics": {"de": "Diagnose", "en": "Diagnostics"},
+    # Diagnostics page
+    "diag.intro": {
+        "de": "Welche Features bringen wirklich etwas, und welche Modellversion war besser? Bitte vorsichtig lesen.",
+        "en": "Which features actually help, and which model version was better? Read with care.",
+    },
+    "diag.ablation": {"de": "Ablation: Feature weglassen", "en": "Ablation: leave a feature out"},
+    "diag.ablation_hint": {
+        "de": "Höherer Brier nach dem Weglassen (positives Delta) heisst, das Feature war nützlich.",
+        "en": "A higher Brier after removal (positive delta) means the feature was useful.",
+    },
+    "diag.importance": {"de": "Feature Importance", "en": "Feature importance"},
+    "diag.importance_hint": {
+        "de": "Anteil am Einfluss laut Permutationstest. Nur ein Hinweis, kein Beweis.",
+        "en": "Share of influence from a permutation test. A hint, not proof.",
+    },
+    "diag.experiments": {"de": "Experimente und Versionen", "en": "Experiments and versions"},
+    "diag.experiments_hint": {
+        "de": "Jede Modellversion mit Out-of-Sample-Kennzahlen. So sieht man, ob eine Version besser wurde.",
+        "en": "Each model version with out-of-sample metrics, so you can see if a version improved.",
+    },
+    "col.group": {"de": "Feature-Gruppe", "en": "Feature group"},
+    "col.delta": {"de": "Delta Brier", "en": "Brier delta"},
+    "col.feature": {"de": "Feature", "en": "Feature"},
+    "col.importance": {"de": "Einfluss %", "en": "Importance %"},
+    "col.version": {"de": "Version", "en": "Version"},
+    "col.dataset": {"de": "Datensatz", "en": "Dataset"},
     # Calibration page
     "cal.intro": {
         "de": "Sind die Wahrscheinlichkeiten realistisch? Vorhergesagte Konfidenz gegen tatsächliche Trefferquote, aus dem Walk-Forward.",

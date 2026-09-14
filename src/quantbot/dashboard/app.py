@@ -52,6 +52,7 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
         "insights": t("page.insights", lang),
         "calibration": t("page.calibration", lang),
         "models": t("page.models", lang),
+        "diagnostics": t("page.diagnostics", lang),
         "backtest": t("page.backtest", lang),
         "glossary": t("page.glossary", lang),
     }
@@ -94,6 +95,10 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
 
     if page in ("calibration", "models"):
         _evaluation_page(page, lang, orchestrator.provider, league, season)
+        return
+
+    if page == "diagnostics":
+        _diagnostics_page(lang, orchestrator.provider, league, season)
         return
 
     universe = orchestrator.universe(league, season)
@@ -183,6 +188,60 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
                     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
                 else:
                     st.caption("-")
+
+
+def _diagnostics_page(lang, provider, league, season) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
+    import pandas as pd
+
+    from quantbot.analysis.diagnostics import ablation_report, feature_importance
+    from quantbot.experiments import ExperimentStore, evaluate_run
+    from quantbot.models import DixonColesModel, EloModel, LogisticRegressionModel
+
+    universe = [m for m in provider.get_matches(league, season, __import__("datetime").datetime(2100, 1, 1, tzinfo=timezone.utc)) if m.is_finished]
+
+    st.header(t("page.diagnostics", lang))
+    st.caption(t("diag.intro", lang))
+
+    st.subheader(t("diag.ablation", lang))
+    st.caption(t("diag.ablation_hint", lang))
+    with st.spinner("..."):
+        rep = ablation_report(universe)
+    if rep["rows"]:
+        rows = [{
+            t("col.group", lang): r["group"],
+            t("col.brier", lang): r["brier"],
+            t("col.delta", lang): r["delta"],
+        } for r in rep["rows"]]
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+    st.subheader(t("diag.importance", lang))
+    st.caption(t("diag.importance_hint", lang))
+    imp = feature_importance(universe)
+    if imp:
+        st.dataframe(
+            pd.DataFrame([{t("col.feature", lang): r["feature"], t("col.importance", lang): r["importance"]} for r in imp]),
+            use_container_width=True, hide_index=True,
+        )
+
+    st.subheader(t("diag.experiments", lang))
+    st.caption(t("diag.experiments_hint", lang))
+    store = ExperimentStore(Path.home() / ".quantbot" / "experiments.json")
+    runs = store.load()
+    if not runs:
+        for name, model in (("Elo", EloModel()), ("Dixon-Coles", DixonColesModel(min_matches=5)), ("Logistic", LogisticRegressionModel())):
+            store.log(evaluate_run(universe, model, dataset=f"{league.value} {season}", version=store.next_version(model.name)))
+        runs = store.load()
+    st.dataframe(
+        pd.DataFrame([{
+            t("col.model", lang): r.model,
+            t("col.version", lang): r.version,
+            t("col.dataset", lang): r.dataset,
+            t("col.brier", lang): r.metrics.get("brier"),
+            t("col.logloss", lang): r.metrics.get("log_loss"),
+            t("col.samples", lang): r.n_samples,
+        } for r in runs]),
+        use_container_width=True, hide_index=True,
+    )
 
 
 def _evaluation_page(page, lang, provider, league, season) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover

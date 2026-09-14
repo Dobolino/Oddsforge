@@ -23,6 +23,7 @@ from quantbot.analysis.evaluation import (
     reliability_curve,
     walk_forward_probabilities,
 )
+from quantbot.analysis.diagnostics import FEATURE_GROUPS, ablation_report, feature_importance
 from quantbot.analysis.matchcard import MatchCard, build_match_card, divergence_tier
 from quantbot.analysis.value import (
     ValueCalculator,
@@ -41,6 +42,9 @@ __all__ = [
     "model_comparison",
     "reliability_curve",
     "walk_forward_probabilities",
+    "FEATURE_GROUPS",
+    "ablation_report",
+    "feature_importance",
     "ValueCalculator",
     "edge",
     "expected_value",

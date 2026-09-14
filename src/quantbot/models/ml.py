@@ -34,14 +34,25 @@ class _SklearnClassifierModel(BaseModel):
     name = "sklearn"
     _min_samples = 10
 
-    def __init__(self, extractor: FeatureExtractor | None = None) -> None:
+    def __init__(
+        self,
+        extractor: FeatureExtractor | None = None,
+        exclude_features: set[str] | None = None,
+    ) -> None:
         super().__init__()
         self._extractor = extractor or FeatureExtractor()
         self._history: list[Match] = []
         self._pipeline: Pipeline | None = None
+        self.exclude_features = set(exclude_features or ())
+        self._active = [n for n in FEATURE_NAMES if n not in self.exclude_features]
 
     def _build_pipeline(self) -> Pipeline:  # pragma: no cover - overridden
         raise NotImplementedError
+
+    def _vec(self, features: dict[str, float]) -> list[float]:
+        """Feature vector limited to the active (non-excluded) features."""
+
+        return [features[n] for n in self._active]
 
     def fit(self, matches: Sequence[Match]) -> None:
         ordered = self._validate_training_matches(matches)
@@ -53,7 +64,7 @@ class _SklearnClassifierModel(BaseModel):
         if len(set(labels)) < 2:
             raise ValueError(f"{self.name} needs at least two outcome classes in training data")
 
-        x = np.array([self._extractor.to_vector(f) for f in features], dtype=float)
+        x = np.array([self._vec(f) for f in features], dtype=float)
         y = np.array(labels, dtype=int)
 
         pipeline = self._build_pipeline()
@@ -65,7 +76,7 @@ class _SklearnClassifierModel(BaseModel):
     def _probabilities(self, match: Match) -> tuple[float, float, float]:
         assert self._pipeline is not None
         features = self._extractor.extract(match, self._history)
-        x = np.array([self._extractor.to_vector(features)], dtype=float)
+        x = np.array([self._vec(features)], dtype=float)
         proba = self._pipeline.predict_proba(x)[0]
         classes = list(self._pipeline.classes_)
 
@@ -105,8 +116,9 @@ class LogisticRegressionModel(_SklearnClassifierModel):
         c: float = 1.0,
         max_iter: int = 1000,
         random_state: int = 42,
+        exclude_features: set[str] | None = None,
     ) -> None:
-        super().__init__(extractor)
+        super().__init__(extractor, exclude_features)
         self.c = c
         self.max_iter = max_iter
         self.random_state = random_state
@@ -139,8 +151,9 @@ class GradientBoostingModel(_SklearnClassifierModel):
         learning_rate: float = 0.1,
         max_iter: int = 200,
         random_state: int = 42,
+        exclude_features: set[str] | None = None,
     ) -> None:
-        super().__init__(extractor)
+        super().__init__(extractor, exclude_features)
         self.max_depth = max_depth
         self.learning_rate = learning_rate
         self.max_iter = max_iter
