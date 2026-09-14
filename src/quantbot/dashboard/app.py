@@ -138,11 +138,13 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
         UXMode.ADVANCED: t("ux.advanced", lang),
         UXMode.EXPERT: t("ux.expert", lang),
     }
-    ux_mode = st.sidebar.radio(
+    # Selectbox is easier for beginners (and more reliable) than stacked radios.
+    ux_mode = st.sidebar.selectbox(
         t("ux.title", lang),
         list(UXMode),
         index=0,
         format_func=lambda m: ux_labels[m],
+        help=t(f"ux.{UXMode.BEGINNER.value}_hint", lang),
     )
     st.sidebar.caption(t(f"ux.{ux_mode.value}_hint", lang))
 
@@ -160,7 +162,11 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     visible = pages_for(ux_mode)
     pages = {k: all_pages[k] for k in visible}
     page = st.sidebar.radio(t("nav.pages", lang), list(pages), format_func=lambda k: pages[k])
-    league = st.sidebar.selectbox(t("ctrl.league", lang), list(League), format_func=lambda lg: lg.value)
+    league = st.sidebar.selectbox(
+        t("ctrl.league", lang),
+        list(League),
+        format_func=lambda lg: lg.value.replace("_", " ").title(),
+    )
 
     # API keys: paste here instead of editing files. Both filled -> real data.
     with st.sidebar.expander(t("keys.title", lang), expanded=False):
