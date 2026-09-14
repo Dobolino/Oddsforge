@@ -63,12 +63,49 @@ _SIGNAL_PLAIN: dict[SignalType, dict[str, str]] = {
     SignalType.NO_BET: {"de": "Kein Tipp", "en": "No tip"},
 }
 
+# Clear beginner colors: home = green, draw = amber, away = blue, no tip = gray.
+_TIP_COLORS: dict[SignalType, dict[str, str]] = {
+    SignalType.VALUE_HOME: {"bg": "#1b7f4a", "fg": "#ffffff"},
+    SignalType.VALUE_DRAW: {"bg": "#c47a00", "fg": "#ffffff"},
+    SignalType.VALUE_AWAY: {"bg": "#1f5fbf", "fg": "#ffffff"},
+    SignalType.NO_BET: {"bg": "#6b7280", "fg": "#ffffff"},
+}
+
 
 def plain_signal_label(signal: SignalType, lang: str = "de") -> str:
     """Human tip label instead of VALUE_HOME / NO_BET."""
 
     entry = _SIGNAL_PLAIN[signal]
     return entry.get(lang) or entry["de"]
+
+
+def tip_badge_html(signal: SignalType, lang: str = "de", *, large: bool = False, text: str | None = None) -> str:
+    """Colored HTML badge for beginner-friendly tip labels."""
+
+    from html import escape
+
+    colors = _TIP_COLORS.get(signal, _TIP_COLORS[SignalType.NO_BET])
+    label = escape(text if text is not None else plain_signal_label(signal, lang))
+    size = "1.15rem" if large else "0.95rem"
+    pad = "0.45rem 0.85rem" if large else "0.25rem 0.65rem"
+    return (
+        f'<span style="display:inline-block;background:{colors["bg"]};color:{colors["fg"]};'
+        f"font-weight:700;font-size:{size};padding:{pad};border-radius:999px;"
+        f'letter-spacing:0.02em;">{label}</span>'
+    )
+
+
+def tip_kind_from_label(label: str) -> SignalType:
+    """Best-effort map of a tip label back to SignalType (for slip coloring)."""
+
+    low = label.lower()
+    if "heim" in low or "home" in low:
+        return SignalType.VALUE_HOME
+    if "unentschieden" in low or "draw" in low:
+        return SignalType.VALUE_DRAW
+    if "auswärts" in low or "away" in low:
+        return SignalType.VALUE_AWAY
+    return SignalType.NO_BET
 
 
 def plain_reason(signal_or_text: ValueSignal | str, lang: str = "de") -> str:

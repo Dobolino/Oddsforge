@@ -12,6 +12,7 @@ from quantbot.dashboard.ux import (
     UXMode,
     plain_signal_label,
     reason_for_mode,
+    tip_badge_html,
 )
 from quantbot.orchestrator import SignalReport
 
@@ -41,6 +42,15 @@ def signals_dataframe(
         s = report.signal
         m = report.match
         tip = plain_signal_label(s.signal, lang)
+        if mode is UXMode.BEGINNER:
+            # Emoji prefix so the table tip column is scannable without HTML.
+            prefix = {
+                "value_home": "🟢 ",
+                "value_draw": "🟡 ",
+                "value_away": "🔵 ",
+                "no_bet": "⚪ ",
+            }.get(s.signal.value, "")
+            tip = f"{prefix}{tip}"
         why = reason_for_mode(s, mode, lang)
         rows.append(
             {
@@ -103,8 +113,11 @@ def beginner_tip_cards(
             {
                 "match": f"{m.home_team.name} vs {m.away_team.name}",
                 "tip": plain_signal_label(s.signal, lang),
+                "tip_html": tip_badge_html(s.signal, lang, large=True),
+                "tip_html_small": tip_badge_html(s.signal, lang, large=False),
                 "why": reason_for_mode(s, UXMode.BEGINNER, lang),
                 "is_bet": "1" if s.is_bet else "0",
+                "signal": s.signal.value,
             }
         )
     return cards

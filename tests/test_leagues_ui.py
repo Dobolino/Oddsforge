@@ -74,3 +74,16 @@ def test_ticket_html_renders_compact_markup() -> None:
     assert "Brighton &amp; Hove" in html  # escaped ampersand
     assert "```" not in html
     assert "\n            <tr>" not in html
+
+
+def test_tip_badge_colors_home_away_draw() -> None:
+    from quantbot.dashboard.ux import tip_badge_html, tip_kind_from_label
+    from quantbot.schemas import SignalType
+
+    home = tip_badge_html(SignalType.VALUE_HOME, "de")
+    away = tip_badge_html(SignalType.VALUE_AWAY, "de", text="Auswärtssieg")
+    draw = tip_badge_html(SignalType.VALUE_DRAW, "de")
+    assert "#1b7f4a" in home and "Heimsieg" in home
+    assert "#1f5fbf" in away and "Auswärtssieg" in away
+    assert "#c47a00" in draw
+    assert tip_kind_from_label("Tipp: Heimsieg") is SignalType.VALUE_HOME

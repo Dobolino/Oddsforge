@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from html import escape
 from math import prod
 
-from quantbot.dashboard.ux import plain_signal_label
+from quantbot.dashboard.ux import plain_signal_label, tip_badge_html, tip_kind_from_label
 from quantbot.orchestrator import SignalReport
 from quantbot.schemas import MatchOutcome
 
@@ -225,10 +225,11 @@ def ticket_html(
     )
     rows: list[str] = []
     for i, leg in enumerate(slip.legs, start=1):
-        tip_short = escape(leg.tip.replace("Tipp: ", "").replace("Tip: ", ""))
+        tip_short = leg.tip.replace("Tipp: ", "").replace("Tip: ", "")
         match_name = escape(leg.match)
+        tip_badge = tip_badge_html(tip_kind_from_label(leg.tip), lang, text=tip_short)
         badge = (
-            '<span style="color:#c47a00;font-size:0.8rem;">★ Booster</span>'
+            '<span style="color:#c47a00;font-size:0.8rem;margin-left:0.35rem;">★ Booster</span>'
             if leg.role == "boost"
             else ""
         )
@@ -244,7 +245,7 @@ def ticket_html(
             f'<td style="padding:10px 8px;border-bottom:1px dashed #ccc;">'
             f'<div style="font-weight:700;">{match_name}</div>'
             f"{meta_line}"
-            f'<div style="margin-top:4px;">→ <b>{tip_short}</b> {badge}</div>'
+            f'<div style="margin-top:4px;">→ {tip_badge} {badge}</div>'
             "</td>"
             f'<td style="padding:10px 8px;border-bottom:1px dashed #ccc;text-align:right;'
             f'font-size:1.15rem;font-weight:700;">{leg.odds:.2f}</td>'

@@ -96,7 +96,8 @@ echo.
 echo Bitte QuantBot komplett schliessen und neu starten
 echo ^(schwarzes Fenster zu, dann "Start QuantBot.bat"^).
 echo Im Dashboard links sollte die neue Version stehen.
-echo Neu: Seite "Wettschein", Datum mit Button "Auf heute setzen".
+echo Neu: farbige Tipps (Heimsieg/Auswaertssieg), Tippschein-Navigation Fix.
+echo Wenn die Version links NICHT passt: QuantBot komplett schliessen und neu starten.
 goto END
 
 :DLFAIL

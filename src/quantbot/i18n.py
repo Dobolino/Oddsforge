@@ -124,6 +124,10 @@ _STRINGS: dict[str, dict[str, str]] = {
     "slip.all_leagues": {"de": "Der Schein holt Value-Tipps aus allen gewählten Ligen im Datumsbereich.", "en": "The slip pulls value tips from all selected leagues in the date window."},
     "sig.open_slip_hint": {"de": "Willst du daraus einen Tippschein? Button darunter oder links unter Seiten „Tippschein“.", "en": "Want a tip slip from this? Use the button below or Tip slip under Pages."},
     "sig.open_slip": {"de": "Tippschein anzeigen", "en": "Show tip slip"},
+    "sig.tip_legend": {
+        "de": "Farben: 🟢 Heimsieg · 🟡 Unentschieden · 🔵 Auswärtssieg",
+        "en": "Colors: 🟢 home win · 🟡 draw · 🔵 away win",
+    },
     "sig.range_summary": {"de": "Zeitraum {start}–{end}: {n} Spiele, {k} klare Tipps.", "en": "Window {start}–{end}: {n} matches, {k} clear tips."},
     "sig.all_leagues_intro": {"de": "Tipps nach Liga unterteilt. Der Tippschein kann alle Ligen im Zeitraum mischen.", "en": "Tips grouped by league. The tip slip can mix all leagues in the date window."},
     "page.insights": {"de": "Modell-Einblicke", "en": "Model insights"},

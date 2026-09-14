@@ -136,7 +136,7 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
 
     st.set_page_config(page_title="QuantBot", page_icon="⚽", layout="wide")
     st.sidebar.title(f"QuantBot v{__version__}")
-    st.sidebar.caption("Stand: Tippschein-Navigation Fix")
+    st.sidebar.caption(f"Stand: v{__version__} · farbige Tipps · Tippschein-Fix")
 
     default_lang = get_settings().language if get_settings().language in LANGUAGES else DEFAULT_LANGUAGE
     lang = st.sidebar.radio(
@@ -524,17 +524,25 @@ def _signals_page(lang, ux_mode, C, orchestrator, mode, leagues, season, live) -
             else:
                 top = bets[0]
                 st.markdown(f"### {top['match']}")
-                st.markdown(f"**{top['tip']}**")
+                st.html(top["tip_html"])
                 st.write(top["why"])
                 if len(bets) > 1:
                     st.caption(t("sig.other_matches", lang))
                     for extra in bets[1:]:
-                        st.markdown(f"- **{extra['match']}** — {extra['tip']}: {extra['why']}")
+                        st.html(
+                            f'<div style="margin:0.35rem 0;">'
+                            f'<b>{extra["match"]}</b> — {extra["tip_html_small"]}'
+                            f'<div style="opacity:0.85;margin-top:0.15rem;">{extra["why"]}</div>'
+                            f"</div>"
+                        )
+                st.caption(t("sig.tip_legend", lang))
             with st.expander(t("sig.all_matches", lang), expanded=False):
                 render_signals_table(signals_dataframe(lg_reports, mode=UXMode.BEGINNER, lang=lang))
         st.info(t("sig.open_slip_hint", lang))
         if st.button(t("sig.open_slip", lang), type="primary", key="open_slip_from_tips"):
             st.session_state["welcome_dismissed"] = True
+            # Must not touch nav_page here — radio already exists. Deferred key is
+            # applied at the top of the next run before the radio is created.
             st.session_state["pending_nav_page"] = "slip"
             st.rerun()
         return
