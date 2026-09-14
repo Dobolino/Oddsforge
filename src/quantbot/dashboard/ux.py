@@ -23,7 +23,8 @@ class UXMode(str, Enum):
 
 # Pages visible in the sidebar, in display order.
 PAGES_BY_MODE: dict[UXMode, tuple[str, ...]] = {
-    UXMode.BEGINNER: ("signals", "slip", "tracker", "glossary"),
+    # Beginner: no tip slip / accumulators — Gemini+Claude: kombis raise risk for newcomers.
+    UXMode.BEGINNER: ("signals", "tracker", "glossary"),
     UXMode.ADVANCED: ("signals", "slip", "card", "tracker", "backtest", "glossary"),
     UXMode.EXPERT: (
         "signals",
@@ -81,12 +82,12 @@ def column_label(key: str, lang: str = "de") -> str:
     return entry.get("en", key)
 
 _SIGNAL_PLAIN: dict[SignalType, dict[str, str]] = {
-    SignalType.VALUE_HOME: {"de": "Tipp: Heimsieg", "en": "Tip: home win"},
-    SignalType.VALUE_DRAW: {"de": "Tipp: Unentschieden", "en": "Tip: draw"},
-    SignalType.VALUE_AWAY: {"de": "Tipp: Auswärtssieg", "en": "Tip: away win"},
-    SignalType.VALUE_OVER: {"de": "Tipp: Über 2,5 Tore", "en": "Tip: over 2.5 goals"},
-    SignalType.VALUE_UNDER: {"de": "Tipp: Unter 2,5 Tore", "en": "Tip: under 2.5 goals"},
-    SignalType.NO_BET: {"de": "Kein Tipp", "en": "No tip"},
+    SignalType.VALUE_HOME: {"de": "Signal: Heimsieg", "en": "Signal: home win"},
+    SignalType.VALUE_DRAW: {"de": "Signal: Unentschieden", "en": "Signal: draw"},
+    SignalType.VALUE_AWAY: {"de": "Signal: Auswärtssieg", "en": "Signal: away win"},
+    SignalType.VALUE_OVER: {"de": "Signal: Über 2,5 Tore", "en": "Signal: over 2.5 goals"},
+    SignalType.VALUE_UNDER: {"de": "Signal: Unter 2,5 Tore", "en": "Signal: under 2.5 goals"},
+    SignalType.NO_BET: {"de": "Kein Signal", "en": "No signal"},
 }
 
 # Clear beginner colors: home = green, draw = amber, away = blue,
@@ -109,8 +110,8 @@ def plain_signal_label(signal: SignalType, lang: str = "de", *, line: float | No
     if line is not None and signal in (SignalType.VALUE_OVER, SignalType.VALUE_UNDER):
         line_s = str(line).replace(".", ",") if lang == "de" else str(line)
         if signal is SignalType.VALUE_OVER:
-            return f"Tipp: Über {line_s} Tore" if lang == "de" else f"Tip: over {line_s} goals"
-        return f"Tipp: Unter {line_s} Tore" if lang == "de" else f"Tip: under {line_s} goals"
+            return f"Signal: Über {line_s} Tore" if lang == "de" else f"Signal: over {line_s} goals"
+        return f"Signal: Unter {line_s} Tore" if lang == "de" else f"Signal: under {line_s} goals"
     return label
 
 

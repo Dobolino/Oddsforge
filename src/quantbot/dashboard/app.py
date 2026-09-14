@@ -286,8 +286,9 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
         st.info(t("safety.banner", lang))
         if not live:
             st.caption(t("safety.demo", lang))
+        st.caption(t("safety.account_limits", lang))
 
-    _welcome_card(lang)
+    _welcome_card(lang, ux_mode)
     if live and provider is not None:
         _name_match_warnings(lang, provider, selected_leagues)
 
@@ -410,6 +411,8 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
             c2.metric("Sharpe / Sortino", f"{m.sharpe:.2f} / {m.sortino:.2f}")
             c3.metric(t("bt.max_dd", lang), f"{m.max_drawdown * 100:.2f}%")
             c4.metric(t("bt.beat_clv", lang), "-" if m.beat_clv_rate is None else f"{m.beat_clv_rate * 100:.1f}%")
+        st.caption(t("bt.roi_caveat", lang))
+        st.caption(t("safety.account_limits", lang))
         st.plotly_chart(equity_curve_figure(result.bankroll_curve, result.initial_bankroll), width="stretch")
         if ux_mode is UXMode.EXPERT:
             clvs = [b.clv for b in result.settled_bets if b.clv is not None]
@@ -434,7 +437,7 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
                         st.caption("-")
 
 
-def _welcome_card(lang: str) -> None:  # pragma: no cover - requires Streamlit runtime
+def _welcome_card(lang: str, ux_mode: UXMode) -> None:  # pragma: no cover - requires Streamlit runtime
     """First-run onboarding: demo mode, pick a league, stay on Simple view."""
 
     from quantbot.preferences import is_welcome_dismissed, set_welcome_dismissed
@@ -446,21 +449,33 @@ def _welcome_card(lang: str) -> None:  # pragma: no cover - requires Streamlit r
         st.subheader(t("welcome.title", lang))
         st.write(t("welcome.body", lang))
         st.markdown(t("welcome.steps", lang))
-        c1, c2, c3 = st.columns(3)
-        if c1.button(t("welcome.go_tips", lang), type="primary", key="welcome_go_tips"):
-            set_welcome_dismissed()
-            st.session_state["welcome_dismissed"] = True
-            st.session_state["pending_nav_page"] = "signals"
-            st.rerun()
-        if c2.button(t("welcome.go_slip", lang), key="welcome_go_slip"):
-            set_welcome_dismissed()
-            st.session_state["welcome_dismissed"] = True
-            st.session_state["pending_nav_page"] = "slip"
-            st.rerun()
-        if c3.button(t("welcome.later", lang), key="welcome_later"):
-            set_welcome_dismissed()
-            st.session_state["welcome_dismissed"] = True
-            st.rerun()
+        if ux_mode is UXMode.BEGINNER:
+            c1, c2 = st.columns(2)
+            if c1.button(t("welcome.go_tips", lang), type="primary", key="welcome_go_tips"):
+                set_welcome_dismissed()
+                st.session_state["welcome_dismissed"] = True
+                st.session_state["pending_nav_page"] = "signals"
+                st.rerun()
+            if c2.button(t("welcome.later", lang), key="welcome_later"):
+                set_welcome_dismissed()
+                st.session_state["welcome_dismissed"] = True
+                st.rerun()
+        else:
+            c1, c2, c3 = st.columns(3)
+            if c1.button(t("welcome.go_tips", lang), type="primary", key="welcome_go_tips"):
+                set_welcome_dismissed()
+                st.session_state["welcome_dismissed"] = True
+                st.session_state["pending_nav_page"] = "signals"
+                st.rerun()
+            if c2.button(t("welcome.go_slip", lang), key="welcome_go_slip"):
+                set_welcome_dismissed()
+                st.session_state["welcome_dismissed"] = True
+                st.session_state["pending_nav_page"] = "slip"
+                st.rerun()
+            if c3.button(t("welcome.later", lang), key="welcome_later"):
+                set_welcome_dismissed()
+                st.session_state["welcome_dismissed"] = True
+                st.rerun()
 
 
 def _name_match_warnings(lang, provider, leagues) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
@@ -651,13 +666,7 @@ def _signals_page(
                 st.caption(t("sig.tip_legend", lang))
             with st.expander(t("sig.all_matches", lang), expanded=False):
                 render_signals_table(signals_dataframe(lg_reports, mode=UXMode.BEGINNER, lang=lang))
-        st.info(t("sig.open_slip_hint", lang))
-        if st.button(t("sig.open_slip", lang), type="primary", key="open_slip_from_tips"):
-            st.session_state["welcome_dismissed"] = True
-            st.session_state["slip_from_tips"] = True
-            st.session_state["slip_pref_style"] = "safe"
-            st.session_state["pending_nav_page"] = "slip"
-            st.rerun()
+        # Accumulators stay out of Simple mode (Gemini/Claude review).
         return
 
     c1, c2 = st.columns(2)

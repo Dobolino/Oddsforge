@@ -48,10 +48,10 @@ _STRINGS: dict[str, dict[str, str]] = {
     "welcome.steps": {
         "de": "1. Links Liga „Alle“ oder eine Liga wählen.\n"
               "2. Datumsbereich setzen (Heute / 3 Tage / 7 Tage).\n"
-              "3. Unter Tipps lesen, dann Tippschein öffnen.",
+              "3. Unter Tipps die Modell-Signale lesen — ohne Kombi-Schein im Einfach-Modus.",
         "en": "1. Choose „All“ or one league on the left.\n"
               "2. Set a date range (Today / 3 days / 7 days).\n"
-              "3. Read Tips, then open the tip slip.",
+              "3. Read model signals under Tips — no accumulator slip in Simple mode.",
     },
     "welcome.dismiss": {"de": "Verstanden — starten", "en": "Got it — start"},
     "welcome.go_tips": {"de": "Zu den Tipps", "en": "Go to tips"},
@@ -80,20 +80,30 @@ _STRINGS: dict[str, dict[str, str]] = {
     "safety.banner": {
         "de": "QuantBot platziert keine Wetten und garantiert keinen Gewinn. "
               "Fussball ist nicht sicher vorhersagbar. Entscheide selbst und "
-              "setze nie mehr, als du verlieren kannst.",
+              "setze nie mehr, als du verlieren kannst. Hilfe bei Glücksspielproblemen: "
+              "Check dein Spiel (check-dein-spiel.de) · BZgA-Hotline 0800 1 37 27 00. "
+              "Erfolgreiches Spielen kann bei Buchmachern zu Limits/Kontosperren führen.",
         "en": "QuantBot does not place bets and guarantees no profit. "
               "Football is not reliably predictable. Decide yourself and "
-              "never stake more than you can afford to lose.",
+              "never stake more than you can afford to lose. Help with gambling problems: "
+              "Check dein Spiel (check-dein-spiel.de) · BZgA hotline 0800 1 37 27 00. "
+              "Successful play can lead to bookmaker limits or account restrictions.",
     },
     "safety.short": {
-        "de": "Nur Entscheidungshilfe — QuantBot wettet nicht.",
-        "en": "Decision support only — QuantBot does not bet.",
+        "de": "Nur Entscheidungshilfe — QuantBot wettet nicht. Hilfe: check-dein-spiel.de · 0800 1 37 27 00.",
+        "en": "Decision support only — QuantBot does not bet. Help: check-dein-spiel.de · 0800 1 37 27 00.",
     },
     "safety.demo": {
         "de": "Du siehst Demodaten mit erfundenen Zahlen. Gut zum Ausprobieren, "
-              "nicht zum Wetten.",
+              "nicht zum Wetten — Demo-Trefferquoten sind keine reale Renditeerwartung.",
         "en": "You are seeing demo data with made-up numbers. Fine for trying "
-              "the app, not for real betting.",
+              "the app, not for real betting — demo hit rates are not a real return expectation.",
+    },
+    "safety.account_limits": {
+        "de": "Hinweis: Positive Modell-Ergebnisse können bei regulierten Buchmachern "
+              "zu Einsatzlimits oder Kontosperren führen — reale Kelly-Strategien sind dadurch eingeschränkt.",
+        "en": "Note: Positive model results can lead to stake limits or account restrictions "
+              "at regulated bookmakers — real Kelly strategies are limited by that.",
     },
     "ctrl.window_sidebar": {"de": "Spieltag-Fenster", "en": "Matchday window"},
     "slip.from_tips": {
@@ -359,12 +369,12 @@ _STRINGS: dict[str, dict[str, str]] = {
         "en": "Selection + higher odds",
     },
     "slip.style_safe_hint": {
-        "de": "Unabhängige Empfehlungen mit der höchsten Modell-Wahrscheinlichkeit.",
-        "en": "Independent recommendations with the highest model probability.",
+        "de": "Unabhängige Modell-Signale mit der höchsten Modell-Wahrscheinlichkeit.",
+        "en": "Independent model signals with the highest model probability.",
     },
     "slip.style_boosted_hint": {
-        "de": "Kern-Empfehlungen plus zusätzliche Tipps mit höherer Quote. Nur Vorschlag — Kombis erhöhen das Risiko.",
-        "en": "Core recommendations plus extra higher-odds tips. Suggestion only — accumulators raise risk.",
+        "de": "Kern-Signale plus zusätzliche Tipps mit höherer Quote. Nur Vorschlag — Kombis erhöhen das Risiko.",
+        "en": "Core signals plus extra higher-odds tips. Suggestion only — accumulators raise risk.",
     },
     "slip.max_legs": {"de": "Anzahl Tipps im Schein", "en": "Number of tips on the slip"},
     "slip.core_legs": {"de": "Kern-Tipps", "en": "Core tips"},
@@ -455,6 +465,14 @@ _STRINGS: dict[str, dict[str, str]] = {
         "en": "Strictly chronological. The closing line feeds only Closing Line Value, never the decision.",
     },
     "bt.roi": {"de": "ROI (Yield)", "en": "ROI (yield)"},
+    "bt.roi_caveat": {
+        "de": "ROI ohne Standardabweichung und Max-Drawdown ist irreführend. "
+              "Vergangene Backtest-Ergebnisse sind keine Garantie für die Zukunft. "
+              "Demo-Daten verzerren die reale Erwartung.",
+        "en": "ROI without standard deviation and max drawdown is misleading. "
+              "Past backtest results are not a guarantee of the future. "
+              "Demo data distorts real expectations.",
+    },
     "bt.final": {"de": "Endkapital", "en": "Final bankroll"},
     "bt.max_dd": {"de": "Max Drawdown", "en": "Max drawdown"},
     "bt.beat_clv": {"de": "Beat-CLV-Rate", "en": "Beat-CLV rate"},
@@ -518,9 +536,9 @@ GLOSSARY: list[dict[str, object]] = [
              "Value auf Heimsieg, Unentschieden oder Auswärtssieg. Die Quote ist im Verhältnis zur geschätzten Wahrscheinlichkeit zu hoch.",
              "Value on a home win, draw or away win. The odds are too high relative to the estimated probability."),
             ("NO_BET",
-             "Keine Empfehlung — korrektes Ergebnis, wenn kein ausreichend belastbarer Value vorliegt. "
+             "Kein Modell-Signal — korrektes Ergebnis, wenn kein ausreichend belastbarer Value vorliegt. "
              "Reason-Codes erklären warum (z. B. NO_BET_LOW_EDGE).",
-             "No recommendation — the correct outcome when there is no sufficiently robust value. "
+             "No model signal — the correct outcome when there is no sufficiently robust value. "
              "Reason codes explain why (e.g. NO_BET_LOW_EDGE)."),
         ],
     },

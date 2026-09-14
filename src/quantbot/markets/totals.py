@@ -12,7 +12,8 @@ from quantbot.schemas.enums import DEFAULT_TOTALS_LINE, TOTALS_ORDER
 class TotalsMarketEngine:
     """Two-way margin removal for Over/Under quotes."""
 
-    def __init__(self, method: MarginMethod = MarginMethod.SHIN) -> None:
+    def __init__(self, method: MarginMethod = MarginMethod.POWER) -> None:
+        # Power is more stable on asymmetric two-way totals than Shin (Gemini review).
         self.method = method
 
     def to_market_data(

@@ -23,7 +23,7 @@ class KellySizer:
         min_fraction: Stakes below this are rounded down to 0 (skip dust).
     """
 
-    kelly_fraction: float = 0.25
+    kelly_fraction: float = 0.10
     max_fraction: float = 0.05
     min_fraction: float = 0.0
 

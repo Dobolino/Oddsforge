@@ -10,9 +10,10 @@ from quantbot.orchestrator import QuantBotOrchestrator, SignalReport
 from quantbot.schemas import League
 
 
-def test_slip_page_visible_in_all_modes() -> None:
-    for mode in UXMode:
-        assert "slip" in pages_for(mode)
+def test_slip_page_hidden_for_beginner() -> None:
+    assert "slip" not in pages_for(UXMode.BEGINNER)
+    assert "slip" in pages_for(UXMode.ADVANCED)
+    assert "slip" in pages_for(UXMode.EXPERT)
 
 
 def test_suggested_as_of_live_is_today() -> None:

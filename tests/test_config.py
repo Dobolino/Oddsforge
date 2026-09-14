@@ -11,7 +11,9 @@ from quantbot.config import MarginMethod, Settings
 def test_defaults() -> None:
     settings = Settings()
     assert settings.min_edge == 0.03
+    assert settings.kelly_fraction == 0.10
     assert settings.margin_method is MarginMethod.SHIN
+    assert settings.totals_margin_method is MarginMethod.POWER
     assert settings.allow_automated_betting is False
 
 
