@@ -96,7 +96,7 @@ def test_pipeline_signals_are_internally_consistent() -> None:
 
 
 def test_snapshot_from_signal_roundtrip() -> None:
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from quantbot.decision import DecisionEngine, KellySizer, NoBetRules
     from quantbot.schemas import SignalType, snapshot_from_signal
@@ -116,9 +116,7 @@ def test_snapshot_from_signal_roundtrip() -> None:
         )
     )
     reports = orch.predict(League.PREMIER_LEAGUE, "2024-2025")
-    report = next((r for r in reports if r.signal.is_bet), None)
-    if report is None:
-        report = reports[0]
+    report = next((r for r in reports if r.signal.is_bet), None) or reports[0]
     snap = snapshot_from_signal(
         report.signal,
         data_cutoff=report.match.prediction_timestamp,
@@ -137,4 +135,3 @@ def test_snapshot_from_signal_roundtrip() -> None:
         assert snap.expected_value == pytest.approx(report.signal.expected_value)
     else:
         assert snap.signal is SignalType.NO_BET
-    _ = timezone.utc  # timezone-aware contract covered above
