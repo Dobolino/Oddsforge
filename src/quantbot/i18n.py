@@ -38,6 +38,42 @@ _STRINGS: dict[str, dict[str, str]] = {
         "de": "Alle Kennzahlen, Modelle, Backtest und Diagnose.",
         "en": "All metrics, models, backtest and diagnostics.",
     },
+    "welcome.title": {"de": "Willkommen bei QuantBot", "en": "Welcome to QuantBot"},
+    "welcome.body": {
+        "de": "Du bist im Demomodus. Die Zahlen sind erfunden und nur zum Ausprobieren. "
+              "QuantBot wettet nichts selbst — du entscheidest.",
+        "en": "You are in demo mode. The numbers are made up and only for trying the app. "
+              "QuantBot never places bets — you decide.",
+    },
+    "welcome.steps": {
+        "de": "1. Links eine Liga wählen (z. B. Premier League).\n"
+              "2. Die Ansicht auf Anfänger lassen.\n"
+              "3. Unter Tipps den Vorschlag lesen. Mehr brauchst du nicht.",
+        "en": "1. Choose a league on the left (e.g. Premier League).\n"
+              "2. Leave the view on Beginner.\n"
+              "3. Read the suggestion under Tips. That is all you need.",
+    },
+    "welcome.dismiss": {"de": "Verstanden — starten", "en": "Got it — start"},
+    "matchwarn.title": {
+        "de": "Achtung: Teamnamen-Zuordnung unsicher",
+        "en": "Warning: uncertain team-name matching",
+    },
+    "matchwarn.body": {
+        "de": "Bei {fuzzy} Spielen wurden Vereinsnamen nur ungefähr zugeordnet "
+              "({unmatched} Quoten-Events ohne Treffer). Prüfe diese Paare, bevor du "
+              "echte Entscheidungen triffst.",
+        "en": "{fuzzy} matches used approximate club-name mapping "
+              "({unmatched} odds events unmatched). Check these pairs before making "
+              "real decisions.",
+    },
+    "matchwarn.fuzzy_row": {
+        "de": "Ungefähr: {odds} ↔ {fixture} (Ähnlichkeit {score:.0%})",
+        "en": "Approximate: {odds} ↔ {fixture} (similarity {score:.0%})",
+    },
+    "matchwarn.unmatched_row": {
+        "de": "Ohne Treffer: {odds}",
+        "en": "No match: {odds}",
+    },
     "safety.banner": {
         "de": "QuantBot platziert keine Wetten und garantiert keinen Gewinn. "
               "Fussball ist nicht sicher vorhersagbar. Entscheide selbst und "

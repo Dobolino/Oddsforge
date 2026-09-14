@@ -9,13 +9,15 @@ The hard part is matching an odds event (identified by team names) to a
 Football-Data fixture (identified by numeric ids). Matching is by normalized
 team-name pair within the same league. Names are normalized (lowercased,
 accent- and suffix-stripped) with a small alias table for known mismatches.
-Real-world coverage depends on both APIs and will need alias tuning.
+Near-matches (fuzzy) are accepted but flagged as uncertain so the UI can warn.
 """
 
 from __future__ import annotations
 
 import unicodedata
 from collections.abc import Sequence
+from dataclasses import asdict, dataclass, field
+from difflib import SequenceMatcher
 from pathlib import Path
 
 from quantbot.data.base import BaseDataProvider
@@ -43,6 +45,9 @@ _ALIASES: dict[str, str] = {
     "paris saint germain": "paris saint germain",
 }
 
+# Fuzzy pair score below this is rejected; at/above is accepted but uncertain.
+_FUZZY_THRESHOLD = 0.86
+
 
 def normalize_team(name: str) -> str:
     """Normalize a club name for cross-API matching."""
@@ -54,6 +59,45 @@ def normalize_team(name: str) -> str:
     kept = [t for t in tokens if t not in _DROP_TOKENS]
     key = " ".join(kept or tokens)
     return _ALIASES.get(key, key)
+
+
+def _pair_score(a: tuple[str, str], b: tuple[str, str]) -> float:
+    """Similarity of two (home, away) normalized name pairs."""
+
+    home = SequenceMatcher(None, a[0], b[0]).ratio()
+    away = SequenceMatcher(None, a[1], b[1]).ratio()
+    return (home + away) / 2.0
+
+
+@dataclass(frozen=True)
+class NameMatchIssue:
+    """One uncertain or failed team-name mapping between the two APIs."""
+
+    kind: str  # "fuzzy" | "unmatched_odds"
+    odds_home: str
+    odds_away: str
+    fixture_home: str | None = None
+    fixture_away: str | None = None
+    match_id: str | None = None
+    score: float | None = None
+
+
+@dataclass
+class NameMatchReport:
+    """Summary of how odds events mapped onto fixtures for one league."""
+
+    league: str
+    matched_exact: int = 0
+    matched_fuzzy: int = 0
+    unmatched_odds: int = 0
+    issues: list[NameMatchIssue] = field(default_factory=list)
+
+    @property
+    def has_warnings(self) -> bool:
+        return self.matched_fuzzy > 0 or self.unmatched_odds > 0
+
+    def to_dict(self) -> dict:
+        return asdict(self)
 
 
 class LiveDataProvider(BaseDataProvider):
@@ -82,11 +126,20 @@ class LiveDataProvider(BaseDataProvider):
         self._matches_cache: list[Match] | None = None
         self._match_league: dict[str, League] = {}
         self._odds_cache: dict[League, dict[str, list[Odds]]] = {}
+        self._match_reports: dict[League, NameMatchReport] = {}
 
     @property
     def provider_name(self) -> str:
         codes = ",".join(lg.value for lg in self._leagues)
         return f"live(football_data+the_odds_api; {codes})"
+
+    def name_match_report(self, league: League | None = None) -> NameMatchReport | None:
+        """Return the latest name-matching report (builds odds cache if needed)."""
+
+        target = league or self._leagues[0]
+        if target not in self._match_reports:
+            self._odds_for_league(target)
+        return self._match_reports.get(target)
 
     # --- Matches / fixtures (Football-Data) ---
 
@@ -115,31 +168,98 @@ class LiveDataProvider(BaseDataProvider):
             return self._odds_cache[league]
 
         self._fetch_matches()  # ensure fixtures and league index are populated
-        index: dict[tuple[str, str], str] = {}
+        index: dict[tuple[str, str], tuple[str, str, str]] = {}
         for m in self._matches_cache or []:
             if m.league is league:
                 key = (normalize_team(m.home_team.name), normalize_team(m.away_team.name))
-                index[key] = m.match_id
+                index[key] = (m.match_id, m.home_team.name, m.away_team.name)
 
         mapped: dict[str, list[Odds]] = {}
+        report = NameMatchReport(league=league.value)
         try:
             events = self._odds.fetch_events(odds_api_key(league), regions=self._regions)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Could not load %s odds: %s", league.value, exc)
             events = []
 
-        matched = 0
+        used_fixture_ids: set[str] = set()
         for event in events:
-            key = (normalize_team(event.get("home_team", "")), normalize_team(event.get("away_team", "")))
-            fd_id = index.get(key)
-            if fd_id is None:
-                continue
-            odds = [o.model_copy(update={"match_id": fd_id}) for o in self._odds.event_to_odds(event)]
-            if odds:
-                mapped[fd_id] = odds
-                matched += 1
+            odds_home_raw = event.get("home_team", "")
+            odds_away_raw = event.get("away_team", "")
+            key = (normalize_team(odds_home_raw), normalize_team(odds_away_raw))
+            hit = index.get(key)
+            uncertain = False
+            score: float | None = None
 
-        logger.info("%s: matched odds for %d/%d events", league.value, matched, len(events))
+            if hit is None:
+                # Fuzzy fallback: best unused fixture pair above threshold.
+                best_key = None
+                best_score = 0.0
+                for fixture_key in index:
+                    if index[fixture_key][0] in used_fixture_ids:
+                        continue
+                    s = _pair_score(key, fixture_key)
+                    if s > best_score:
+                        best_score = s
+                        best_key = fixture_key
+                if best_key is not None and best_score >= _FUZZY_THRESHOLD:
+                    hit = index[best_key]
+                    uncertain = True
+                    score = best_score
+                else:
+                    report.unmatched_odds += 1
+                    report.issues.append(
+                        NameMatchIssue(
+                            kind="unmatched_odds",
+                            odds_home=str(odds_home_raw),
+                            odds_away=str(odds_away_raw),
+                            score=best_score if best_key is not None else None,
+                        )
+                    )
+                    continue
+
+            fd_id, fixture_home, fixture_away = hit
+            if fd_id in used_fixture_ids:
+                report.unmatched_odds += 1
+                report.issues.append(
+                    NameMatchIssue(
+                        kind="unmatched_odds",
+                        odds_home=str(odds_home_raw),
+                        odds_away=str(odds_away_raw),
+                    )
+                )
+                continue
+
+            odds = [o.model_copy(update={"match_id": fd_id}) for o in self._odds.event_to_odds(event)]
+            if not odds:
+                continue
+            mapped[fd_id] = odds
+            used_fixture_ids.add(fd_id)
+            if uncertain:
+                report.matched_fuzzy += 1
+                report.issues.append(
+                    NameMatchIssue(
+                        kind="fuzzy",
+                        odds_home=str(odds_home_raw),
+                        odds_away=str(odds_away_raw),
+                        fixture_home=fixture_home,
+                        fixture_away=fixture_away,
+                        match_id=fd_id,
+                        score=score,
+                    )
+                )
+            else:
+                report.matched_exact += 1
+
+        logger.info(
+            "%s: matched odds exact=%d fuzzy=%d unmatched=%d / %d events",
+            league.value,
+            report.matched_exact,
+            report.matched_fuzzy,
+            report.unmatched_odds,
+            len(events),
+        )
+        self._match_reports[league] = report
         self._odds_cache[league] = mapped
         return mapped
 

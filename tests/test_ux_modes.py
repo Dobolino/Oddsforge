@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from quantbot.dashboard.ux import (
     PAGES_BY_MODE,
     UXMode,
     pages_for,
     plain_reason,
     plain_signal_label,
+    reason_for_mode,
 )
-from quantbot.schemas import SignalType
+from quantbot.schemas import SignalType, ValueSignal
 
 
 def test_pages_nested_by_depth() -> None:
@@ -34,8 +37,19 @@ def test_plain_signal_labels() -> None:
     assert "Kein" in plain_signal_label(SignalType.NO_BET, "de")
 
 
-def test_plain_reason_maps_common_cases() -> None:
-    assert "Daten" in plain_reason("data quality 40.0 below minimum 60.0", "de")
-    assert "edge" in plain_reason("edge 0.01 below minimum 0.03", "en").lower()
-    assert "Vorteil" in plain_reason("value on home: edge 0.05, ev 0.08, stake 0.02", "de")
+def test_plain_reason_uses_signal_fields() -> None:
+    signal = ValueSignal(
+        match_id="m1",
+        timestamp=datetime(2025, 1, 1, tzinfo=timezone.utc),
+        signal=SignalType.NO_BET,
+        model_confidence=50.0,
+        data_quality=40.0,
+        rationale="data quality 40.0 below minimum 60.0",
+        rationale_de="Zu wenig verlässliche Daten für dieses Spiel.",
+        rationale_en="Not enough reliable data for this match.",
+    )
+    assert "Daten" in plain_reason(signal, "de")
+    assert "reliable" in plain_reason(signal, "en").lower()
+    assert "data quality" in reason_for_mode(signal, UXMode.EXPERT, "de")
+    assert "Daten" in reason_for_mode(signal, UXMode.BEGINNER, "de")
     assert plain_reason("", "de")

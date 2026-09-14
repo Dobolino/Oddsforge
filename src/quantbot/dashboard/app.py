@@ -205,6 +205,10 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     if not live:
         st.caption(t("safety.demo", lang))
 
+    _welcome_card(lang)
+    if live and provider is not None:
+        _name_match_warning(lang, provider, league)
+
     if page == "glossary":
         _glossary_page(lang)
         return
@@ -318,6 +322,50 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
                         st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
                     else:
                         st.caption("-")
+
+
+def _welcome_card(lang: str) -> None:  # pragma: no cover - requires Streamlit runtime
+    """First-run onboarding: demo mode, pick a league, stay on Beginner."""
+
+    if st.session_state.get("welcome_dismissed"):
+        return
+    with st.container(border=True):
+        st.subheader(t("welcome.title", lang))
+        st.write(t("welcome.body", lang))
+        st.markdown(t("welcome.steps", lang))
+        if st.button(t("welcome.dismiss", lang), type="primary"):
+            st.session_state["welcome_dismissed"] = True
+            st.rerun()
+
+
+def _name_match_warning(lang, provider, league) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
+    """Warn when live odds were matched fuzzily or not at all."""
+
+    report = getattr(provider, "name_match_report", lambda *_a, **_k: None)(league)
+    if report is None or not report.has_warnings:
+        return
+    st.warning(
+        t("matchwarn.title", lang)
+        + " — "
+        + t("matchwarn.body", lang).format(
+            fuzzy=report.matched_fuzzy,
+            unmatched=report.unmatched_odds,
+        )
+    )
+    with st.expander(t("matchwarn.title", lang), expanded=False):
+        for issue in report.issues[:12]:
+            odds = f"{issue.odds_home} vs {issue.odds_away}"
+            if issue.kind == "fuzzy" and issue.fixture_home and issue.fixture_away:
+                fixture = f"{issue.fixture_home} vs {issue.fixture_away}"
+                st.caption(
+                    t("matchwarn.fuzzy_row", lang).format(
+                        odds=odds,
+                        fixture=fixture,
+                        score=issue.score or 0.0,
+                    )
+                )
+            else:
+                st.caption(t("matchwarn.unmatched_row", lang).format(odds=odds))
 
 
 def _signals_page(lang, ux_mode, C, orchestrator, mode, league, season) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover

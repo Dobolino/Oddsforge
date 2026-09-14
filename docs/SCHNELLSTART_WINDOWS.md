@@ -40,13 +40,14 @@ Das holt die neueste Version und installiert sie. Deine Schlüssel und Einstellu
 Falls Windows beim Doppelklick warnt (blauer Hinweis "Windows hat den PC geschützt): auf "Weitere Informationen" und dann "Trotzdem ausführen" klicken. Die Dateien sind Teil des Projekts.
 
 Was du im Dashboard machst:
-1. Links oben die Sprache auf Deutsch stellen.
-2. Die Ansicht auf **Anfänger** lassen (Voreinstellung). Fortgeschritten und Experte zeigen mehr Zahlen.
-3. Eine Liga wählen (in der Demo funktionieren Premier League und Bundesliga).
-4. Zwischen den Seiten wechseln: Tipps, Verlauf, Glossar. (Bei Fortgeschritten/Experte kommen weitere Seiten hinzu.)
-5. Auf Tipps siehst du einen klaren Vorschlag und eine kurze Begründung. Verlauf zeigt Woche für Woche Tipp gegen Ergebnis. Glossar erklärt jeden Begriff.
+1. Beim ersten Start die Willkommenskarte lesen und auf **Verstanden — starten** klicken.
+2. Links oben die Sprache auf Deutsch stellen.
+3. Die Ansicht auf **Anfänger** lassen (Voreinstellung). Fortgeschritten und Experte zeigen mehr Zahlen.
+4. Eine Liga wählen (in der Demo funktionieren Premier League und Bundesliga).
+5. Zwischen den Seiten wechseln: Tipps, Verlauf, Glossar. (Bei Fortgeschritten/Experte kommen weitere Seiten hinzu.)
+6. Auf Tipps siehst du einen klaren Vorschlag und eine kurze Begründung. Verlauf zeigt Woche für Woche Tipp gegen Ergebnis. Glossar erklärt jeden Begriff.
 
-Oben steht immer ein Warnhinweis: QuantBot wettet nicht selbst und garantiert keinen Gewinn.
+Oben steht immer ein Warnhinweis: QuantBot wettet nicht selbst und garantiert keinen Gewinn. Bei echten Daten erscheint zusätzlich eine Warnung, wenn Teamnamen zwischen den Datenquellen unsicher zugeordnet wurden.
 
 In der Demo sind die Spiele erfunden. Die Zahlen sind nur zum Anschauen.
 

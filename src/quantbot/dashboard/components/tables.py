@@ -10,8 +10,8 @@ from quantbot.backtest.metrics import BacktestMetrics
 from quantbot.dashboard.ux import (
     SIGNAL_COLUMNS_BY_MODE,
     UXMode,
-    plain_reason,
     plain_signal_label,
+    reason_for_mode,
 )
 from quantbot.orchestrator import SignalReport
 
@@ -41,7 +41,7 @@ def signals_dataframe(
         s = report.signal
         m = report.match
         tip = plain_signal_label(s.signal, lang)
-        why = plain_reason(s.rationale, lang)
+        why = reason_for_mode(s, mode, lang)
         rows.append(
             {
                 "Match": f"{m.home_team.name} vs {m.away_team.name}",
@@ -54,7 +54,7 @@ def signals_dataframe(
                 "Stake %": round(s.stake_fraction * 100.0, 2),
                 "Confidence": round(s.model_confidence, 1),
                 "Data quality": round(s.data_quality, 1),
-                "Reason": why if mode is not UXMode.EXPERT else s.rationale,
+                "Reason": why,
             }
         )
     columns = list(SIGNAL_COLUMNS_BY_MODE[mode])
@@ -80,7 +80,7 @@ def beginner_tip_cards(
             {
                 "match": f"{m.home_team.name} vs {m.away_team.name}",
                 "tip": plain_signal_label(s.signal, lang),
-                "why": plain_reason(s.rationale, lang),
+                "why": reason_for_mode(s, UXMode.BEGINNER, lang),
                 "is_bet": "1" if s.is_bet else "0",
             }
         )

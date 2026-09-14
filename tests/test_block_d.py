@@ -169,6 +169,77 @@ def test_live_unmatched_event_has_no_odds(tmp_path) -> None:  # type: ignore[no-
     assert provider.get_odds("101", FAR_FUTURE) == []
 
 
+def test_live_name_match_report_flags_unmatched(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    provider = _live(tmp_path)
+    report = provider.name_match_report(League.PREMIER_LEAGUE)
+    assert report is not None
+    assert report.matched_exact == 1
+    assert report.unmatched_odds == 1
+    assert report.has_warnings
+    assert any(i.kind == "unmatched_odds" for i in report.issues)
+
+
+def test_live_fuzzy_match_is_flagged(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    # Near-identical names that only match after fuzzy scoring.
+    fd = {
+        "matches": [
+            {
+                "id": 200,
+                "utcDate": "2025-02-01T15:00:00Z",
+                "status": "TIMED",
+                "homeTeam": {"id": 1, "name": "Manchester United FC"},
+                "awayTeam": {"id": 2, "name": "Newcastle United FC"},
+                "score": {"fullTime": {"home": None, "away": None}},
+            }
+        ]
+    }
+    odds = [
+        {
+            "id": "odds-fuzzy",
+            "sport_key": "soccer_epl",
+            "commence_time": "2025-02-01T15:00:00Z",
+            "home_team": "Manchester Utd",
+            "away_team": "Newcastle Utd",
+            "bookmakers": [
+                {
+                    "key": "pinnacle",
+                    "title": "Pinnacle",
+                    "last_update": "2025-01-31T12:00:00Z",
+                    "markets": [
+                        {
+                            "key": "h2h",
+                            "outcomes": [
+                                {"name": "Manchester Utd", "price": 2.1},
+                                {"name": "Newcastle Utd", "price": 3.4},
+                                {"name": "Draw", "price": 3.3},
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+    ]
+    fd_client = httpx.Client(
+        transport=httpx.MockTransport(lambda r: httpx.Response(200, json=fd)),
+        base_url="https://api.football-data.org",
+    )
+    odds_client = httpx.Client(
+        transport=httpx.MockTransport(lambda r: httpx.Response(200, json=odds)),
+        base_url="https://api.the-odds-api.com",
+    )
+    football = FootballDataProvider("fd", cache_dir=tmp_path / "fd2", client=fd_client)
+    odds_api = TheOddsAPIProvider("odds", cache_dir=tmp_path / "odds2", client=odds_client)
+    provider = LiveDataProvider(football, odds_api, [League.PREMIER_LEAGUE])
+    as_of = datetime(2025, 2, 1, 14, 0, tzinfo=UTC)
+    linked = provider.get_latest_odds("200", as_of)
+    assert linked is not None
+    report = provider.name_match_report(League.PREMIER_LEAGUE)
+    assert report is not None
+    assert report.matched_fuzzy == 1
+    assert report.has_warnings
+    assert any(i.kind == "fuzzy" and i.match_id == "200" for i in report.issues)
+
+
 def test_live_requires_at_least_one_league(tmp_path) -> None:  # type: ignore[no-untyped-def]
     fd = FootballDataProvider("fd", cache_dir=tmp_path / "fd")
     odds = TheOddsAPIProvider("odds", cache_dir=tmp_path / "odds")

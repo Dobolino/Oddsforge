@@ -7,6 +7,8 @@ from quantbot.data.providers.football_data import FootballDataProvider
 from quantbot.data.providers.leagues import LEAGUE_CODES, football_data_code, odds_api_key
 from quantbot.data.providers.live import (
     LiveDataProvider,
+    NameMatchIssue,
+    NameMatchReport,
     build_live_provider,
     normalize_team,
 )
@@ -19,6 +21,8 @@ __all__ = [
     "FootballDataProvider",
     "TheOddsAPIProvider",
     "LiveDataProvider",
+    "NameMatchIssue",
+    "NameMatchReport",
     "build_live_provider",
     "normalize_team",
     "LEAGUE_CODES",

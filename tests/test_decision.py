@@ -126,7 +126,9 @@ def test_rules_reject_low_ev() -> None:
     metric = _metric(MatchOutcome.HOME, 0.50, 0.50, 2.0)  # ev 0.0
     result = rules.evaluate(metric, overround=0.05, data_quality=80.0, model_confidence=75.0)
     assert not result.passed
-    assert any("ev" in r for r in result.reasons)
+    assert any(r.code == "low_ev" for r in result.reasons)
+    assert "gering" in result.join("de")
+    assert "expected value" in result.join("en").lower()
 
 
 def test_rules_reject_low_confidence() -> None:
@@ -134,7 +136,7 @@ def test_rules_reject_low_confidence() -> None:
     metric = _metric(MatchOutcome.HOME, 0.60, 0.50, 2.1)
     result = rules.evaluate(metric, overround=0.05, data_quality=80.0, model_confidence=50.0)
     assert not result.passed
-    assert any("model confidence" in r for r in result.reasons)
+    assert any(r.code == "low_model_confidence" for r in result.reasons)
 
 
 def test_rules_reject_low_data_quality() -> None:
@@ -142,7 +144,7 @@ def test_rules_reject_low_data_quality() -> None:
     metric = _metric(MatchOutcome.HOME, 0.60, 0.50, 2.1)
     result = rules.evaluate(metric, overround=0.05, data_quality=40.0, model_confidence=75.0)
     assert not result.passed
-    assert any("data quality" in r for r in result.reasons)
+    assert any(r.code == "low_data_quality" for r in result.reasons)
 
 
 def test_rules_reject_high_overround() -> None:
@@ -150,15 +152,15 @@ def test_rules_reject_high_overround() -> None:
     metric = _metric(MatchOutcome.HOME, 0.60, 0.50, 2.1)
     result = rules.evaluate(metric, overround=0.20, data_quality=80.0, model_confidence=75.0)
     assert not result.passed
-    assert any("overround" in r for r in result.reasons)
+    assert any(r.code == "high_overround" for r in result.reasons)
 
 
 def test_rules_reject_extreme_odds() -> None:
     rules = NoBetRules(min_odds=1.2, max_odds=15.0, min_edge=0.0, min_ev=-1.0)
     high = _metric(MatchOutcome.AWAY, 0.10, 0.05, 20.0)
     low = _metric(MatchOutcome.HOME, 0.95, 0.90, 1.05)
-    assert any("above maximum" in r for r in rules.evaluate(high, 0.05, 80.0, 75.0).reasons)
-    assert any("below minimum" in r for r in rules.evaluate(low, 0.05, 80.0, 75.0).reasons)
+    assert any(r.code == "odds_too_high" for r in rules.evaluate(high, 0.05, 80.0, 75.0).reasons)
+    assert any(r.code == "odds_too_low" for r in rules.evaluate(low, 0.05, 80.0, 75.0).reasons)
 
 
 def test_rules_collect_multiple_reasons() -> None:
@@ -184,6 +186,9 @@ def test_decision_engine_value_signal() -> None:
     assert signal.stake_fraction > 0.0
     assert signal.edge == pytest.approx(0.10)
     assert "value on home" in signal.rationale
+    assert "Vorteil" in signal.rationale_de
+    assert "advantage" in signal.rationale_en.lower()
+    assert "Vorteil" in signal.plain_rationale("de")
 
 
 def test_decision_engine_no_bet_low_ev() -> None:
@@ -194,6 +199,7 @@ def test_decision_engine_no_bet_low_ev() -> None:
     assert signal.chosen_outcome is None
     assert signal.stake_fraction == 0.0
     assert "ev" in signal.rationale
+    assert "gering" in signal.rationale_de
 
 
 def test_decision_engine_no_bet_low_confidence() -> None:
@@ -202,6 +208,7 @@ def test_decision_engine_no_bet_low_confidence() -> None:
     signal = engine.decide(_analysis(metric, model_confidence=60.0), _market())
     assert signal.signal is SignalType.NO_BET
     assert "model confidence" in signal.rationale
+    assert "unsicher" in signal.rationale_de
 
 
 def test_decision_engine_rejects_mismatched_ids() -> None:

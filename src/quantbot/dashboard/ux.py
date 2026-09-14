@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from enum import Enum
 
-from quantbot.schemas import SignalType
+from quantbot.schemas import SignalType, ValueSignal
 
 
 class UXMode(str, Enum):
@@ -62,42 +62,6 @@ _SIGNAL_PLAIN: dict[SignalType, dict[str, str]] = {
     SignalType.NO_BET: {"de": "Kein Tipp", "en": "No tip"},
 }
 
-# Ordered checks: more specific needles first, then fall through.
-_REASON_MAP: tuple[tuple[str, dict[str, str]], ...] = (
-    ("data quality", {
-        "de": "Zu wenig verlässliche Daten für dieses Spiel.",
-        "en": "Not enough reliable data for this match.",
-    }),
-    ("model confidence", {
-        "de": "Das Modell ist sich hier zu unsicher.",
-        "en": "The model is too uncertain here.",
-    }),
-    ("overround", {
-        "de": "Die Buchmacher-Marge ist zu hoch.",
-        "en": "The bookmaker margin is too high.",
-    }),
-    ("edge ", {
-        "de": "Der Vorteil gegenüber dem Markt ist zu gering.",
-        "en": "The edge versus the market is too small.",
-    }),
-    ("ev ", {
-        "de": "Der erwartete Gewinn ist zu gering.",
-        "en": "The expected value is too low.",
-    }),
-    ("odds ", {
-        "de": "Die Quote liegt ausserhalb des sinnvollen Bereichs.",
-        "en": "The odds are outside a sensible range.",
-    }),
-    ("kelly stake rounds to zero", {
-        "de": "Der sinnvolle Einsatz wäre praktisch null.",
-        "en": "A sensible stake would be practically zero.",
-    }),
-    ("value on", {
-        "de": "Das Modell sieht hier einen Vorteil gegenüber dem Markt.",
-        "en": "The model sees an advantage versus the market here.",
-    }),
-)
-
 
 def plain_signal_label(signal: SignalType, lang: str = "de") -> str:
     """Human tip label instead of VALUE_HOME / NO_BET."""
@@ -106,31 +70,34 @@ def plain_signal_label(signal: SignalType, lang: str = "de") -> str:
     return entry.get(lang) or entry["de"]
 
 
-def plain_reason(rationale: str, lang: str = "de") -> str:
-    """Turn a technical decision rationale into one short sentence."""
+def plain_reason(signal_or_text: ValueSignal | str, lang: str = "de") -> str:
+    """Prefer bilingual reasons from the Decision Engine; fall back gracefully."""
 
-    text = (rationale or "").lower()
+    if isinstance(signal_or_text, ValueSignal):
+        text = signal_or_text.plain_rationale(lang)
+        if text:
+            return text.split(";")[0].strip()
+        signal_or_text = signal_or_text.rationale
+
+    text = (signal_or_text or "").strip()
     if not text:
         return (
             "Keine nähere Begründung."
             if lang == "de"
             else "No further explanation."
         )
-
-    # Prefer the value-on phrasing for positive tips.
-    if text.startswith("value on"):
-        mapped = _REASON_MAP[-1][1]
-        return mapped.get(lang) or mapped["de"]
-
-    for needle, mapped in _REASON_MAP:
-        if needle in text:
-            return mapped.get(lang) or mapped["de"]
-
-    # Fallback: keep first clause, truncated.
-    first = rationale.split(";")[0].strip()
+    first = text.split(";")[0].strip()
     if len(first) > 120:
         first = first[:117] + "…"
     return first
+
+
+def reason_for_mode(signal: ValueSignal, mode: UXMode, lang: str = "de") -> str:
+    """Expert sees technical English; others see plain language."""
+
+    if mode is UXMode.EXPERT:
+        return signal.rationale or plain_reason(signal, lang)
+    return plain_reason(signal, lang)
 
 
 def pages_for(mode: UXMode) -> tuple[str, ...]:

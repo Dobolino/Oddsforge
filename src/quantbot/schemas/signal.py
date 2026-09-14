@@ -73,7 +73,12 @@ class ValueSignal(QuantBotModel):
     model_confidence: float = Field(ge=0.0, le=100.0)
     data_quality: float = Field(ge=0.0, le=100.0)
     stake_fraction: float = Field(default=0.0, ge=0.0, le=1.0)
-    rationale: str = Field(default="", description="Human-readable decision reason.")
+    rationale: str = Field(
+        default="",
+        description="Technical English decision reason (logs / expert mode).",
+    )
+    rationale_de: str = Field(default="", description="Plain-language German reason.")
+    rationale_en: str = Field(default="", description="Plain-language English reason.")
     metrics: tuple[ValueMetrics, ...] = Field(default_factory=tuple)
 
     @model_validator(mode="after")
@@ -100,6 +105,15 @@ class ValueSignal(QuantBotModel):
     @property
     def is_bet(self) -> bool:
         return self.signal is not SignalType.NO_BET
+
+    def plain_rationale(self, lang: str = "de") -> str:
+        """Prefer bilingual plain text; fall back to the technical rationale."""
+
+        if lang.startswith("de") and self.rationale_de:
+            return self.rationale_de
+        if self.rationale_en:
+            return self.rationale_en
+        return self.rationale
 
 
 _SIGNAL_TO_OUTCOME: dict[SignalType, MatchOutcome] = {
