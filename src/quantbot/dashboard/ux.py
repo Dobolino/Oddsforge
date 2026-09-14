@@ -141,6 +141,47 @@ def tip_badge_html(signal: SignalType, lang: str = "de", *, large: bool = False,
     )
 
 
+# Signed metrics (edge / EV): green = favourable, red = unfavourable.
+_TONE_POSITIVE = "#1b7f4a"
+_TONE_NEGATIVE = "#b91c1c"
+_TONE_NEUTRAL = "#6b7280"
+_TONE_AMBER = "#c47a00"
+
+
+def tone_color_for_signed(value: float | None, *, eps: float = 1e-9) -> str:
+    """CSS color for a signed metric (edge, expected return)."""
+
+    if value is None:
+        return _TONE_NEUTRAL
+    if value > eps:
+        return _TONE_POSITIVE
+    if value < -eps:
+        return _TONE_NEGATIVE
+    return _TONE_NEUTRAL
+
+
+def tone_color_for_confidence(score: float) -> str:
+    """CSS color for forecast-quality score 0–100."""
+
+    if score >= 70.0:
+        return _TONE_POSITIVE
+    if score >= 40.0:
+        return _TONE_AMBER
+    return _TONE_NEUTRAL
+
+
+def colored_text_html(text: str, color: str, *, bold: bool = True) -> str:
+    """Inline colored span for table cells."""
+
+    from html import escape
+
+    weight = "700" if bold else "500"
+    return (
+        f'<span style="color:{color};font-weight:{weight};'
+        f'white-space:nowrap;">{escape(text)}</span>'
+    )
+
+
 def tip_kind_from_label(label: str) -> SignalType:
     """Best-effort map of a tip label back to SignalType (for slip coloring)."""
 

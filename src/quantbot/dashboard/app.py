@@ -18,6 +18,7 @@ from quantbot.dashboard.components import (
     equity_curve_figure,
     metrics_dataframe,
     model_comparison_figure,
+    render_colored_signals_table,
     render_signals_table,
     scoreline_heatmap_figure,
     signals_dataframe,
@@ -804,14 +805,14 @@ def _signals_page(
     c1.metric(t("sig.matches", lang), len(reports))
     c2.metric(t("sig.values", lang), n_bets)
     if len(leagues) == 1:
-        render_signals_table(signals_dataframe(reports, mode=ux_mode, lang=lang))
+        render_colored_signals_table(reports, mode=ux_mode, lang=lang)
     else:
         for league in leagues:
             lg_reports = [r for r in reports if r.match.league is league]
             if not lg_reports:
                 continue
             st.subheader(league_title(league))
-            render_signals_table(signals_dataframe(lg_reports, mode=ux_mode, lang=lang))
+            render_colored_signals_table(lg_reports, mode=ux_mode, lang=lang)
 
 
 def _slip_page(

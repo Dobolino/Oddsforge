@@ -50,6 +50,25 @@ def test_plain_signal_labels() -> None:
     assert "No value" in plain_signal_label(SignalType.NO_BET, "en")
 
 
+def test_tone_colors_for_signed_and_confidence() -> None:
+    from quantbot.dashboard.ux import (
+        colored_text_html,
+        tone_color_for_confidence,
+        tone_color_for_signed,
+    )
+
+    assert tone_color_for_signed(0.05) == "#1b7f4a"
+    assert tone_color_for_signed(-0.02) == "#b91c1c"
+    assert tone_color_for_signed(0.0) == "#6b7280"
+    assert tone_color_for_signed(None) == "#6b7280"
+    assert tone_color_for_confidence(80) == "#1b7f4a"
+    assert tone_color_for_confidence(50) == "#c47a00"
+    assert tone_color_for_confidence(20) == "#6b7280"
+    html = colored_text_html("+6.3 pp", "#1b7f4a")
+    assert "#1b7f4a" in html
+    assert "+6.3 pp" in html
+
+
 def test_plain_reason_uses_signal_fields() -> None:
     signal = ValueSignal(
         match_id="m1",

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from html import escape
 
 import pandas as pd
 
@@ -11,10 +12,13 @@ from quantbot.backtest.metrics import BacktestMetrics
 from quantbot.dashboard.ux import (
     SIGNAL_COLUMNS_BY_MODE,
     UXMode,
+    colored_text_html,
     column_label,
     plain_signal_label,
     reason_for_mode,
     tip_badge_html,
+    tone_color_for_confidence,
+    tone_color_for_signed,
 )
 from quantbot.orchestrator import SignalReport
 
@@ -120,6 +124,88 @@ def render_signals_table(df: pd.DataFrame) -> None:  # pragma: no cover - Stream
         column_config=config,
         height=height,
     )
+
+
+def colored_signals_table_html(
+    reports: Sequence[SignalReport],
+    *,
+    mode: UXMode = UXMode.ADVANCED,
+    lang: str = "de",
+) -> str:
+    """HTML signal table with tip badges and tinted edge / EV / quality."""
+
+    if mode is UXMode.BEGINNER:
+        mode = UXMode.ADVANCED
+    columns = list(SIGNAL_COLUMNS_BY_MODE[mode])
+    headers = "".join(
+        f'<th style="text-align:left;padding:0.45rem 0.55rem;border-bottom:2px solid #d1d5db;'
+        f'font-size:0.8rem;opacity:0.85;white-space:nowrap;">{escape(column_label(c, lang))}</th>'
+        for c in columns
+    )
+    body_rows: list[str] = []
+    for report in reports:
+        s = report.signal
+        m = report.match
+        tip_text = (
+            s.signal.value
+            if mode is UXMode.EXPERT
+            else plain_signal_label(s.signal, lang, line=s.totals_line)
+        )
+        tip_cell = tip_badge_html(s.signal, lang, text=tip_text)
+        why = reason_for_mode(s, mode, lang)
+        edge_txt = format_edge_band_pp(
+            s.edge,
+            model_confidence=s.model_confidence,
+            ensemble_agreement=getattr(report.analysis, "ensemble_agreement", None),
+        )
+        ev_txt = format_ev_pct(s.expected_value)
+        cells: dict[str, str] = {
+            "Match": escape(f"{m.home_team.name} vs {m.away_team.name}"),
+            "Signal": tip_cell,
+            "Model P": escape(format_model_prob(_chosen_model_prob(s))),
+            "Odds": escape("—" if s.decimal_odds is None else f"{s.decimal_odds:.2f}"),
+            "Edge": colored_text_html(edge_txt, tone_color_for_signed(s.edge)),
+            "EV": colored_text_html(ev_txt, tone_color_for_signed(s.expected_value)),
+            "Stake %": escape(f"{s.stake_fraction * 100.0:.2f}"),
+            "Confidence": colored_text_html(
+                f"◆ {s.model_confidence:.0f}",
+                tone_color_for_confidence(s.model_confidence),
+            ),
+            "Data quality": escape(f"{s.data_quality:.0f}"),
+            "Reason": escape(why),
+        }
+        tds = "".join(
+            f'<td style="padding:0.5rem 0.55rem;border-bottom:1px solid #e5e7eb;'
+            f'vertical-align:middle;font-size:0.9rem;">{cells[c]}</td>'
+            for c in columns
+        )
+        body_rows.append(f"<tr>{tds}</tr>")
+    if not body_rows:
+        empty = "Keine Spiele." if lang.startswith("de") else "No matches."
+        body_rows.append(
+            f'<tr><td colspan="{len(columns)}" style="padding:0.75rem;opacity:0.7;">'
+            f"{escape(empty)}</td></tr>"
+        )
+    return (
+        '<div style="overflow-x:auto;max-width:100%;">'
+        '<table style="border-collapse:collapse;width:100%;min-width:640px;">'
+        f"<thead><tr>{headers}</tr></thead>"
+        f'<tbody>{"".join(body_rows)}</tbody>'
+        "</table></div>"
+    )
+
+
+def render_colored_signals_table(
+    reports: Sequence[SignalReport],
+    *,
+    mode: UXMode = UXMode.ADVANCED,
+    lang: str = "de",
+) -> None:  # pragma: no cover - Streamlit UI
+    """Render Advanced/Pro tips with color (badges + signed metrics)."""
+
+    import streamlit as st
+
+    st.html(colored_signals_table_html(reports, mode=mode, lang=lang))
 
 
 def beginner_tip_cards(

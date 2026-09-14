@@ -139,6 +139,14 @@ def test_signals_dataframe_columns() -> None:
     assert len(cards) <= 3
     assert {"match", "tip", "why", "is_bet"} <= set(cards[0])
 
+    colored = tables.colored_signals_table_html(reports, mode=UXMode.ADVANCED, lang="de")
+    assert "<table" in colored
+    assert "background:#" in colored  # tip badge
+    assert "Edge (pp)" in colored or "Edge" in colored
+    expert = tables.colored_signals_table_html(reports, mode=UXMode.EXPERT, lang="en")
+    assert "Forecast quality" in expert
+    assert "Data quality" in expert
+
 
 def test_metrics_dataframe() -> None:
     from quantbot.dashboard.ux import UXMode
