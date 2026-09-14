@@ -63,8 +63,9 @@ quantbot predict --league premier_league        # Wettsignale, Kelly-Stakes, Rej
 quantbot backtest --league bundesliga --bankroll 1000   # Walk-Forward Metriken
 ```
 
-## Schnellster Start (Windows, ohne Terminal)
+## Schnellster Start (ohne Terminal)
 
+### Windows
 1. Python einmal installieren (Häkchen "Add python.exe to PATH").
 2. Projekt als ZIP herunterladen und entpacken.
 3. Doppelklick auf `Start QuantBot.bat` (richtet beim ersten Mal alles ein und öffnet das Dashboard).
@@ -72,6 +73,15 @@ quantbot backtest --league bundesliga --bankroll 1000   # Walk-Forward Metriken
 5. Für Updates: Doppelklick auf `Update QuantBot.bat`.
 
 Details in `docs/SCHNELLSTART_WINDOWS.md`.
+
+### Mac
+1. Python 3.11+ einmal installieren (python.org oder `brew install python@3.12`).
+2. Projekt als ZIP herunterladen und entpacken.
+3. Doppelklick auf `Start QuantBot.command` (beim ersten Öffnen ggf. Rechtsklick → Öffnen).
+4. Im Dashboard die Ansicht **Einfach / Anfänger** belassen.
+5. Für Updates: Doppelklick auf `Update QuantBot.command`.
+
+Details in `docs/SCHNELLSTART_MAC.md`.
 
 ## Bedienmodi
 
@@ -83,7 +93,8 @@ Bei echten Daten springt das Prognosedatum standardmässig auf **heute**. Der We
 
 ## Tutorial und Anleitungen
 
-- `docs/SCHNELLSTART_WINDOWS.md`: Einsteiger-Anleitung, Doppelklick-Weg und Terminal-Weg.
+- `docs/SCHNELLSTART_WINDOWS.md`: Einsteiger-Anleitung Windows (Doppelklick).
+- `docs/SCHNELLSTART_MAC.md`: Einsteiger-Anleitung Mac (Doppelklick).
 - `docs/INSTALLATION_WINDOWS.md`: einfache Windows-Installation Schritt für Schritt.
 - `docs/GLOSSAR_DE.md`: deutsches Glossar aller Begriffe (Edge, EV, Kelly, CLV, ...).
 - `docs/TUTORIAL.md`: Schritt-für-Schritt-Anleitung (CLI, Python-API, Backtest, Monte Carlo, Arbitrage, Realdaten).
