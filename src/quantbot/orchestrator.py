@@ -92,6 +92,18 @@ class QuantBotOrchestrator:
             raise ValueError(f"no matches for {league.value} {season}")
         return matches[len(matches) // 2].prediction_timestamp
 
+    def suggested_as_of(self, league: League, season: str, *, live: bool) -> datetime:
+        """Default prediction clock for the UI.
+
+        Live mode jumps to "now" so upcoming fixtures are the next real games.
+        Demo mode keeps the mid-season instant so historical dummy data still
+        has upcoming matches to score.
+        """
+
+        if live:
+            return datetime.now(timezone.utc)
+        return self.default_as_of(league, season)
+
     # --- Prediction ---
 
     def predict(

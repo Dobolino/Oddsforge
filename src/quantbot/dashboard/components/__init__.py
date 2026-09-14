@@ -13,6 +13,7 @@ from quantbot.dashboard.components.charts import (
 from quantbot.dashboard.components.tables import (
     beginner_tip_cards,
     metrics_dataframe,
+    render_signals_table,
     signals_dataframe,
 )
 
@@ -25,5 +26,6 @@ __all__ = [
     "scoreline_heatmap_figure",
     "beginner_tip_cards",
     "metrics_dataframe",
+    "render_signals_table",
     "signals_dataframe",
 ]

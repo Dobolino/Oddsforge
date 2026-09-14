@@ -75,9 +75,11 @@ Details in `docs/SCHNELLSTART_WINDOWS.md`.
 
 ## Bedienmodi
 
-- **Anfänger**: Tipps, Verlauf, Glossar. Klarer Vorschlag ohne Fachjargon.
+- **Anfänger**: Tipps, Wettschein, Verlauf, Glossar. Klarer Vorschlag ohne Fachjargon. Prognosedatum änderbar.
 - **Fortgeschritten**: plus Spielkarte, Edge/EV/Einsatz, Backtest.
 - **Experte**: alle Kennzahlen, Modell-Einblicke, Kalibrierung, Diagnose.
+
+Bei echten Daten springt das Prognosedatum standardmässig auf **heute**. Der Wettschein baut theoretische Kombi-Scheine (beste Chancen, optional Quoten-Booster) — ohne Wetten zu platzieren.
 
 ## Tutorial und Anleitungen
 

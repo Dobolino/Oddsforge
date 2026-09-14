@@ -116,6 +116,7 @@ _STRINGS: dict[str, dict[str, str]] = {
     # Nav / pages
     "nav.pages": {"de": "Seiten", "en": "Pages"},
     "page.signals": {"de": "Tipps", "en": "Tips"},
+    "page.slip": {"de": "Wettschein", "en": "Betting slip"},
     "page.insights": {"de": "Modell-Einblicke", "en": "Model insights"},
     "page.backtest": {"de": "Backtest", "en": "Backtest"},
     "page.glossary": {"de": "Glossar", "en": "Glossary"},
@@ -249,6 +250,56 @@ _STRINGS: dict[str, dict[str, str]] = {
     "ctrl.league": {"de": "Liga", "en": "League"},
     "ctrl.season": {"de": "Saison", "en": "Season"},
     "ctrl.as_of": {"de": "Prognosedatum (Stand)", "en": "Prediction date (as of)"},
+    "ctrl.as_of_today": {"de": "Auf heute setzen", "en": "Jump to today"},
+    "ctrl.as_of_hint_live": {
+        "de": "Standard ist heute. Ändere das Datum, wenn du einen anderen Spieltag anschauen willst.",
+        "en": "Default is today. Change the date to look at another matchday.",
+    },
+    "ctrl.as_of_hint_demo": {
+        "de": "In der Demo liegt der Standard in der Mitte der Demaison, damit Spiele sichtbar sind.",
+        "en": "In demo mode the default is mid-season so fixtures are visible.",
+    },
+    "slip.intro": {
+        "de": "Theoretischer Kombi-Schein aus den Value-Tipps. QuantBot setzt nichts — du siehst nur, "
+              "welche Kombination rechnerisch die besten Gewinnchancen hat, optional mit Quoten-Boostern.",
+        "en": "Theoretical accumulator from value tips. QuantBot places nothing — you only see which "
+              "combination has the best calculated win chance, optionally with odds boosters.",
+    },
+    "slip.style": {"de": "Schein-Art", "en": "Slip style"},
+    "slip.style_safe": {"de": "Beste Chancen", "en": "Best win chance"},
+    "slip.style_boosted": {
+        "de": "Beste Chancen + Quoten-Booster",
+        "en": "Best chance + odds boosters",
+    },
+    "slip.style_safe_hint": {
+        "de": "Nimmt die Tipps mit der höchsten Modell-Wahrscheinlichkeit.",
+        "en": "Takes the tips with the highest model probability.",
+    },
+    "slip.style_boosted_hint": {
+        "de": "Sichere Kern-Tipps plus zusätzliche Tipps mit höherer Quote, um die Kombi-Quote zu heben.",
+        "en": "Safer core tips plus extra higher-odds tips to lift the combined price.",
+    },
+    "slip.max_legs": {"de": "Max. Tipps im Schein", "en": "Max tips on the slip"},
+    "slip.core_legs": {"de": "Kern-Tipps", "en": "Core tips"},
+    "slip.boost_legs": {"de": "Booster-Tipps", "en": "Booster tips"},
+    "slip.empty": {
+        "de": "Keine Value-Tipps für einen Schein. Oft ist kein Schein die beste Entscheidung.",
+        "en": "No value tips for a slip. Often no slip is the best decision.",
+    },
+    "slip.combined_odds": {"de": "Kombi-Quote", "en": "Combined odds"},
+    "slip.combined_prob": {"de": "Geschätzte Trefferchance", "en": "Estimated hit chance"},
+    "slip.combined_ev": {"de": "Erwartungswert (Kombi)", "en": "Expected value (slip)"},
+    "slip.legs": {"de": "Tipps im Schein", "en": "Legs on the slip"},
+    "slip.role": {"de": "Rolle", "en": "Role"},
+    "slip.role_core": {"de": "Kern", "en": "Core"},
+    "slip.role_boost": {"de": "Booster", "en": "Booster"},
+    "slip.disclaimer": {
+        "de": "Unabhängigkeitsannahme: Die Trefferchance ist das Produkt der Einzelwahrscheinlichkeiten. "
+              "In der Praxis hängen Spiele zusammen. Kein Aufruf zum Wetten.",
+        "en": "Independence assumption: hit chance is the product of single probabilities. "
+              "In practice matches are correlated. Not a call to bet.",
+    },
+    "slip.col_prob": {"de": "Chance", "en": "Chance"},
     # Signals page
     "sig.intro": {
         "de": "Signale vergleichen Modellwahrscheinlichkeiten mit margenfreien Marktpreisen. Edge, Erwartungswert und ein Fractional-Kelly-Einsatz je Spiel.",

@@ -23,10 +23,11 @@ class UXMode(str, Enum):
 
 # Pages visible in the sidebar, in display order.
 PAGES_BY_MODE: dict[UXMode, tuple[str, ...]] = {
-    UXMode.BEGINNER: ("signals", "tracker", "glossary"),
-    UXMode.ADVANCED: ("signals", "card", "tracker", "backtest", "glossary"),
+    UXMode.BEGINNER: ("signals", "slip", "tracker", "glossary"),
+    UXMode.ADVANCED: ("signals", "slip", "card", "tracker", "backtest", "glossary"),
     UXMode.EXPERT: (
         "signals",
+        "slip",
         "card",
         "tracker",
         "insights",

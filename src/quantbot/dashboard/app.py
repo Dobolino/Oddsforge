@@ -18,9 +18,11 @@ from quantbot.dashboard.components import (
     equity_curve_figure,
     metrics_dataframe,
     model_comparison_figure,
+    render_signals_table,
     scoreline_heatmap_figure,
     signals_dataframe,
 )
+from quantbot.dashboard.slip import build_boosted_slip, build_safe_slip
 from quantbot.dashboard.ux import UXMode, pages_for
 from quantbot.i18n import DEFAULT_LANGUAGE, GLOSSARY, LANGUAGES, t
 
@@ -150,6 +152,7 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
 
     all_pages = {
         "signals": t("page.signals", lang),
+        "slip": t("page.slip", lang),
         "card": t("page.card", lang),
         "tracker": t("page.tracker", lang),
         "insights": t("page.insights", lang),
@@ -241,7 +244,10 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     universe = uni_all
 
     if page == "signals":
-        _signals_page(lang, ux_mode, C, orchestrator, mode, league, season)
+        _signals_page(lang, ux_mode, C, orchestrator, mode, league, season, live)
+
+    elif page == "slip":
+        _slip_page(lang, ux_mode, C, orchestrator, mode, league, season, live)
 
     elif page == "insights":
         st.header(t("page.insights", lang))
@@ -368,17 +374,35 @@ def _name_match_warning(lang, provider, league) -> None:  # type: ignore[no-unty
                 st.caption(t("matchwarn.unmatched_row", lang).format(odds=odds))
 
 
-def _signals_page(lang, ux_mode, C, orchestrator, mode, league, season) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
+def _pick_as_of(lang, orchestrator, league, season, live: bool):  # type: ignore[no-untyped-def]  # pragma: no cover
+    """Date picker for every UX mode; live defaults to today."""
+
+    suggested = orchestrator.suggested_as_of(league, season, live=live).date()
+    today = datetime.now(timezone.utc).date()
+    key = f"as_of::{league.value}::{season}::{'live' if live else 'demo'}"
+    if key not in st.session_state:
+        st.session_state[key] = suggested
+
+    c1, c2 = st.columns([3, 1])
+    with c1:
+        as_of_date = st.date_input(t("ctrl.as_of", lang), key=key)
+    with c2:
+        st.write("")
+        if st.button(t("ctrl.as_of_today", lang), use_container_width=True):
+            st.session_state[key] = today
+            st.rerun()
+    st.caption(t("ctrl.as_of_hint_live" if live else "ctrl.as_of_hint_demo", lang))
+    return datetime(as_of_date.year, as_of_date.month, as_of_date.day, tzinfo=timezone.utc)
+
+
+def _signals_page(lang, ux_mode, C, orchestrator, mode, league, season, live) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
     """Tips page: beginner gets cards; advanced/expert get tables."""
 
     st.header(t("page.signals", lang))
-    default_as_of = orchestrator.default_as_of(league, season).date()
+    as_of = _pick_as_of(lang, orchestrator, league, season, live)
     if ux_mode is UXMode.BEGINNER:
-        as_of = datetime(default_as_of.year, default_as_of.month, default_as_of.day, tzinfo=timezone.utc)
         st.caption(t("sig.beginner_intro", lang))
     else:
-        as_of_date = st.date_input(t("ctrl.as_of", lang), default_as_of)
-        as_of = datetime(as_of_date.year, as_of_date.month, as_of_date.day, tzinfo=timezone.utc)
         st.caption(t("sig.intro", lang))
         if ux_mode is UXMode.ADVANCED:
             st.caption(f"{t('term.edge', lang)} · {t('term.ev', lang)} · {t('term.stake', lang)}")
@@ -402,14 +426,76 @@ def _signals_page(lang, ux_mode, C, orchestrator, mode, league, season) -> None:
                 for extra in bets[1:]:
                     st.markdown(f"- **{extra['match']}** — {extra['tip']}: {extra['why']}")
         rest = signals_dataframe(reports, mode=UXMode.BEGINNER, lang=lang)
-        with st.expander(t("sig.all_matches", lang)):
-            st.dataframe(rest, use_container_width=True, hide_index=True)
+        with st.expander(t("sig.all_matches", lang), expanded=True):
+            render_signals_table(rest)
         return
 
     c1, c2 = st.columns(2)
     c1.metric(t("sig.matches", lang), len(reports))
     c2.metric(t("sig.values", lang), n_bets)
-    st.dataframe(signals_dataframe(reports, mode=ux_mode, lang=lang), use_container_width=True)
+    render_signals_table(signals_dataframe(reports, mode=ux_mode, lang=lang))
+
+
+def _slip_page(lang, ux_mode, C, orchestrator, mode, league, season, live) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
+    """Theoretical betting slip from value tips."""
+
+    import pandas as pd
+
+    st.header(t("page.slip", lang))
+    st.caption(t("slip.intro", lang))
+    as_of = _pick_as_of(lang, orchestrator, league, season, live)
+    reports = C["predict"](orchestrator, mode, league.value, season, as_of.isoformat())
+
+    style_labels = {
+        "safe": t("slip.style_safe", lang),
+        "boosted": t("slip.style_boosted", lang),
+    }
+    style = st.radio(
+        t("slip.style", lang),
+        list(style_labels),
+        format_func=lambda k: style_labels[k],
+        horizontal=True,
+    )
+    st.caption(t(f"slip.style_{style}_hint", lang))
+
+    if style == "safe":
+        max_legs = st.slider(t("slip.max_legs", lang), min_value=1, max_value=5, value=3)
+        slip = build_safe_slip(reports, lang=lang, max_legs=max_legs)
+    else:
+        c1, c2 = st.columns(2)
+        core_legs = c1.slider(t("slip.core_legs", lang), min_value=1, max_value=4, value=2)
+        boost_legs = c2.slider(t("slip.boost_legs", lang), min_value=0, max_value=3, value=2)
+        slip = build_boosted_slip(
+            reports, lang=lang, core_legs=core_legs, boost_legs=boost_legs
+        )
+
+    if slip is None or not slip.legs:
+        st.info(t("slip.empty", lang))
+        return
+
+    m1, m2, m3 = st.columns(3)
+    m1.metric(t("slip.combined_odds", lang), f"{slip.combined_odds:.2f}")
+    m2.metric(t("slip.combined_prob", lang), f"{slip.combined_prob * 100:.1f}%")
+    if ux_mode is not UXMode.BEGINNER:
+        m3.metric(t("slip.combined_ev", lang), f"{slip.expected_value * 100:.1f}%")
+
+    st.subheader(t("slip.legs", lang))
+    rows = []
+    for leg in slip.legs:
+        role = t("slip.role_core", lang) if leg.role == "core" else t("slip.role_boost", lang)
+        row = {
+            t("col.match", lang): leg.match,
+            t("col.signal", lang): leg.tip,
+            t("col.odds", lang): f"{leg.odds:.2f}",
+            t("slip.col_prob", lang): f"{leg.model_prob * 100:.0f}%",
+            t("slip.role", lang): role,
+        }
+        if ux_mode is not UXMode.BEGINNER:
+            row[t("col.edge", lang)] = f"{leg.edge * 100:.1f}%"
+        rows.append(row)
+    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    st.caption(t("slip.disclaimer", lang))
+
 
 def _diagnostics_page(lang, C, provider, mode, league, season) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
     from pathlib import Path

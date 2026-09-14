@@ -44,10 +44,12 @@ Was du im Dashboard machst:
 2. Links oben die Sprache auf Deutsch stellen.
 3. Die Ansicht auf **Anfänger** lassen (Voreinstellung). Fortgeschritten und Experte zeigen mehr Zahlen.
 4. Eine Liga wählen (in der Demo funktionieren Premier League und Bundesliga).
-5. Zwischen den Seiten wechseln: Tipps, Verlauf, Glossar. (Bei Fortgeschritten/Experte kommen weitere Seiten hinzu.)
-6. Auf Tipps siehst du einen klaren Vorschlag und eine kurze Begründung. Verlauf zeigt Woche für Woche Tipp gegen Ergebnis. Glossar erklärt jeden Begriff.
+5. Das **Prognosedatum** prüfen — bei echten Daten ist das Standard **heute**. Mit dem Button **Auf heute setzen** springst du zurück. Das Datum kannst du in jedem Modus ändern, auch als Anfänger.
+6. Zwischen den Seiten wechseln: Tipps, Wettschein, Verlauf, Glossar. (Bei Fortgeschritten/Experte kommen weitere Seiten hinzu.)
+7. Auf Tipps siehst du einen klaren Vorschlag und eine kurze Begründung. **Wettschein** baut daraus einen theoretischen Kombi-Schein (beste Chancen, optional mit Quoten-Boostern) — ohne selbst zu tippen.
+8. Verlauf zeigt Woche für Woche Tipp gegen Ergebnis. Glossar erklärt jeden Begriff.
 
-Oben steht immer ein Warnhinweis: QuantBot wettet nicht selbst und garantiert keinen Gewinn. Bei echten Daten erscheint zusätzlich eine Warnung, wenn Teamnamen zwischen den Datenquellen unsicher zugeordnet wurden.
+Oben steht immer ein Warnhinweis: QuantBot wettet nicht selbst und garantiert keinen Gewinn. Bei echten Daten erscheint zusätzlich eine Warnung, wenn Teamnamen zwischen den Datenquellen unsicher zugeordnet wurden. Die Tipps-Tabelle lässt sich seitlich scrollen, damit Quote, Edge und Begründung sichtbar bleiben.
 
 In der Demo sind die Spiele erfunden. Die Zahlen sind nur zum Anschauen.
 

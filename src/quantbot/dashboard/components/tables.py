@@ -48,17 +48,40 @@ def signals_dataframe(
                 "Tipp": tip,
                 "Begründung": why,
                 "Signal": tip if mode is not UXMode.EXPERT else s.signal.value,
-                "Odds": "-" if s.decimal_odds is None else round(s.decimal_odds, 3),
-                "Edge": "-" if s.edge is None else round(s.edge, 4),
-                "EV": "-" if s.expected_value is None else round(s.expected_value, 4),
-                "Stake %": round(s.stake_fraction * 100.0, 2),
-                "Confidence": round(s.model_confidence, 1),
-                "Data quality": round(s.data_quality, 1),
+                "Odds": "—" if s.decimal_odds is None else f"{s.decimal_odds:.2f}",
+                "Edge": "—" if s.edge is None else f"{s.edge:.1%}",
+                "EV": "—" if s.expected_value is None else f"{s.expected_value:.1%}",
+                "Stake %": f"{s.stake_fraction * 100.0:.2f}",
+                "Confidence": f"{s.model_confidence:.0f}",
+                "Data quality": f"{s.data_quality:.0f}",
                 "Reason": why,
             }
         )
     columns = list(SIGNAL_COLUMNS_BY_MODE[mode])
     return pd.DataFrame(rows, columns=columns)
+
+
+def render_signals_table(df: pd.DataFrame) -> None:  # pragma: no cover - Streamlit UI
+    """Show the tips table with readable column widths and horizontal scroll."""
+
+    import streamlit as st
+
+    config: dict[str, object] = {}
+    for col in df.columns:
+        if col in {"Match", "Tipp", "Signal", "Begründung", "Reason"}:
+            config[col] = st.column_config.TextColumn(col, width="medium")
+        elif col == "Odds":
+            config[col] = st.column_config.TextColumn(col, width="small", help="Dezimalquote")
+        else:
+            config[col] = st.column_config.TextColumn(col, width="small")
+    height = min(520, 38 * max(len(df), 1) + 40)
+    st.dataframe(
+        df,
+        use_container_width=True,
+        hide_index=True,
+        column_config=config,
+        height=height,
+    )
 
 
 def beginner_tip_cards(
