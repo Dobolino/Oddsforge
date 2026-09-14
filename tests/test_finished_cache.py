@@ -47,16 +47,22 @@ class FakeMatchAPI:
         status: str | None = None,
         date_from: str | None = None,
         date_to: str | None = None,
+        season: int | None = None,
     ) -> list[Match]:
         del competition, date_from, date_to
         self.calls += 1
         self.last_status = status
+        self.last_season = season
+        matches = list(self.matches)
+        if season is not None:
+            label = f"{season}-{season + 1}"
+            matches = [m for m in matches if m.season == label]
         if status is None:
-            return list(self.matches)
+            return matches
         tokens = {t.strip() for t in status.split(",") if t.strip()}
         if tokens == {"FINISHED"}:
-            return [m for m in self.matches if m.is_finished]
-        return [m for m in self.matches if not m.is_finished]
+            return [m for m in matches if m.is_finished]
+        return [m for m in matches if not m.is_finished]
 
 
 def test_finished_cache_roundtrip(tmp_path: Path) -> None:
@@ -118,3 +124,15 @@ def test_warm_refresh_keeps_finished_from_disk(tmp_path: Path) -> None:
     assert api.calls >= 2
     assert provider.get_finished_cached("fin-2") is not None
     assert provider.get_finished_cached("fin-2").result is not None  # type: ignore[union-attr]
+
+
+def test_cold_start_falls_back_to_previous_season(tmp_path: Path) -> None:
+    older = _match("old-1", finished=True)
+    api = FakeMatchAPI([older])
+    provider = CachingMatchProvider(api, FinishedMatchCache(tmp_path / "fb.json"))
+
+    # Prefer 2026 — empty — then 2025 which matches season "2024-2025"? 
+    # older is 2024-2025 → start year 2024.
+    got = provider.fetch_matches("PL", season=2026)
+    assert {m.match_id for m in got} == {"old-1"}
+    assert api.last_season in (2026, 2025, 2024, None)

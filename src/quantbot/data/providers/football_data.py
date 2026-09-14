@@ -101,11 +101,13 @@ class FootballDataProvider:
         status: str | None = None,
         date_from: str | None = None,
         date_to: str | None = None,
+        season: int | None = None,
     ) -> list[Match]:
         """Return matches for a competition code (e.g. 'PL', 'BL1', 'CL').
 
         Optional filters are forwarded to the upstream API so callers can skip
-        finished fixtures once results are archived locally.
+        finished fixtures once results are archived locally. ``season`` is the
+        Football-Data start year (e.g. 2025 for 2025-2026).
         """
 
         if competition not in _COMPETITION_TO_LEAGUE:
@@ -118,6 +120,8 @@ class FootballDataProvider:
             params["dateFrom"] = date_from
         if date_to:
             params["dateTo"] = date_to
+        if season is not None:
+            params["season"] = str(season)
         data = self._get(f"/v4/competitions/{competition}/matches", params=params or None)
         matches: list[Match] = []
         for raw in data.get("matches", []):

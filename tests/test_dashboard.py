@@ -42,6 +42,26 @@ def test_app_path_points_to_app() -> None:
     assert path.exists()
 
 
+def test_resolve_season_falls_back_to_available() -> None:
+    from quantbot.dashboard.app import _resolve_season
+
+    class _Prov:
+        def available_seasons(self) -> list[str]:
+            return ["2025-2026", "2024-2025"]
+
+    season, note = _resolve_season(_Prov(), "2026-2027", live=True)
+    assert season == "2025-2026"
+    assert note == "no_matches_season_fallback"
+
+    season, note = _resolve_season(_Prov(), "2025-2026", live=True)
+    assert season == "2025-2026"
+    assert note is None
+
+    season, note = _resolve_season(_Prov(), "2026-2027", live=False)
+    assert season == "2026-2027"
+    assert note is None
+
+
 # --- Chart helpers ---
 
 
