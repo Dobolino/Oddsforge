@@ -72,6 +72,17 @@ def test_kelly_matches_unrounded_inputs() -> None:
     assert sizer.stake_fraction(p, odds) == pytest.approx(0.25 * full)
 
 
+def test_edge_uncertainty_band_shrinks_with_confidence() -> None:
+    from quantbot.analysis.value import edge_uncertainty_band_pp, format_edge_band_pp
+
+    low_c = edge_uncertainty_band_pp(0.063, model_confidence=20.0, ensemble_agreement=0.2)
+    high_c = edge_uncertainty_band_pp(0.063, model_confidence=90.0, ensemble_agreement=0.9)
+    assert high_c[1] - high_c[0] < low_c[1] - low_c[0]
+    label = format_edge_band_pp(0.063, model_confidence=70.0)
+    assert "+6.3 pp" in label
+    assert "–" in label
+
+
 def test_pipeline_signals_are_internally_consistent() -> None:
     orch = QuantBotOrchestrator()
     reports = orch.predict(League.PREMIER_LEAGUE, "2024-2025")

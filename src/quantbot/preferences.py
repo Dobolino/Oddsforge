@@ -31,3 +31,21 @@ def clear_welcome_dismissed(*, path: Path | None = None) -> bool:
         return False
     target.unlink()
     return True
+
+
+def glossary_seen_path() -> Path:
+    return _quantbot_home() / "glossary_seen"
+
+
+def is_glossary_seen(*, path: Path | None = None) -> bool:
+    """Whether the user has opened the glossary at least once (slip gate)."""
+
+    target = Path(path) if path is not None else glossary_seen_path()
+    return target.exists()
+
+
+def set_glossary_seen(*, path: Path | None = None) -> Path:
+    target = Path(path) if path is not None else glossary_seen_path()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("1\n", encoding="utf-8")
+    return target

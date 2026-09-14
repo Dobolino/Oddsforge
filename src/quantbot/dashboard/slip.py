@@ -182,11 +182,11 @@ def format_ticket(
     title = "         TIPPSCHEIN (Vorschlag)         " if de else "       BETTING SLIP (suggestion)        "
     lines.append(f"║{title}║")
     kind = (
-        "Sicherer Kombi-Schein"
+        "Kombi (hohe Modell-P)"
         if slip.style == "safe"
         else "Kombi mit Zusatz-Tipps"
     ) if de else (
-        "Safer accumulator"
+        "Accumulator (high model-P)"
         if slip.style == "safe"
         else "Accumulator with extra tips"
     )
@@ -238,11 +238,11 @@ def ticket_html(
     de = lang.startswith("de")
     payout = stake * slip.combined_odds
     kind = (
-        "Sicherer Kombi"
+        "Kombi (hohe Modell-P)"
         if slip.style == "safe"
         else "Kombi + Zusatz-Tipps"
     ) if de else (
-        "Safer accumulator"
+        "Accumulator (high model-P)"
         if slip.style == "safe"
         else "Accumulator + extra tips"
     )

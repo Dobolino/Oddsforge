@@ -62,6 +62,48 @@ def format_edge_pp(edge_value: float | None, *, digits: int = 1) -> str:
     return f"{edge_pp(edge_value):+.{digits}f} pp"
 
 
+def edge_uncertainty_band_pp(
+    edge_value: float,
+    *,
+    model_confidence: float,
+    ensemble_agreement: float | None = None,
+) -> tuple[float, float]:
+    """Heuristic edge band in percentage points (not a formal CI).
+
+    Half-width shrinks as forecast quality and ensemble agreement rise.
+    Floor 0.5 pp, ceiling 5.0 pp — enough to stop a single edge figure
+    looking more precise than the underlying estimate (Claude review).
+    """
+
+    conf = max(0.0, min(1.0, float(model_confidence) / 100.0))
+    agree = conf if ensemble_agreement is None else max(0.0, min(1.0, float(ensemble_agreement)))
+    half = max(0.5, min(5.0, (1.0 - 0.5 * (conf + agree)) * 8.0))
+    mid = edge_pp(edge_value)
+    return mid - half, mid + half
+
+
+def format_edge_band_pp(
+    edge_value: float | None,
+    *,
+    model_confidence: float = 50.0,
+    ensemble_agreement: float | None = None,
+    digits: int = 1,
+) -> str:
+    """Human edge with uncertainty band, e.g. ``+6.3 pp (5.1–7.5)``."""
+
+    if edge_value is None:
+        return "—"
+    low, high = edge_uncertainty_band_pp(
+        edge_value,
+        model_confidence=model_confidence,
+        ensemble_agreement=ensemble_agreement,
+    )
+    return (
+        f"{edge_pp(edge_value):+.{digits}f} pp "
+        f"({low:.{digits}f}–{high:.{digits}f})"
+    )
+
+
 def format_ev_pct(ev: float | None, *, digits: int = 1) -> str:
     """Human label for expected return, e.g. ``+21.0%`` (not raw +0.21)."""
 

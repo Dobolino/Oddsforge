@@ -25,7 +25,8 @@ class UXMode(str, Enum):
 PAGES_BY_MODE: dict[UXMode, tuple[str, ...]] = {
     # Beginner: no tip slip / accumulators — Gemini+Claude: kombis raise risk for newcomers.
     UXMode.BEGINNER: ("signals", "tracker", "glossary"),
-    UXMode.ADVANCED: ("signals", "slip", "card", "tracker", "backtest", "glossary"),
+    # Advanced: calibration is a must-have signal-quality view (Claude review).
+    UXMode.ADVANCED: ("signals", "slip", "card", "tracker", "calibration", "backtest", "glossary"),
     UXMode.EXPERT: (
         "signals",
         "slip",
@@ -82,12 +83,13 @@ def column_label(key: str, lang: str = "de") -> str:
     return entry.get("en", key)
 
 _SIGNAL_PLAIN: dict[SignalType, dict[str, str]] = {
-    SignalType.VALUE_HOME: {"de": "Signal: Heimsieg", "en": "Signal: home win"},
-    SignalType.VALUE_DRAW: {"de": "Signal: Unentschieden", "en": "Signal: draw"},
-    SignalType.VALUE_AWAY: {"de": "Signal: Auswärtssieg", "en": "Signal: away win"},
-    SignalType.VALUE_OVER: {"de": "Signal: Über 2,5 Tore", "en": "Signal: over 2.5 goals"},
-    SignalType.VALUE_UNDER: {"de": "Signal: Unter 2,5 Tore", "en": "Signal: under 2.5 goals"},
-    SignalType.NO_BET: {"de": "Kein Signal", "en": "No signal"},
+    # Claude review: avoid “Empfehlung”; prefer neutral value language.
+    SignalType.VALUE_HOME: {"de": "Value erkannt: Heimsieg", "en": "Value spotted: home win"},
+    SignalType.VALUE_DRAW: {"de": "Value erkannt: Unentschieden", "en": "Value spotted: draw"},
+    SignalType.VALUE_AWAY: {"de": "Value erkannt: Auswärtssieg", "en": "Value spotted: away win"},
+    SignalType.VALUE_OVER: {"de": "Value erkannt: Über 2,5 Tore", "en": "Value spotted: over 2.5 goals"},
+    SignalType.VALUE_UNDER: {"de": "Value erkannt: Unter 2,5 Tore", "en": "Value spotted: under 2.5 goals"},
+    SignalType.NO_BET: {"de": "Kein Value", "en": "No value"},
 }
 
 # Clear beginner colors: home = green, draw = amber, away = blue,
@@ -110,8 +112,16 @@ def plain_signal_label(signal: SignalType, lang: str = "de", *, line: float | No
     if line is not None and signal in (SignalType.VALUE_OVER, SignalType.VALUE_UNDER):
         line_s = str(line).replace(".", ",") if lang == "de" else str(line)
         if signal is SignalType.VALUE_OVER:
-            return f"Signal: Über {line_s} Tore" if lang == "de" else f"Signal: over {line_s} goals"
-        return f"Signal: Unter {line_s} Tore" if lang == "de" else f"Signal: under {line_s} goals"
+            return (
+                f"Value erkannt: Über {line_s} Tore"
+                if lang == "de"
+                else f"Value spotted: over {line_s} goals"
+            )
+        return (
+            f"Value erkannt: Unter {line_s} Tore"
+            if lang == "de"
+            else f"Value spotted: under {line_s} goals"
+        )
     return label
 
 

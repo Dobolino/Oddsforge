@@ -12,7 +12,9 @@ from quantbot.dashboard.slip import (
 )
 from quantbot.preferences import (
     clear_welcome_dismissed,
+    is_glossary_seen,
     is_welcome_dismissed,
+    set_glossary_seen,
     set_welcome_dismissed,
 )
 from quantbot.schemas import MatchOutcome
@@ -54,3 +56,11 @@ def test_welcome_dismiss_persists(tmp_path: Path) -> None:
     assert is_welcome_dismissed(path=path) is True
     assert clear_welcome_dismissed(path=path) is True
     assert is_welcome_dismissed(path=path) is False
+
+
+def test_glossary_seen_persists(tmp_path: Path) -> None:
+    path = tmp_path / "glossary_seen"
+    assert is_glossary_seen(path=path) is False
+    set_glossary_seen(path=path)
+    assert is_glossary_seen(path=path) is True
+    assert path.read_text(encoding="utf-8").strip() == "1"
