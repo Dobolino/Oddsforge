@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 
 
 class RateLimitError(RuntimeError):
-    """Raised when a network call is attempted before the minimum interval."""
+    """Legacy error; the limiter now waits instead of raising by default."""
 
 
 class FileCache:
@@ -66,28 +66,52 @@ class FileCache:
 
 
 class RateLimiter:
-    """Enforces a minimum interval between successful network calls.
+    """Enforces a minimum interval between network calls by waiting.
+
+    Previously this raised :class:`RateLimitError`, which aborted multi-league
+    loads after the first request. Waiting keeps Free-tier quotas happy without
+    dropping whole competitions.
 
     Args:
         min_interval: Minimum seconds between calls (0 disables limiting).
         monotonic_fn: Injectable monotonic clock (defaults to ``time.monotonic``).
+        sleep_fn: Injectable sleep (defaults to ``time.sleep``).
     """
 
     def __init__(
         self,
         min_interval: float = 0.0,
         monotonic_fn: Callable[[], float] = time.monotonic,
+        sleep_fn: Callable[[float], None] = time.sleep,
     ) -> None:
         self.min_interval = min_interval
         self._monotonic = monotonic_fn
+        self._sleep = sleep_fn
         self._last: float | None = None
 
     def acquire(self) -> None:
         if self.min_interval <= 0.0:
             return
         now = self._monotonic()
-        if self._last is not None and (now - self._last) < self.min_interval:
-            raise RateLimitError(
-                f"rate limit: {self.min_interval}s between calls not elapsed"
-            )
+        if self._last is not None:
+            wait = self.min_interval - (now - self._last)
+            if wait > 0:
+                logger.debug("Rate limit: waiting %.2fs", wait)
+                self._sleep(wait)
+                now = self._monotonic()
         self._last = now
+
+
+def redact_secrets(url: str) -> str:
+    """Mask common API-key query parameters in URLs before logging."""
+
+    from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+    parts = urlsplit(url)
+    if not parts.query:
+        return url
+    redacted = [
+        (k, "***" if k.lower() in {"apikey", "api_key", "token", "key"} else v)
+        for k, v in parse_qsl(parts.query, keep_blank_values=True)
+    ]
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(redacted), parts.fragment))

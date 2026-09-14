@@ -13,7 +13,7 @@ from typing import Any
 
 import httpx
 
-from quantbot.data.providers.base_http import FileCache, RateLimiter
+from quantbot.data.providers.base_http import FileCache, RateLimiter, redact_secrets
 from quantbot.logging import get_logger
 from quantbot.markets.odds import MarketEngine
 from quantbot.schemas import MarketData, Odds
@@ -79,7 +79,15 @@ class TheOddsAPIProvider:
         self._limiter.acquire()
         logger.debug("Fetching %s from The Odds API", path)
         response = self._client.get(path, params=params)
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            # Never leak apiKey=... into logs / Streamlit exception panels.
+            raise httpx.HTTPStatusError(
+                f"The Odds API error {exc.response.status_code} for {redact_secrets(str(exc.request.url))}",
+                request=exc.request,
+                response=exc.response,
+            ) from None
         data = response.json()
         self._cache.set(key, data)
         return data
