@@ -280,13 +280,9 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     else:
         st.sidebar.info(t("mode.demo", lang))
 
-    # Demo data only exists for 2024-2025; live data uses the current season.
-    # Beginners do not need to type a season string.
+    # Beginners also need season when live data is empty for the default year.
     default_season = _current_season() if live else "2024-2025"
-    if ux_mode is UXMode.BEGINNER:
-        preferred_season = default_season
-    else:
-        preferred_season = st.sidebar.text_input(t("ctrl.season", lang), default_season)
+    preferred_season = st.sidebar.text_input(t("ctrl.season", lang), default_season)
     season, season_note = _resolve_season(provider, preferred_season, live=live)
     if season_note == "no_matches_season_fallback":
         st.sidebar.info(
@@ -321,6 +317,21 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
         _glossary_page(lang)
         return
 
+    # Always show the matchday / date-range control on Tips and Tip slip —
+    # including when no fixtures loaded yet. After the math-review merge the
+    # picker was hidden behind the empty-season early return, so users lost
+    # date + range selection whenever Football-Data returned no games.
+    shared_window = None
+    if page in ("signals", "slip"):
+        shared_window = _pick_window(
+            lang,
+            orchestrator,
+            selected_leagues,
+            season,
+            live,
+            where="sidebar",
+        )
+
     # Keep only leagues that actually have fixtures (demo: PL + Bundesliga).
     active_leagues = [
         lg
@@ -337,6 +348,7 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
             st.info(t("no_matches_live_empty", lang))
         else:
             st.info(t("no_matches_live_hint", lang).format(season=season))
+        st.caption(t("ctrl.date_range_empty_hint", lang))
         return
 
     if multi_league and page not in ("signals", "slip", "tracker"):
@@ -345,13 +357,6 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
         return
 
     league = active_leagues[0]
-
-    # Einfach: one shared Spieltag window in the sidebar for Tips + Tippschein.
-    shared_window = None
-    if page in ("signals", "slip") and ux_mode is UXMode.BEGINNER:
-        shared_window = _pick_window(
-            lang, orchestrator, active_leagues, season, live, where="sidebar"
-        )
 
     if page == "tracker":
         _tracker_page(lang, C, orchestrator.provider, mode, active_leagues, season)
