@@ -135,6 +135,17 @@ def test_normalize_accents_and_alias() -> None:
     assert normalize_team("Wolverhampton Wanderers") == "wolves"
 
 
+def test_normalize_bundesliga_cross_api_names() -> None:
+    """Football-Data German names must map onto The Odds API English names."""
+
+    assert normalize_team("1. FC Köln") == normalize_team("Cologne")
+    assert normalize_team("FC Bayern München") == normalize_team("Bayern Munich")
+    assert normalize_team("1. FSV Mainz 05") == normalize_team("Mainz")
+    assert normalize_team("RasenBallsport Leipzig") == normalize_team("RB Leipzig")
+    assert normalize_team("TSG 1899 Hoffenheim") == normalize_team("Hoffenheim")
+    assert normalize_team("Borussia Mönchengladbach") == normalize_team("M'gladbach")
+
+
 # --- Live provider ---
 
 

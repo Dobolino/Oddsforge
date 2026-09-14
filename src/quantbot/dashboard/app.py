@@ -97,9 +97,10 @@ def _install_cache():  # pragma: no cover - requires Streamlit runtime
         return _orch.predict(League(league_value), season, a)
 
     @cache
-    def cards(_orch, mode, league_value, season):
+    def cards(_orch, mode, league_value, season, as_of_iso):
         from quantbot.schemas import League
-        return _orch.build_match_cards(League(league_value), season)
+        a = datetime.fromisoformat(as_of_iso) if as_of_iso else None
+        return _orch.build_match_cards(League(league_value), season, a)
 
     @cache
     def backtest(_orch, mode, league_value, season):
@@ -380,12 +381,14 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
         _glossary_page(lang)
         return
 
-    # Always show the matchday / date-range control on Tips and Tip slip —
-    # including when no fixtures loaded yet. After the math-review merge the
-    # picker was hidden behind the empty-season early return, so users lost
-    # date + range selection whenever Football-Data returned no games.
+    # Always show the matchday / date-range control on Tips, Tip slip, and
+    # Match card — including when no fixtures loaded yet. After the math-review
+    # merge the picker was hidden behind the empty-season early return, so users
+    # lost date + range selection whenever Football-Data returned no games.
+    # Match card previously had no date UI and defaulted to mid-season as_of,
+    # which hid current live fixtures.
     shared_window = None
-    if page in ("signals", "slip"):
+    if page in ("signals", "slip", "card"):
         shared_window = _pick_window(
             lang,
             orchestrator,
@@ -426,7 +429,10 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
         return
 
     if page == "card":
-        _card_page(lang, C, orchestrator, mode, league, season)
+        _card_page(
+            lang, C, orchestrator, mode, league, season, live,
+            window=shared_window,
+        )
         return
 
     if page in ("calibration", "models"):
@@ -1045,24 +1051,38 @@ def _evaluation_page(page, lang, C, provider, mode, league, season) -> None:  # 
         st.dataframe(pd.DataFrame(table), width="stretch", hide_index=True)
 
 
-def _card_page(lang, C, orchestrator, mode, league, season) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
+def _card_page(
+    lang, C, orchestrator, mode, league, season, live, window=None
+) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
     import pandas as pd
 
     st.header(t("page.card", lang))
     st.caption(t("card.intro", lang))
+    if window is None:
+        as_of, start_d, end_d = _pick_window(lang, orchestrator, [league], season, live)
+    else:
+        as_of, start_d, end_d = window
     try:
-        cards = C["cards"](orchestrator, mode, league.value, season)
+        cards = C["cards"](orchestrator, mode, league.value, season, as_of.isoformat())
     except ValueError as exc:
         st.warning(str(exc))
         return
+    cards = [c for c in cards if start_d <= c.kickoff.date() <= end_d]
     if not cards:
-        st.info("Keine kommenden Spiele." if lang == "de" else "No upcoming matches.")
+        st.info(
+            t("card.no_matches_in_window", lang).format(
+                start=start_d.isoformat(), end=end_d.isoformat()
+            )
+        )
         return
 
     idx = st.selectbox(
         t("col.match", lang),
         range(len(cards)),
-        format_func=lambda i: f"{cards[i].home} vs {cards[i].away}",
+        format_func=lambda i: (
+            f"{cards[i].kickoff.strftime('%d.%m. %H:%M')} · "
+            f"{cards[i].home} vs {cards[i].away}"
+        ),
     )
     c = cards[idx]
     outcomes = ("home", "draw", "away")

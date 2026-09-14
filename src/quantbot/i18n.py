@@ -276,6 +276,10 @@ _STRINGS: dict[str, dict[str, str]] = {
         "de": "Volle Analyse pro Spiel: Modelle, Konsens, Unsicherheit, faire Quoten, Divergenz, Datenqualität und das Warum.",
         "en": "Full per-match analysis: models, consensus, uncertainty, fair odds, divergence, data quality and the why.",
     },
+    "card.no_matches_in_window": {
+        "de": "Keine kommenden Spiele im gewählten Zeitraum ({start} – {end}). Zeitraum in der Sidebar anpassen.",
+        "en": "No upcoming matches in the selected window ({start} – {end}). Adjust the range in the sidebar.",
+    },
     "card.probs": {"de": "Wahrscheinlichkeit (mit Bandbreite)", "en": "Probability (with range)"},
     "card.consensus": {"de": "Modell-Konsens", "en": "Model consensus"},
     "card.agreement": {"de": "Einigkeit", "en": "Agreement"},
@@ -416,8 +420,8 @@ _STRINGS: dict[str, dict[str, str]] = {
     },
     "ctrl.date_range": {"de": "Spieltage (von–bis)", "en": "Match days (from–to)"},
     "ctrl.date_range_hint": {
-        "de": "Nur Spiele in diesem Zeitraum kommen auf Tipps und Tippschein.",
-        "en": "Only matches in this window appear on Tips and the tip slip.",
+        "de": "Nur Spiele in diesem Zeitraum kommen auf Tipps, Tippschein und Spielkarte.",
+        "en": "Only matches in this window appear on Tips, tip slip and Match card.",
     },
     "ctrl.date_range_empty_hint": {
         "de": "Spieltag-Fenster und Saison stehen links in der Sidebar — "
