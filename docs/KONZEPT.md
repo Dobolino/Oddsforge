@@ -1,5 +1,24 @@
 # QuantBot: Konzept und Features (zum Weitergeben)
 
+## Auftrag an den Reviewer
+
+Kannst du diesen Code mal prüfen und sagen, ob er Sinn ergibt und was du ändern würdest.
+
+Wichtig ist mir vor allem die Einfachheit. Das Programm soll auch ein Laie bedienen können. Stell dir vor, ich schicke es meiner Mutter und sie soll es ohne Hilfe verstehen und benutzen.
+
+Konkret prüfe bitte:
+- Ergibt der Aufbau Sinn. Wo ist der Code unnötig kompliziert und lässt sich vereinfachen.
+- Wie wird der Start und die Bedienung so einfach wie möglich. Aktuell startet man über eine BAT-Datei per Doppelklick und bedient ein Dashboard im Browser.
+- Baue verschiedene Modi ein, damit jeder die passende Tiefe sieht:
+  - Anfänger: nur das Nötigste. Ein Spiel, ein klarer Vorschlag, eine einfache Begründung.
+  - Fortgeschritten: Vorschlag plus Wahrscheinlichkeiten, Edge und Einsatz.
+  - Experte: alle Kennzahlen, Modell-Einblicke, Backtest, Diagnose.
+- Was fehlt, damit es für einen Laien klar und sicher ist. Zum Beispiel Warnhinweise, Erklärungen der Fachbegriffe direkt an der Stelle.
+
+Der folgende Text erklärt Idee und Funktionen ohne Code, damit du den Kontext hast.
+
+---
+
 Diese Beschreibung erklärt die Idee und die Funktionen von QuantBot, ohne Code. Sie ist so geschrieben, dass sie für sich allein verständlich ist und man sie einem anderen Assistenten zur Prüfung oder für Ideen geben kann.
 
 ## Was ist QuantBot
