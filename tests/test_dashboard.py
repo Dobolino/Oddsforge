@@ -99,6 +99,8 @@ def test_model_comparison_figure() -> None:
 
 
 def test_signals_dataframe_columns() -> None:
+    from quantbot.dashboard.ux import UXMode
+
     orchestrator = QuantBotOrchestrator()
     reports = orchestrator.predict(League.PREMIER_LEAGUE, SEASON)
     df = tables.signals_dataframe(reports)
@@ -106,14 +108,28 @@ def test_signals_dataframe_columns() -> None:
     assert list(df.columns) == tables.SIGNAL_COLUMNS
     assert len(df) == len(reports)
 
+    beginner = tables.signals_dataframe(reports, mode=UXMode.BEGINNER, lang="de")
+    assert list(beginner.columns) == ["Match", "Tipp", "Begründung"]
+    assert len(beginner) == len(reports)
+
+    cards = tables.beginner_tip_cards(reports, lang="de", limit=3)
+    assert len(cards) <= 3
+    assert {"match", "tip", "why", "is_bet"} <= set(cards[0])
+
 
 def test_metrics_dataframe() -> None:
+    from quantbot.dashboard.ux import UXMode
+
     orchestrator = QuantBotOrchestrator()
     result = orchestrator.run_backtest(League.PREMIER_LEAGUE, SEASON)
     df = tables.metrics_dataframe(result.metrics)
     assert list(df.columns) == ["Metric", "Value"]
     assert "ROI (yield)" in set(df["Metric"])
     assert "Sharpe" in set(df["Metric"])
+
+    basic = tables.metrics_dataframe(result.metrics, mode=UXMode.BEGINNER)
+    assert "Sharpe" not in set(basic["Metric"])
+    assert "ROI (yield)" in set(basic["Metric"])
 
 
 # --- CLI launcher ---

@@ -13,6 +13,7 @@ import streamlit as st
 
 from quantbot import __version__
 from quantbot.dashboard.components import (
+    beginner_tip_cards,
     clv_distribution_figure,
     equity_curve_figure,
     metrics_dataframe,
@@ -20,6 +21,7 @@ from quantbot.dashboard.components import (
     scoreline_heatmap_figure,
     signals_dataframe,
 )
+from quantbot.dashboard.ux import UXMode, pages_for
 from quantbot.i18n import DEFAULT_LANGUAGE, GLOSSARY, LANGUAGES, t
 
 
@@ -131,7 +133,20 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     )
     st.sidebar.caption(t("tagline", lang))
 
-    pages = {
+    ux_labels = {
+        UXMode.BEGINNER: t("ux.beginner", lang),
+        UXMode.ADVANCED: t("ux.advanced", lang),
+        UXMode.EXPERT: t("ux.expert", lang),
+    }
+    ux_mode = st.sidebar.radio(
+        t("ux.title", lang),
+        list(UXMode),
+        index=0,
+        format_func=lambda m: ux_labels[m],
+    )
+    st.sidebar.caption(t(f"ux.{ux_mode.value}_hint", lang))
+
+    all_pages = {
         "signals": t("page.signals", lang),
         "card": t("page.card", lang),
         "tracker": t("page.tracker", lang),
@@ -142,11 +157,13 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
         "backtest": t("page.backtest", lang),
         "glossary": t("page.glossary", lang),
     }
+    visible = pages_for(ux_mode)
+    pages = {k: all_pages[k] for k in visible}
     page = st.sidebar.radio(t("nav.pages", lang), list(pages), format_func=lambda k: pages[k])
     league = st.sidebar.selectbox(t("ctrl.league", lang), list(League), format_func=lambda lg: lg.value)
 
     # API keys: paste here instead of editing files. Both filled -> real data.
-    with st.sidebar.expander(t("keys.title", lang)):
+    with st.sidebar.expander(t("keys.title", lang), expanded=False):
         fd_key = st.text_input(t("keys.football", lang), type="password")
         odds_key = st.text_input(t("keys.odds", lang), type="password")
         st.caption(t("keys.hint", lang))
@@ -167,12 +184,20 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
         st.sidebar.info(t("mode.demo", lang))
 
     # Demo data only exists for 2024-2025; live data uses the current season.
+    # Beginners do not need to type a season string.
     default_season = _current_season() if live else "2024-2025"
-    season = st.sidebar.text_input(t("ctrl.season", lang), default_season)
+    if ux_mode is UXMode.BEGINNER:
+        season = default_season
+    else:
+        season = st.sidebar.text_input(t("ctrl.season", lang), default_season)
 
     orchestrator = QuantBotOrchestrator(provider=provider)
     mode = "live" if live else "demo"
     C = _install_cache()
+
+    st.info(t("safety.banner", lang))
+    if not live:
+        st.caption(t("safety.demo", lang))
 
     if page == "glossary":
         _glossary_page(lang)
@@ -206,17 +231,7 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     universe = uni_all
 
     if page == "signals":
-        st.header(t("page.signals", lang))
-        default_as_of = orchestrator.default_as_of(league, season).date()
-        as_of_date = st.date_input(t("ctrl.as_of", lang), default_as_of)
-        as_of = datetime(as_of_date.year, as_of_date.month, as_of_date.day, tzinfo=timezone.utc)
-        reports = C["predict"](orchestrator, mode, league.value, season, as_of.isoformat())
-        n_bets = sum(1 for r in reports if r.signal.is_bet)
-        st.caption(t("sig.intro", lang))
-        c1, c2 = st.columns(2)
-        c1.metric(t("sig.matches", lang), len(reports))
-        c2.metric(t("sig.values", lang), n_bets)
-        st.dataframe(signals_dataframe(reports), use_container_width=True)
+        _signals_page(lang, ux_mode, C, orchestrator, mode, league, season)
 
     elif page == "insights":
         st.header(t("page.insights", lang))
@@ -264,33 +279,83 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
         st.caption(t("bt.intro", lang))
         result = C["backtest"](orchestrator, mode, league.value, season)
         m = result.metrics
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric(t("bt.roi", lang), f"{m.roi * 100:.2f}%")
-        c2.metric("Sharpe / Sortino", f"{m.sharpe:.2f} / {m.sortino:.2f}")
-        c3.metric(t("bt.max_dd", lang), f"{m.max_drawdown * 100:.2f}%")
-        c4.metric(t("bt.beat_clv", lang), "-" if m.beat_clv_rate is None else f"{m.beat_clv_rate * 100:.1f}%")
+        if ux_mode is UXMode.ADVANCED:
+            c1, c2, c3 = st.columns(3)
+            c1.metric(t("bt.roi", lang), f"{m.roi * 100:.2f}%")
+            c2.metric(t("bt.max_dd", lang), f"{m.max_drawdown * 100:.2f}%")
+            c3.metric(t("bt.win_rate", lang), f"{m.win_rate * 100:.1f}%")
+        else:
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric(t("bt.roi", lang), f"{m.roi * 100:.2f}%")
+            c2.metric("Sharpe / Sortino", f"{m.sharpe:.2f} / {m.sortino:.2f}")
+            c3.metric(t("bt.max_dd", lang), f"{m.max_drawdown * 100:.2f}%")
+            c4.metric(t("bt.beat_clv", lang), "-" if m.beat_clv_rate is None else f"{m.beat_clv_rate * 100:.1f}%")
         st.plotly_chart(equity_curve_figure(result.bankroll_curve, result.initial_bankroll), use_container_width=True)
-        clvs = [b.clv for b in result.settled_bets if b.clv is not None]
-        if clvs:
-            st.plotly_chart(clv_distribution_figure(clvs), use_container_width=True)
+        if ux_mode is UXMode.EXPERT:
+            clvs = [b.clv for b in result.settled_bets if b.clv is not None]
+            if clvs:
+                st.plotly_chart(clv_distribution_figure(clvs), use_container_width=True)
         st.subheader(t("bt.metrics", lang))
-        st.table(metrics_dataframe(m))
+        st.table(metrics_dataframe(m, mode=ux_mode))
 
-        # Breakdowns: where the edge comes from.
-        import pandas as pd
+        if ux_mode is UXMode.EXPERT:
+            import pandas as pd
 
-        from quantbot.backtest import by_edge, by_league, by_month, by_odds
+            from quantbot.backtest import by_edge, by_league, by_month, by_odds
 
-        st.subheader(t("bt.breakdowns", lang))
-        bets = result.settled_bets
-        tabs = st.tabs([t("bt.by_odds", lang), t("bt.by_edge", lang), t("bt.by_league", lang), t("bt.by_month", lang)])
-        for tab, rows in zip(tabs, (by_odds(bets), by_edge(bets), by_league(bets), by_month(bets))):
-            with tab:
-                if rows:
-                    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-                else:
-                    st.caption("-")
+            st.subheader(t("bt.breakdowns", lang))
+            bets = result.settled_bets
+            tabs = st.tabs([t("bt.by_odds", lang), t("bt.by_edge", lang), t("bt.by_league", lang), t("bt.by_month", lang)])
+            for tab, rows in zip(tabs, (by_odds(bets), by_edge(bets), by_league(bets), by_month(bets))):
+                with tab:
+                    if rows:
+                        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+                    else:
+                        st.caption("-")
 
+
+def _signals_page(lang, ux_mode, C, orchestrator, mode, league, season) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
+    """Tips page: beginner gets cards; advanced/expert get tables."""
+
+    st.header(t("page.signals", lang))
+    default_as_of = orchestrator.default_as_of(league, season).date()
+    if ux_mode is UXMode.BEGINNER:
+        as_of = datetime(default_as_of.year, default_as_of.month, default_as_of.day, tzinfo=timezone.utc)
+        st.caption(t("sig.beginner_intro", lang))
+    else:
+        as_of_date = st.date_input(t("ctrl.as_of", lang), default_as_of)
+        as_of = datetime(as_of_date.year, as_of_date.month, as_of_date.day, tzinfo=timezone.utc)
+        st.caption(t("sig.intro", lang))
+        if ux_mode is UXMode.ADVANCED:
+            st.caption(f"{t('term.edge', lang)} · {t('term.ev', lang)} · {t('term.stake', lang)}")
+
+    reports = C["predict"](orchestrator, mode, league.value, season, as_of.isoformat())
+    n_bets = sum(1 for r in reports if r.signal.is_bet)
+
+    if ux_mode is UXMode.BEGINNER:
+        cards = beginner_tip_cards(reports, lang=lang, limit=5)
+        bets = [c for c in cards if c["is_bet"] == "1"]
+        if not bets:
+            st.success(t("sig.no_clear_tip", lang))
+        else:
+            st.subheader(t("sig.tip_of_day", lang))
+            top = bets[0]
+            st.markdown(f"### {top['match']}")
+            st.markdown(f"**{top['tip']}**")
+            st.write(top["why"])
+            if len(bets) > 1:
+                st.caption(t("sig.other_matches", lang))
+                for extra in bets[1:]:
+                    st.markdown(f"- **{extra['match']}** — {extra['tip']}: {extra['why']}")
+        rest = signals_dataframe(reports, mode=UXMode.BEGINNER, lang=lang)
+        with st.expander(t("sig.all_matches", lang)):
+            st.dataframe(rest, use_container_width=True, hide_index=True)
+        return
+
+    c1, c2 = st.columns(2)
+    c1.metric(t("sig.matches", lang), len(reports))
+    c2.metric(t("sig.values", lang), n_bets)
+    st.dataframe(signals_dataframe(reports, mode=ux_mode, lang=lang), use_container_width=True)
 
 def _diagnostics_page(lang, C, provider, mode, league, season) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
     from pathlib import Path

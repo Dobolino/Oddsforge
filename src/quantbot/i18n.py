@@ -21,14 +21,70 @@ _STRINGS: dict[str, dict[str, str]] = {
         "de": "Leitplanken: kein Data Leakage, keine automatischen Wetten, Wahrscheinlichkeit vor Prognose, strikte Schichtentrennung.",
         "en": "Guardrails: zero data leakage, no automated betting, probability over prediction, strict layer separation.",
     },
+    # UX depth modes
+    "ux.title": {"de": "Ansicht", "en": "View"},
+    "ux.beginner": {"de": "Anfänger", "en": "Beginner"},
+    "ux.advanced": {"de": "Fortgeschritten", "en": "Advanced"},
+    "ux.expert": {"de": "Experte", "en": "Expert"},
+    "ux.beginner_hint": {
+        "de": "Nur das Nötigste: ein Tipp, eine Begründung.",
+        "en": "Only the essentials: one tip, one reason.",
+    },
+    "ux.advanced_hint": {
+        "de": "Tipp plus Wahrscheinlichkeiten, Edge und Einsatz.",
+        "en": "Tip plus probabilities, edge and stake.",
+    },
+    "ux.expert_hint": {
+        "de": "Alle Kennzahlen, Modelle, Backtest und Diagnose.",
+        "en": "All metrics, models, backtest and diagnostics.",
+    },
+    "safety.banner": {
+        "de": "QuantBot platziert keine Wetten und garantiert keinen Gewinn. "
+              "Fussball ist nicht sicher vorhersagbar. Entscheide selbst und "
+              "setze nie mehr, als du verlieren kannst.",
+        "en": "QuantBot does not place bets and guarantees no profit. "
+              "Football is not reliably predictable. Decide yourself and "
+              "never stake more than you can afford to lose.",
+    },
+    "safety.demo": {
+        "de": "Du siehst Demodaten mit erfundenen Zahlen. Gut zum Ausprobieren, "
+              "nicht zum Wetten.",
+        "en": "You are seeing demo data with made-up numbers. Fine for trying "
+              "the app, not for real betting.",
+    },
+    "sig.beginner_intro": {
+        "de": "Hier siehst du den klarsten Tipp für die kommenden Spiele. "
+              "Ein Vorschlag, eine kurze Begründung. Mehr nicht.",
+        "en": "Here is the clearest tip for the upcoming matches. "
+              "One suggestion, one short reason. Nothing more.",
+    },
+    "sig.no_clear_tip": {
+        "de": "Heute kein klarer Tipp. Oft ist „kein Tipp“ die beste Entscheidung.",
+        "en": "No clear tip today. Often „no tip“ is the best decision.",
+    },
+    "sig.all_matches": {"de": "Alle Spiele im Überblick", "en": "All matches at a glance"},
+    "sig.other_matches": {"de": "Weitere Tipps", "en": "More tips"},
+    "sig.tip_of_day": {"de": "Klarer Vorschlag", "en": "Clear suggestion"},
+    "term.edge": {
+        "de": "Edge = geschätzter Vorteil gegenüber dem Markt (Modell minus faire Marktquote).",
+        "en": "Edge = estimated advantage versus the market (model minus fair market).",
+    },
+    "term.ev": {
+        "de": "EV = erwarteter Gewinn pro Einsatz, wenn die Schätzung stimmt.",
+        "en": "EV = expected profit per stake if the estimate is right.",
+    },
+    "term.stake": {
+        "de": "Einsatz % = theoretischer Vorschlag nach Kelly. Kein Aufruf, echt zu setzen.",
+        "en": "Stake % = theoretical Kelly suggestion. Not a call to stake real money.",
+    },
     # Nav / pages
     "nav.pages": {"de": "Seiten", "en": "Pages"},
-    "page.signals": {"de": "Aktuelle Value-Signale", "en": "Upcoming Value Signals"},
-    "page.insights": {"de": "Modell-Einblicke & Ergebnisse", "en": "Model Insights & Scorelines"},
-    "page.backtest": {"de": "Backtest-Auswertung", "en": "Backtest Performance"},
+    "page.signals": {"de": "Tipps", "en": "Tips"},
+    "page.insights": {"de": "Modell-Einblicke", "en": "Model insights"},
+    "page.backtest": {"de": "Backtest", "en": "Backtest"},
     "page.glossary": {"de": "Glossar", "en": "Glossary"},
     "page.tracker": {"de": "Verlauf", "en": "History"},
-    "page.card": {"de": "Match Card", "en": "Match Card"},
+    "page.card": {"de": "Spielkarte", "en": "Match card"},
     "page.calibration": {"de": "Kalibrierung", "en": "Calibration"},
     "page.models": {"de": "Modellvergleich", "en": "Model comparison"},
     "page.diagnostics": {"de": "Diagnose", "en": "Diagnostics"},

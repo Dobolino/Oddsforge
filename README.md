@@ -68,9 +68,16 @@ quantbot backtest --league bundesliga --bankroll 1000   # Walk-Forward Metriken
 1. Python einmal installieren (Häkchen "Add python.exe to PATH").
 2. Projekt als ZIP herunterladen und entpacken.
 3. Doppelklick auf `Start QuantBot.bat` (richtet beim ersten Mal alles ein und öffnet das Dashboard).
-4. Für Updates: Doppelklick auf `Update QuantBot.bat`.
+4. Im Dashboard die Ansicht **Anfänger** belassen: ein Tipp, eine Begründung, Warnhinweis oben.
+5. Für Updates: Doppelklick auf `Update QuantBot.bat`.
 
 Details in `docs/SCHNELLSTART_WINDOWS.md`.
+
+## Bedienmodi
+
+- **Anfänger**: Tipps, Verlauf, Glossar. Klarer Vorschlag ohne Fachjargon.
+- **Fortgeschritten**: plus Spielkarte, Edge/EV/Einsatz, Backtest.
+- **Experte**: alle Kennzahlen, Modell-Einblicke, Kalibrierung, Diagnose.
 
 ## Tutorial und Anleitungen
 

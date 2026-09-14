@@ -41,9 +41,12 @@ Falls Windows beim Doppelklick warnt (blauer Hinweis "Windows hat den PC geschü
 
 Was du im Dashboard machst:
 1. Links oben die Sprache auf Deutsch stellen.
-2. Eine Liga wählen (in der Demo funktionieren Premier League und Bundesliga).
-3. Zwischen den Seiten wechseln: Signale, Match Card, Verlauf, Kalibrierung, Modellvergleich, Backtest, Glossar.
-4. Verlauf zeigt Woche für Woche Tipp gegen Ergebnis. Glossar erklärt jeden Begriff.
+2. Die Ansicht auf **Anfänger** lassen (Voreinstellung). Fortgeschritten und Experte zeigen mehr Zahlen.
+3. Eine Liga wählen (in der Demo funktionieren Premier League und Bundesliga).
+4. Zwischen den Seiten wechseln: Tipps, Verlauf, Glossar. (Bei Fortgeschritten/Experte kommen weitere Seiten hinzu.)
+5. Auf Tipps siehst du einen klaren Vorschlag und eine kurze Begründung. Verlauf zeigt Woche für Woche Tipp gegen Ergebnis. Glossar erklärt jeden Begriff.
+
+Oben steht immer ein Warnhinweis: QuantBot wettet nicht selbst und garantiert keinen Gewinn.
 
 In der Demo sind die Spiele erfunden. Die Zahlen sind nur zum Anschauen.
 
