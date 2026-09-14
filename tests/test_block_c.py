@@ -12,7 +12,6 @@ from quantbot.data.providers import (
     FileCache,
     FootballDataProvider,
     RateLimiter,
-    RateLimitError,
     TheOddsAPIProvider,
 )
 from quantbot.markets import ArbitrageEngine
@@ -200,15 +199,33 @@ def test_odds_api_cache_hit_and_expiry(tmp_path) -> None:  # type: ignore[no-unt
     assert counter[0] == 2  # cache expired -> refetch
 
 
-def test_odds_api_rate_limit(tmp_path) -> None:  # type: ignore[no-untyped-def]
+def test_odds_api_rate_limit_waits(tmp_path) -> None:  # type: ignore[no-untyped-def]
     mono = [0.0]
-    limiter = RateLimiter(min_interval=60.0, monotonic_fn=lambda: mono[0])
+    slept: list[float] = []
+
+    def sleep_fn(seconds: float) -> None:
+        slept.append(seconds)
+        mono[0] += seconds
+
+    limiter = RateLimiter(
+        min_interval=60.0,
+        monotonic_fn=lambda: mono[0],
+        sleep_fn=sleep_fn,
+    )
     provider = TheOddsAPIProvider(
         "key", cache_dir=tmp_path, client=_odds_client(), rate_limiter=limiter
     )
     provider.fetch_events("soccer_epl")  # first call allowed
-    with pytest.raises(RateLimitError):
-        provider.fetch_events("soccer_bundesliga")  # different key, too soon
+    provider.fetch_events("soccer_bundesliga")  # waits instead of raising
+    assert slept and slept[0] == pytest.approx(60.0)
+
+
+def test_redact_secrets_masks_api_key() -> None:
+    from quantbot.data.providers.base_http import redact_secrets
+
+    url = "https://api.the-odds-api.com/v4/sports/soccer_epl/odds?apiKey=secret123&regions=eu"
+    assert "secret123" not in redact_secrets(url)
+    assert "apiKey=%2A%2A%2A" in redact_secrets(url) or "apiKey=***" in redact_secrets(url)
 
 
 # --- Football-Data: transformation ---

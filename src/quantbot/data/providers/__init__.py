@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from quantbot.data.providers.base_http import FileCache, RateLimiter, RateLimitError
+from quantbot.data.providers.base_http import (
+    FileCache,
+    RateLimiter,
+    RateLimitError,
+    redact_secrets,
+)
 from quantbot.data.providers.football_data import FootballDataProvider
 from quantbot.data.providers.leagues import LEAGUE_CODES, football_data_code, odds_api_key
 from quantbot.data.providers.live import (
@@ -18,6 +23,7 @@ __all__ = [
     "FileCache",
     "RateLimiter",
     "RateLimitError",
+    "redact_secrets",
     "FootballDataProvider",
     "TheOddsAPIProvider",
     "LiveDataProvider",

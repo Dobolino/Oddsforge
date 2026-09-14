@@ -235,13 +235,19 @@ class CachingMatchProvider:
         if self.cache.last_updated is not None:
             since = self.cache.last_updated.astimezone(timezone.utc).date()
             date_from = (since - timedelta(days=3)).isoformat()
-            recent_finished = self._call_inner(
-                competition,
-                status="FINISHED",
-                date_from=date_from,
-                season=season,
-                allow_unfiltered_fallback=False,
-            )
+            try:
+                recent_finished = self._call_inner(
+                    competition,
+                    status="FINISHED",
+                    date_from=date_from,
+                    season=season,
+                    allow_unfiltered_fallback=False,
+                )
+            except Exception as exc:  # noqa: BLE001 - free-tier filters often 400
+                logger.warning(
+                    "Skipping recent finished refresh for %s: %s", competition, exc
+                )
+                recent_finished = []
 
         newly_finished = [m for m in open_or_all + recent_finished if m.is_finished]
         if newly_finished:
