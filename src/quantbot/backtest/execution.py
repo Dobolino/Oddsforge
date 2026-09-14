@@ -38,6 +38,9 @@ class SettledBet:
     model_prob: float
     clv: float | None
     beat_closing: bool | None
+    edge: float | None = None
+    league: str | None = None
+    kickoff: str | None = None  # ISO date, for period breakdowns
 
 
 class ExecutionSimulator:
@@ -73,6 +76,9 @@ class ExecutionSimulator:
         actual_outcome: MatchOutcome,
         model_prob: float,
         closing_odds: float | None = None,
+        edge: float | None = None,
+        league: str | None = None,
+        kickoff: str | None = None,
     ) -> SettledBet:
         won = outcome is actual_outcome
         pnl = self.profit(stake, entry_odds, won)
@@ -95,4 +101,7 @@ class ExecutionSimulator:
             model_prob=model_prob,
             clv=clv,
             beat_closing=beat,
+            edge=edge,
+            league=league,
+            kickoff=kickoff,
         )

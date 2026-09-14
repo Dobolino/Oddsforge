@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from quantbot.backtest.breakdown import by_edge, by_league, by_month, by_odds
 from quantbot.backtest.engine import BacktestResult, WalkForwardBacktester
 from quantbot.backtest.execution import ExecutionSimulator, SettledBet
 from quantbot.backtest.metrics import (
@@ -32,4 +33,8 @@ __all__ = [
     "MonteCarloResult",
     "bet_specs_from_result",
     "monte_carlo_bankroll",
+    "by_odds",
+    "by_edge",
+    "by_league",
+    "by_month",
 ]

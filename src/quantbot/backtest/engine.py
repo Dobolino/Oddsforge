@@ -134,6 +134,9 @@ class WalkForwardBacktester:
                     actual_outcome=match.result.outcome,
                     model_prob=prediction.probability_of(signal.chosen_outcome),
                     closing_odds=closing_odds,
+                    edge=signal.edge,
+                    league=match.league.value,
+                    kickoff=match.kickoff.date().isoformat(),
                 )
                 bankroll += bet.pnl
                 settled.append(bet)

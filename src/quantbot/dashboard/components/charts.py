@@ -97,6 +97,35 @@ def clv_distribution_figure(clvs: Sequence[float]) -> go.Figure:
     return fig
 
 
+def reliability_diagram_figure(curve: Sequence[dict]) -> go.Figure:
+    """Reliability diagram: predicted confidence vs actual accuracy.
+
+    The dashed diagonal is perfect calibration; points above it mean the model
+    is underconfident, below means overconfident.
+    """
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(x=[0, 1], y=[0, 1], mode="lines", line={"dash": "dash", "color": "gray"}, name="perfect")
+    )
+    if curve:
+        x = [b["confidence"] for b in curve]
+        y = [b["accuracy"] for b in curve]
+        sizes = [max(6, min(28, 6 + b["count"])) for b in curve]
+        fig.add_trace(
+            go.Scatter(x=x, y=y, mode="markers", marker={"size": sizes, "color": "#2a6fdb"}, name="model")
+        )
+    fig.update_layout(
+        title="Calibration (reliability diagram)",
+        xaxis_title="Predicted confidence",
+        yaxis_title="Actual accuracy",
+        xaxis_range=[0, 1],
+        yaxis_range=[0, 1],
+        template="plotly_white",
+    )
+    return fig
+
+
 def model_comparison_figure(
     model_probs: dict[str, Sequence[float]], outcome_labels: Sequence[str] = ("Home", "Draw", "Away")
 ) -> go.Figure:

@@ -50,6 +50,8 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
         "card": t("page.card", lang),
         "tracker": t("page.tracker", lang),
         "insights": t("page.insights", lang),
+        "calibration": t("page.calibration", lang),
+        "models": t("page.models", lang),
         "backtest": t("page.backtest", lang),
         "glossary": t("page.glossary", lang),
     }
@@ -88,6 +90,10 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
 
     if page == "card":
         _card_page(lang, orchestrator, league, season)
+        return
+
+    if page in ("calibration", "models"):
+        _evaluation_page(page, lang, orchestrator.provider, league, season)
         return
 
     universe = orchestrator.universe(league, season)
@@ -162,6 +168,62 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
             st.plotly_chart(clv_distribution_figure(clvs), use_container_width=True)
         st.subheader(t("bt.metrics", lang))
         st.table(metrics_dataframe(m))
+
+        # Breakdowns: where the edge comes from.
+        import pandas as pd
+
+        from quantbot.backtest import by_edge, by_league, by_month, by_odds
+
+        st.subheader(t("bt.breakdowns", lang))
+        bets = result.settled_bets
+        tabs = st.tabs([t("bt.by_odds", lang), t("bt.by_edge", lang), t("bt.by_league", lang), t("bt.by_month", lang)])
+        for tab, rows in zip(tabs, (by_odds(bets), by_edge(bets), by_league(bets), by_month(bets))):
+            with tab:
+                if rows:
+                    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+                else:
+                    st.caption("-")
+
+
+def _evaluation_page(page, lang, provider, league, season) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
+    import pandas as pd
+
+    from quantbot.analysis.evaluation import calibration_report, model_comparison
+    from quantbot.dashboard.components import reliability_diagram_figure
+    from quantbot.models import DixonColesModel, EloModel, LogisticRegressionModel
+
+    universe = provider.get_matches(league, season, __import__("datetime").datetime(2100, 1, 1, tzinfo=timezone.utc))
+    universe = [mm for mm in universe if mm.is_finished]
+
+    if page == "calibration":
+        st.header(t("page.calibration", lang))
+        st.caption(t("cal.intro", lang))
+        report = calibration_report(universe, EloModel())
+        if not report["curve"]:
+            st.info("Zu wenig Daten." if lang == "de" else "Not enough data.")
+            return
+        c1, c2, c3 = st.columns(3)
+        c1.metric(t("col.brier", lang), report["brier"])
+        c2.metric(t("col.logloss", lang), report["log_loss"])
+        c3.metric(t("col.ece", lang), report["ece"])
+        st.plotly_chart(reliability_diagram_figure(report["curve"]), use_container_width=True)
+        st.caption(t("cal.note", lang))
+    else:  # models
+        st.header(t("page.models", lang))
+        st.caption(t("models.intro", lang))
+        rows = model_comparison(
+            {"Elo": EloModel(), "Dixon-Coles": DixonColesModel(min_matches=5),
+             "Logistic": LogisticRegressionModel()},
+            universe,
+        )
+        table = [{
+            t("col.model", lang): r["model"],
+            t("col.brier", lang): r["brier"],
+            t("col.logloss", lang): r["log_loss"],
+            t("col.ece", lang): r["ece"],
+            t("col.samples", lang): r["n"],
+        } for r in rows]
+        st.dataframe(pd.DataFrame(table), use_container_width=True, hide_index=True)
 
 
 def _card_page(lang, orchestrator, league, season) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover

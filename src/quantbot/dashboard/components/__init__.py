@@ -7,6 +7,7 @@ from quantbot.dashboard.components.charts import (
     ensemble_weights_figure,
     equity_curve_figure,
     model_comparison_figure,
+    reliability_diagram_figure,
     scoreline_heatmap_figure,
 )
 from quantbot.dashboard.components.tables import (
@@ -19,6 +20,7 @@ __all__ = [
     "ensemble_weights_figure",
     "equity_curve_figure",
     "model_comparison_figure",
+    "reliability_diagram_figure",
     "scoreline_heatmap_figure",
     "metrics_dataframe",
     "signals_dataframe",

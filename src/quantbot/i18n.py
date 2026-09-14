@@ -29,6 +29,36 @@ _STRINGS: dict[str, dict[str, str]] = {
     "page.glossary": {"de": "Glossar", "en": "Glossary"},
     "page.tracker": {"de": "Verlauf", "en": "History"},
     "page.card": {"de": "Match Card", "en": "Match Card"},
+    "page.calibration": {"de": "Kalibrierung", "en": "Calibration"},
+    "page.models": {"de": "Modellvergleich", "en": "Model comparison"},
+    # Calibration page
+    "cal.intro": {
+        "de": "Sind die Wahrscheinlichkeiten realistisch? Vorhergesagte Konfidenz gegen tatsächliche Trefferquote, aus dem Walk-Forward.",
+        "en": "Are the probabilities realistic? Predicted confidence versus actual accuracy, from the walk-forward.",
+    },
+    "cal.confidence": {"de": "Vorhergesagte Konfidenz", "en": "Predicted confidence"},
+    "cal.accuracy": {"de": "Tatsächliche Trefferquote", "en": "Actual accuracy"},
+    "cal.note": {
+        "de": "Punkte über der Diagonale bedeuten zu vorsichtig, darunter zu selbstsicher.",
+        "en": "Points above the diagonal mean underconfident, below means overconfident.",
+    },
+    # Model comparison
+    "models.intro": {
+        "de": "Jedes Modell durch den Walk-Forward. Niedriger ist besser bei Brier und Log Loss.",
+        "en": "Each model through the walk-forward. Lower is better for Brier and log loss.",
+    },
+    "col.brier": {"de": "Brier", "en": "Brier"},
+    "col.logloss": {"de": "Log Loss", "en": "Log loss"},
+    "col.ece": {"de": "Kalibrierungsfehler", "en": "Calibration error"},
+    "col.samples": {"de": "Spiele", "en": "Samples"},
+    # Backtest breakdowns
+    "bt.breakdowns": {"de": "Aufschlüsselung", "en": "Breakdowns"},
+    "bt.by_odds": {"de": "Nach Quotenbereich", "en": "By odds range"},
+    "bt.by_edge": {"de": "Nach Edge-Stufe", "en": "By edge bucket"},
+    "bt.by_league": {"de": "Nach Liga", "en": "By league"},
+    "bt.by_month": {"de": "Nach Monat", "en": "By month"},
+    "col.range": {"de": "Bereich", "en": "Range"},
+    "col.n": {"de": "Anzahl", "en": "Count"},
     # Match card
     "card.intro": {
         "de": "Volle Analyse pro Spiel: Modelle, Konsens, Unsicherheit, faire Quoten, Divergenz, Datenqualität und das Warum.",
