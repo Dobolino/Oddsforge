@@ -47,6 +47,7 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
 
     pages = {
         "signals": t("page.signals", lang),
+        "card": t("page.card", lang),
         "tracker": t("page.tracker", lang),
         "insights": t("page.insights", lang),
         "backtest": t("page.backtest", lang),
@@ -83,6 +84,10 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
 
     if page == "tracker":
         _tracker_page(lang, orchestrator.provider, league, season, build_rounds)
+        return
+
+    if page == "card":
+        _card_page(lang, orchestrator, league, season)
         return
 
     universe = orchestrator.universe(league, season)
@@ -157,6 +162,62 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
             st.plotly_chart(clv_distribution_figure(clvs), use_container_width=True)
         st.subheader(t("bt.metrics", lang))
         st.table(metrics_dataframe(m))
+
+
+def _card_page(lang, orchestrator, league, season) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
+    import pandas as pd
+
+    st.header(t("page.card", lang))
+    st.caption(t("card.intro", lang))
+    try:
+        cards = orchestrator.build_match_cards(league, season)
+    except ValueError as exc:
+        st.warning(str(exc))
+        return
+    if not cards:
+        st.info("Keine kommenden Spiele." if lang == "de" else "No upcoming matches.")
+        return
+
+    idx = st.selectbox(
+        t("col.match", lang),
+        range(len(cards)),
+        format_func=lambda i: f"{cards[i].home} vs {cards[i].away}",
+    )
+    c = cards[idx]
+    outcomes = ("home", "draw", "away")
+    out_lbl = {"home": t("ins.home", lang), "draw": t("ins.draw", lang), "away": t("ins.away", lang)}
+
+    st.subheader(f"{c.home} vs {c.away}")
+    cols = st.columns(3)
+    for col, o in zip(cols, outcomes):
+        u = c.uncertainty[o]
+        col.metric(out_lbl[o], f"{c.probs[o] * 100:.0f}%", f"± {(u['high'] - u['low']) / 2 * 100:.0f}%")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown(f"**{t('card.consensus', lang)}** · {t('card.agreement', lang)}: {c.agreement:.0f}/100")
+        rows = [{t("col.model", lang): m["name"], **{out_lbl[o]: f"{m[o] * 100:.0f}%" for o in outcomes}} for m in c.models]
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        st.markdown(f"**{t('card.reliability', lang)}**: {c.reliability:.0f}/100 ({c.reliability_level})")
+        st.markdown(f"**{t('card.data_quality', lang)}**: {c.data_quality:.0f}/100")
+        for comp in c.data_quality_components:
+            mark = "✓" if comp["ok"] else "✕"
+            st.caption(f"{mark} {t('dq.' + comp['key'], lang)}")
+    with col2:
+        st.markdown(f"**{t('card.fair_vs_market', lang)}**")
+        frows = [{
+            "": out_lbl[o],
+            t("card.fair", lang): c.fair_odds[o],
+            t("card.market", lang): c.market_odds[o],
+            t("card.divergence", lang): f"{c.divergence[o]['edge'] * 100:+.1f}% ({t('div.' + c.divergence[o]['tier'], lang)})",
+        } for o in outcomes]
+        st.dataframe(pd.DataFrame(frows), use_container_width=True, hide_index=True)
+        st.markdown(f"**{t('card.decision', lang)}**: {c.signal}  ·  {t('card.stake', lang)}: {c.stake_fraction:.2f}%")
+
+    st.markdown(f"**{t('card.why', lang)}**")
+    for r in c.reasons:
+        st.markdown(f"- {r[lang]}")
+    st.caption(t("card.disclaimer", lang))
 
 
 def _tracker_page(lang, provider, league, season, build_rounds) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover

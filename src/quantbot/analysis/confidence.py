@@ -134,6 +134,45 @@ class ConfidenceEvaluator:
         score = round(float(np.clip(score, 0.0, 100.0)), 2)
         return score, self._level(score)
 
+    def data_quality_components(self, signals: DataQualitySignals) -> list[dict[str, object]]:
+        """Break the data-quality score into pass/fail components for display."""
+
+        return [
+            {
+                "key": "history",
+                "ok": min(signals.home_matches, signals.away_matches) >= self.target_matches // 2,
+                "detail": f"{min(signals.home_matches, signals.away_matches)} matches",
+            },
+            {
+                "key": "market",
+                "ok": signals.n_bookmakers >= 2,
+                "detail": f"{signals.n_bookmakers} bookmakers",
+            },
+            {"key": "injuries", "ok": signals.injuries_known, "detail": ""},
+            {"key": "liquidity", "ok": signals.liquidity is not None, "detail": ""},
+        ]
+
+    def reliability_score(
+        self,
+        agreement: float,
+        data_quality: float,
+        sample_matches: int,
+        liquidity: float | None = None,
+    ) -> tuple[float, ConfidenceLevel]:
+        """A 0-100 trust score for the signal, separate from win probability.
+
+        Combines model agreement, data quality, sample size and liquidity. It
+        says how much to trust the estimate, never how likely the outcome is.
+        """
+
+        a = float(np.clip(agreement, 0.0, 1.0))
+        dq = float(np.clip(data_quality, 0.0, 100.0)) / 100.0
+        ss = min(max(sample_matches, 0) / self.target_matches, 1.0)
+        liq = 0.6 if liquidity is None else min(max(liquidity, 0.0) / self.target_liquidity, 1.0)
+        score = 100.0 * (0.35 * a + 0.35 * dq + 0.20 * ss + 0.10 * liq)
+        score = round(float(np.clip(score, 0.0, 100.0)), 1)
+        return score, self._level(score)
+
     def _level(self, score: float) -> ConfidenceLevel:
         if score < self.medium_threshold:
             return ConfidenceLevel.LOW

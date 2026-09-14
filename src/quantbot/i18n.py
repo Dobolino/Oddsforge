@@ -28,6 +28,40 @@ _STRINGS: dict[str, dict[str, str]] = {
     "page.backtest": {"de": "Backtest-Auswertung", "en": "Backtest Performance"},
     "page.glossary": {"de": "Glossar", "en": "Glossary"},
     "page.tracker": {"de": "Verlauf", "en": "History"},
+    "page.card": {"de": "Match Card", "en": "Match Card"},
+    # Match card
+    "card.intro": {
+        "de": "Volle Analyse pro Spiel: Modelle, Konsens, Unsicherheit, faire Quoten, Divergenz, Datenqualität und das Warum.",
+        "en": "Full per-match analysis: models, consensus, uncertainty, fair odds, divergence, data quality and the why.",
+    },
+    "card.probs": {"de": "Wahrscheinlichkeit (mit Bandbreite)", "en": "Probability (with range)"},
+    "card.consensus": {"de": "Modell-Konsens", "en": "Model consensus"},
+    "card.agreement": {"de": "Einigkeit", "en": "Agreement"},
+    "card.fair_vs_market": {"de": "Faire vs Marktquote", "en": "Fair vs market odds"},
+    "card.fair": {"de": "Fair", "en": "Fair"},
+    "card.market": {"de": "Markt", "en": "Market"},
+    "card.divergence": {"de": "Abweichung Modell zu Markt", "en": "Model vs market divergence"},
+    "card.reliability": {"de": "Verlässlichkeit (nicht Gewinnchance)", "en": "Reliability (not win chance)"},
+    "card.data_quality": {"de": "Datenqualität", "en": "Data quality"},
+    "card.why": {"de": "Warum dieses Signal", "en": "Why this signal"},
+    "card.decision": {"de": "Entscheidung", "en": "Decision"},
+    "card.stake": {"de": "Kelly-Einsatz", "en": "Kelly stake"},
+    "col.model": {"de": "Modell", "en": "Model"},
+    # Divergence tiers
+    "div.none": {"de": "kein Unterschied", "en": "no difference"},
+    "div.slight": {"de": "leicht", "en": "slight"},
+    "div.interesting": {"de": "interessant", "en": "interesting"},
+    "div.strong": {"de": "stark", "en": "strong"},
+    "div.extreme": {"de": "extrem", "en": "extreme"},
+    # Data-quality component labels
+    "dq.history": {"de": "Historische Spiele", "en": "Match history"},
+    "dq.market": {"de": "Mehrere Buchmacher", "en": "Multiple bookmakers"},
+    "dq.injuries": {"de": "Verletzungsdaten", "en": "Injury data"},
+    "dq.liquidity": {"de": "Liquidität", "en": "Liquidity"},
+    "card.disclaimer": {
+        "de": "Keine Gewinngarantie. Modellwahrscheinlichkeit ist nicht das tatsächliche Ergebnis.",
+        "en": "No guarantee of profit. Model probability is not the actual outcome.",
+    },
     # Tracker page
     "track.intro": {
         "de": "Was der Bot vorgeschlagen hat und wie es ausging, Woche für Woche. Die letzte Woche zeigt die kommenden Tipps.",

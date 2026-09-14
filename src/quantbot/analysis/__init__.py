@@ -17,6 +17,7 @@ from quantbot.analysis.confidence import (
     ensemble_agreement,
 )
 from quantbot.analysis.engine import AnalysisEngine, AnalysisResult
+from quantbot.analysis.matchcard import MatchCard, build_match_card, divergence_tier
 from quantbot.analysis.value import (
     ValueCalculator,
     edge,
@@ -27,6 +28,9 @@ from quantbot.analysis.value import (
 __all__ = [
     "AnalysisEngine",
     "AnalysisResult",
+    "MatchCard",
+    "build_match_card",
+    "divergence_tier",
     "ValueCalculator",
     "edge",
     "expected_value",

@@ -144,6 +144,73 @@ class QuantBotOrchestrator:
         )
         return reports
 
+    # --- Match cards (full transparent analysis per fixture) ---
+
+    def build_match_cards(
+        self,
+        league: League,
+        season: str,
+        as_of: datetime | None = None,
+    ) -> list:
+        """Build a MatchCard per upcoming match: consensus, uncertainty,
+        fair odds, divergence, data quality, reliability and explanation."""
+
+        from quantbot.analysis.confidence import DataQualitySignals
+        from quantbot.analysis.matchcard import build_match_card
+        from quantbot.features import FeatureExtractor
+        from quantbot.models import (
+            DixonColesModel,
+            EloModel,
+            EnsembleModel,
+            LogisticRegressionModel,
+        )
+
+        as_of = as_of or self.default_as_of(league, season)
+        universe = self.universe(league, season)
+
+        ensemble = EnsembleModel(
+            [EloModel(), DixonColesModel(min_matches=5), LogisticRegressionModel()]
+        )
+        try:
+            ensemble.fit_until(universe, as_of)
+        except (ValueError, RuntimeError):
+            ensemble = EnsembleModel([EloModel()])
+            ensemble.fit_until(universe, as_of)
+
+        extractor = FeatureExtractor()
+        counts = self._team_counts(universe, as_of)
+        cards = []
+        for match in self.provider.get_upcoming_matches(league, season, as_of):
+            entry = self.provider.get_latest_odds(match.match_id, as_of)
+            if entry is None:
+                continue
+            sub_preds = {m.name: m.predict(match) for m in ensemble.models}
+            ens_pred = ensemble.predict(match)
+            market = self.market_engine.to_market_data(entry)
+            snapshots = self.provider.get_odds(match.match_id, as_of)
+            quality = DataQualitySignals(
+                home_matches=counts.get(match.home_team.team_id, 0),
+                away_matches=counts.get(match.away_team.team_id, 0),
+                n_bookmakers=len({o.bookmaker for o in snapshots}),
+                injuries_known=(
+                    match.home_injury_status is not InjuryStatus.UNKNOWN
+                    and match.away_injury_status is not InjuryStatus.UNKNOWN
+                ),
+            )
+            analysis = self.analysis_engine.analyze(
+                ens_pred, market, entry.decimal_odds(), quality,
+                sub_predictions=list(sub_preds.values()),
+            )
+            signal = self.decision_engine.decide(analysis, market)
+            cards.append(
+                build_match_card(
+                    match, sub_preds, ens_pred, market, entry.decimal_odds(),
+                    signal, extractor.extract(match, universe), quality,
+                )
+            )
+        logger.info("Built %d match cards for %s %s", len(cards), league.value, season)
+        return cards
+
     # --- Backtest ---
 
     def run_backtest(self, league: League, season: str) -> BacktestResult:
