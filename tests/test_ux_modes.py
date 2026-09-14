@@ -21,6 +21,8 @@ def test_pages_nested_by_depth() -> None:
     expert = set(pages_for(UXMode.EXPERT))
     assert beginner <= advanced <= expert
     assert "signals" in beginner and "glossary" in beginner
+    assert "slip" not in beginner
+    assert "calibration" in advanced
     assert "diagnostics" in expert and "diagnostics" not in advanced
     assert "backtest" in advanced and "backtest" not in beginner
 
@@ -34,15 +36,18 @@ def test_all_modes_have_pages() -> None:
 def test_tip_kind_from_label_totals() -> None:
     from quantbot.dashboard.ux import tip_kind_from_label
 
-    assert tip_kind_from_label("Tipp: Über 2,5 Tore") is SignalType.VALUE_OVER
+    assert tip_kind_from_label("Value erkannt: Über 2,5 Tore") is SignalType.VALUE_OVER
     assert tip_kind_from_label("Tip: under 2.5 goals") is SignalType.VALUE_UNDER
-    assert tip_kind_from_label("Tipp: Heimsieg") is SignalType.VALUE_HOME
+    assert tip_kind_from_label("Value erkannt: Heimsieg") is SignalType.VALUE_HOME
 
 
 def test_plain_signal_labels() -> None:
     assert "Heim" in plain_signal_label(SignalType.VALUE_HOME, "de")
+    assert plain_signal_label(SignalType.VALUE_HOME, "de").startswith("Value erkannt")
+    assert "Value spotted" in plain_signal_label(SignalType.VALUE_HOME, "en")
     assert "home" in plain_signal_label(SignalType.VALUE_HOME, "en").lower()
-    assert "Kein" in plain_signal_label(SignalType.NO_BET, "de")
+    assert "Kein Value" in plain_signal_label(SignalType.NO_BET, "de")
+    assert "No value" in plain_signal_label(SignalType.NO_BET, "en")
 
 
 def test_plain_reason_uses_signal_fields() -> None:

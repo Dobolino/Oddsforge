@@ -70,10 +70,13 @@ class Settings(BaseSettings):
     min_edge: float = Field(default=0.03, ge=0.0, le=1.0)
     min_data_quality: float = Field(default=60.0, ge=0.0, le=100.0)
     min_model_confidence: float = Field(default=55.0, ge=0.0, le=100.0)
-    kelly_fraction: float = Field(default=0.25, gt=0.0, le=1.0)
+    # Conservative fractional Kelly (Gemini: 0.25× was still aggressive for sharp markets).
+    kelly_fraction: float = Field(default=0.10, gt=0.0, le=1.0)
 
     # --- Market engine ---
+    # Shin remains default for 1X2; totals engines may override to Power.
     margin_method: MarginMethod = MarginMethod.SHIN
+    totals_margin_method: MarginMethod = MarginMethod.POWER
 
     # --- Hard guardrail: never automate betting in v1 ---
     allow_automated_betting: bool = Field(default=False, frozen=True)

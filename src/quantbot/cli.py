@@ -16,6 +16,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from quantbot import __version__
+from quantbot.analysis.value import format_edge_pp, format_ev_pct
 from quantbot.i18n import DEFAULT_LANGUAGE, t
 from quantbot.orchestrator import QuantBotOrchestrator
 from quantbot.schemas import League, SignalType
@@ -53,6 +54,14 @@ def _parse_as_of(value: str | None) -> datetime | None:
 
 def _fmt(value: float | None, digits: int = 4) -> str:
     return "-" if value is None else f"{value:.{digits}f}"
+
+
+def _fmt_edge(value: float | None) -> str:
+    return format_edge_pp(value) if value is not None else "-"
+
+
+def _fmt_ev(value: float | None) -> str:
+    return format_ev_pct(value) if value is not None else "-"
 
 
 def _build_provider(live: bool, league: League):  # type: ignore[no-untyped-def]
@@ -145,8 +154,8 @@ def predict(
         table.add_row(
             name,
             f"[{style}]{signal.signal.value}[/{style}]",
-            _fmt(signal.edge),
-            _fmt(signal.expected_value),
+            _fmt_edge(signal.edge),
+            _fmt_ev(signal.expected_value),
             f"{signal.stake_fraction * 100:.2f}",
             f"{signal.model_confidence:.0f}",
             signal.rationale,

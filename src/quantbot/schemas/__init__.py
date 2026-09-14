@@ -20,6 +20,7 @@ from quantbot.schemas.match import Match, MatchResult, Team
 from quantbot.schemas.odds import Odds, TotalsOdds
 from quantbot.schemas.prediction import Prediction, ScoreMatrix
 from quantbot.schemas.signal import ValueMetrics, ValueSignal
+from quantbot.schemas.snapshot import PredictionSnapshot, snapshot_from_signal
 
 __all__ = [
     "PROB_SUM_TOLERANCE",
@@ -45,4 +46,6 @@ __all__ = [
     "ScoreMatrix",
     "ValueMetrics",
     "ValueSignal",
+    "PredictionSnapshot",
+    "snapshot_from_signal",
 ]

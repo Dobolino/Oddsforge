@@ -114,8 +114,9 @@ def _install_cache():  # pragma: no cover - requires Streamlit runtime
     @cache
     def calibration(_matches, mode, league_value, season):
         from quantbot.analysis.evaluation import calibration_report
-        from quantbot.models import EloModel
-        return calibration_report(_matches, EloModel())
+        from quantbot.models import DixonColesModel
+        # Align with dashboard predict default (Claude: show calibration of the live model).
+        return calibration_report(_matches, DixonColesModel(min_matches=5))
 
     @cache
     def models(_matches, mode, league_value, season):
@@ -310,8 +311,9 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
         st.info(t("safety.banner", lang))
         if not live:
             st.caption(t("safety.demo", lang))
+        st.caption(t("safety.account_limits", lang))
 
-    _welcome_card(lang)
+    _welcome_card(lang, ux_mode)
     if live and provider is not None:
         _name_match_warnings(lang, provider, selected_leagues)
 
@@ -438,7 +440,25 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
             c2.metric("Sharpe / Sortino", f"{m.sharpe:.2f} / {m.sortino:.2f}")
             c3.metric(t("bt.max_dd", lang), f"{m.max_drawdown * 100:.2f}%")
             c4.metric(t("bt.beat_clv", lang), "-" if m.beat_clv_rate is None else f"{m.beat_clv_rate * 100:.1f}%")
+        st.caption(t("bt.roi_caveat", lang))
+        st.caption(t("safety.account_limits", lang))
         st.plotly_chart(equity_curve_figure(result.bankroll_curve, result.initial_bankroll), width="stretch")
+        if ux_mode in (UXMode.ADVANCED, UXMode.EXPERT) and result.settled_bets:
+            from quantbot.backtest.montecarlo import bet_specs_from_result, monte_carlo_bankroll
+            specs = bet_specs_from_result(result)
+            if specs:
+                st.subheader(t("bt.monte_carlo", lang))
+                st.caption(t("bt.monte_carlo_hint", lang))
+                mc = monte_carlo_bankroll(
+                    specs,
+                    initial_bankroll=result.initial_bankroll,
+                    n_sims=2000 if ux_mode is UXMode.ADVANCED else 5000,
+                    seed=7,
+                )
+                m1, m2, m3 = st.columns(3)
+                m1.metric(t("bt.risk_of_ruin", lang), f"{mc.risk_of_ruin * 100:.1f}%")
+                m2.metric(t("bt.dd_p95", lang), f"{mc.drawdown_p95 * 100:.1f}%")
+                m3.metric(t("bt.final_p5", lang), f"{mc.final_p5:.0f}")
         if ux_mode is UXMode.EXPERT:
             clvs = [b.clv for b in result.settled_bets if b.clv is not None]
             if clvs:
@@ -462,8 +482,8 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
                         st.caption("-")
 
 
-def _welcome_card(lang: str) -> None:  # pragma: no cover - requires Streamlit runtime
-    """First-run onboarding: demo mode, pick a league, stay on Simple view."""
+def _welcome_card(lang: str, ux_mode: UXMode) -> None:  # pragma: no cover - requires Streamlit runtime
+    """First-run onboarding: demo mode, age/risk gate, stay on Simple view."""
 
     from quantbot.preferences import is_welcome_dismissed, set_welcome_dismissed
 
@@ -474,21 +494,39 @@ def _welcome_card(lang: str) -> None:  # pragma: no cover - requires Streamlit r
         st.subheader(t("welcome.title", lang))
         st.write(t("welcome.body", lang))
         st.markdown(t("welcome.steps", lang))
-        c1, c2, c3 = st.columns(3)
-        if c1.button(t("welcome.go_tips", lang), type="primary", key="welcome_go_tips"):
-            set_welcome_dismissed()
-            st.session_state["welcome_dismissed"] = True
-            st.session_state["pending_nav_page"] = "signals"
-            st.rerun()
-        if c2.button(t("welcome.go_slip", lang), key="welcome_go_slip"):
-            set_welcome_dismissed()
-            st.session_state["welcome_dismissed"] = True
-            st.session_state["pending_nav_page"] = "slip"
-            st.rerun()
-        if c3.button(t("welcome.later", lang), key="welcome_later"):
-            set_welcome_dismissed()
-            st.session_state["welcome_dismissed"] = True
-            st.rerun()
+        st.info(t("welcome.responsible", lang))
+        age_ok = st.checkbox(t("welcome.age_confirm", lang), key="welcome_age_confirm")
+        if not age_ok:
+            st.caption(t("welcome.age_required", lang))
+            return
+        if ux_mode is UXMode.BEGINNER:
+            c1, c2 = st.columns(2)
+            if c1.button(t("welcome.go_tips", lang), type="primary", key="welcome_go_tips"):
+                set_welcome_dismissed()
+                st.session_state["welcome_dismissed"] = True
+                st.session_state["pending_nav_page"] = "signals"
+                st.rerun()
+            if c2.button(t("welcome.later", lang), key="welcome_later"):
+                set_welcome_dismissed()
+                st.session_state["welcome_dismissed"] = True
+                st.rerun()
+        else:
+            c1, c2, c3 = st.columns(3)
+            if c1.button(t("welcome.go_tips", lang), type="primary", key="welcome_go_tips"):
+                set_welcome_dismissed()
+                st.session_state["welcome_dismissed"] = True
+                st.session_state["pending_nav_page"] = "signals"
+                st.rerun()
+            if c2.button(t("welcome.go_slip", lang), key="welcome_go_slip"):
+                set_welcome_dismissed()
+                st.session_state["welcome_dismissed"] = True
+                st.session_state["pending_nav_page"] = "glossary"
+                st.session_state["pending_nav_after_glossary"] = "slip"
+                st.rerun()
+            if c3.button(t("welcome.later", lang), key="welcome_later"):
+                set_welcome_dismissed()
+                st.session_state["welcome_dismissed"] = True
+                st.rerun()
 
 
 def _name_match_warnings(lang, provider, leagues) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
@@ -643,6 +681,19 @@ def _signals_page(
             start=start_d.isoformat(), end=end_d.isoformat(), n=len(reports), k=n_bets
         )
     )
+    if ux_mode is UXMode.BEGINNER:
+        try:
+            from quantbot.tracking import TipHistoryStore, tracker_path
+            store = TipHistoryStore(tracker_path(mode))
+            rate = store.hit_rate()
+            if rate is None:
+                st.caption(t("sig.hit_rate_none", lang))
+            else:
+                st.caption(t("sig.hit_rate_caption", lang).format(rate=f"{rate:.0f}%"))
+        except Exception:  # noqa: BLE001 — history is optional for the tips view
+            st.caption(t("sig.hit_rate_none", lang))
+    else:
+        st.caption(t("sig.edge_band_hint", lang))
 
     if ux_mode is UXMode.BEGINNER:
         for league in leagues:
@@ -658,6 +709,14 @@ def _signals_page(
                 top = bets[0]
                 st.markdown(f"### {top['match']}")
                 st.html(top["tip_html"])
+                st.caption(
+                    t("sig.beginner_metrics", lang).format(
+                        model=top["model_p"],
+                        edge=top["edge_pp"],
+                        quality=top["quality"],
+                    )
+                )
+                st.caption(t("sig.model_estimate_caption", lang))
                 st.write(top["why"])
                 if len(bets) > 1:
                     st.caption(t("sig.other_matches", lang))
@@ -671,13 +730,7 @@ def _signals_page(
                 st.caption(t("sig.tip_legend", lang))
             with st.expander(t("sig.all_matches", lang), expanded=False):
                 render_signals_table(signals_dataframe(lg_reports, mode=UXMode.BEGINNER, lang=lang))
-        st.info(t("sig.open_slip_hint", lang))
-        if st.button(t("sig.open_slip", lang), type="primary", key="open_slip_from_tips"):
-            st.session_state["welcome_dismissed"] = True
-            st.session_state["slip_from_tips"] = True
-            st.session_state["slip_pref_style"] = "safe"
-            st.session_state["pending_nav_page"] = "slip"
-            st.rerun()
+        # Accumulators stay out of Simple mode (Gemini/Claude review).
         return
 
     c1, c2 = st.columns(2)
@@ -700,6 +753,14 @@ def _slip_page(
     """Theoretical tip slip across leagues and a kickoff date range."""
 
     st.header(t("page.slip", lang))
+    from quantbot.preferences import is_glossary_seen, set_glossary_seen
+    if not (st.session_state.get("glossary_seen") or is_glossary_seen()):
+        st.warning(t("slip.glossary_gate", lang))
+        if st.button(t("slip.glossary_cta", lang), key="slip_goto_glossary"):
+            st.session_state["pending_nav_page"] = "glossary"
+            st.session_state["pending_nav_after_glossary"] = "slip"
+            st.rerun()
+        return
     beginner = ux_mode is UXMode.BEGINNER
     from_tips = bool(st.session_state.pop("slip_from_tips", False))
     if from_tips:
@@ -730,8 +791,11 @@ def _slip_page(
         "boosted": t("slip.style_boosted", lang),
     }
     pref = st.session_state.pop("slip_pref_style", None)
-    style_options = list(style_labels)
-    style_index = style_options.index(pref) if pref in style_options else 0
+    # Beginner: selection only — no “booster” / high-odds accumulator style.
+    style_options = ["safe"] if beginner else list(style_labels)
+    if pref not in style_options:
+        pref = "safe"
+    style_index = style_options.index(pref)
 
     def _controls() -> tuple[str, float, object]:
         style_local = st.radio(
@@ -817,8 +881,12 @@ def _slip_page(
         m1.metric(t("slip.combined_odds", lang), f"{slip.combined_odds:.2f}")
         m2.metric(t("slip.combined_prob", lang), f"{slip.combined_prob * 100:.1f}%")
         m3.metric(t("slip.combined_ev", lang), f"{slip.expected_value * 100:.1f}%")
-
-    st.caption(t("slip.disclaimer", lang))
+        if len(slip.legs) > 1:
+            st.warning(t("slip.disclaimer", lang))
+        else:
+            st.caption(t("slip.disclaimer", lang))
+    else:
+        st.caption(t("slip.disclaimer", lang))
 
 
 def _diagnostics_page(lang, C, provider, mode, league, season) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
@@ -954,7 +1022,12 @@ def _card_page(lang, C, orchestrator, mode, league, season) -> None:  # type: ig
             "": out_lbl[o],
             t("card.fair", lang): c.fair_odds[o],
             t("card.market", lang): c.market_odds[o],
-            t("card.divergence", lang): f"{c.divergence[o]['edge'] * 100:+.1f}% ({t('div.' + c.divergence[o]['tier'], lang)})",
+            t("card.divergence", lang): (
+                f"{c.divergence[o]['edge_pp']:+.1f} pp "
+                f"[{c.divergence[o].get('edge_low_pp', c.divergence[o]['edge_pp']):.1f}"
+                f"–{c.divergence[o].get('edge_high_pp', c.divergence[o]['edge_pp']):.1f}] "
+                f"({t('div.' + c.divergence[o]['tier'], lang)})"
+            ),
         } for o in outcomes]
         st.dataframe(pd.DataFrame(frows), width="stretch", hide_index=True)
         st.markdown(f"**{t('card.decision', lang)}**: {c.signal}  ·  {t('card.stake', lang)}: {c.stake_fraction:.2f}%")
@@ -1053,8 +1126,16 @@ def _tracker_page(lang, C, provider, mode, leagues, season) -> None:  # type: ig
 
 
 def _glossary_page(lang: str) -> None:  # pragma: no cover - requires Streamlit runtime
+    from quantbot.preferences import set_glossary_seen
+    set_glossary_seen()
+    st.session_state["glossary_seen"] = True
     st.header(t("page.glossary", lang))
     st.caption(t("glossary.intro", lang))
+    nxt = st.session_state.pop("pending_nav_after_glossary", None)
+    if nxt == "slip":
+        if st.button(t("page.slip", lang), type="primary", key="glossary_continue_slip"):
+            st.session_state["pending_nav_page"] = "slip"
+            st.rerun()
     de = lang == "de"
     for section in GLOSSARY:
         st.subheader(section["title"]["de"] if de else section["title"]["en"])

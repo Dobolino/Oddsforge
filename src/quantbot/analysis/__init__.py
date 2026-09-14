@@ -27,9 +27,17 @@ from quantbot.analysis.diagnostics import FEATURE_GROUPS, ablation_report, featu
 from quantbot.analysis.matchcard import MatchCard, build_match_card, divergence_tier
 from quantbot.analysis.value import (
     ValueCalculator,
+    assert_metrics_consistent,
     edge,
+    edge_pp,
+    edge_uncertainty_band_pp,
     expected_value,
+    format_edge_band_pp,
+    format_edge_pp,
+    format_ev_pct,
+    format_model_prob,
     odds_to_dict,
+    relative_edge,
 )
 
 __all__ = [
@@ -46,9 +54,17 @@ __all__ = [
     "ablation_report",
     "feature_importance",
     "ValueCalculator",
+    "assert_metrics_consistent",
     "edge",
+    "edge_pp",
+    "edge_uncertainty_band_pp",
     "expected_value",
+    "format_edge_band_pp",
+    "format_edge_pp",
+    "format_ev_pct",
+    "format_model_prob",
     "odds_to_dict",
+    "relative_edge",
     "ConfidenceEvaluator",
     "ConfidenceLevel",
     "DataQualitySignals",

@@ -5,7 +5,7 @@ QuantBot zeigt Kennzahlen, die aus dem Sportwetten- und Finanzumfeld stammen. Hi
 ## Signale
 
 - VALUE_HOME, VALUE_DRAW, VALUE_AWAY: Das Modell sieht einen Value auf Heimsieg, Unentschieden oder Auswärtssieg. Value heisst, die Quote ist im Verhältnis zur geschätzten Wahrscheinlichkeit zu hoch.
-- NO_BET: Keine Empfehlung. Die Rejection Reasons sagen dir, warum (zum Beispiel zu wenig Edge, zu geringe Datenqualität).
+- NO_BET / Kein Value: Kein ausreichend belastbarer Value. Die Rejection Reasons sagen dir, warum (zum Beispiel zu wenig Edge, zu geringe Datenqualität).
 
 ## Wahrscheinlichkeit und Quoten
 
@@ -19,7 +19,7 @@ QuantBot zeigt Kennzahlen, die aus dem Sportwetten- und Finanzumfeld stammen. Hi
 - Edge: Modellwahrscheinlichkeit minus faire Marktwahrscheinlichkeit. Positiver Edge heisst, das Modell hält das Ergebnis für wahrscheinlicher als der Markt.
 - EV (Expected Value, Erwartungswert): Erwarteter Gewinn pro Einheit Einsatz. EV von 0.10 heisst im Schnitt 10 Prozent Gewinn pro Einsatz, wenn das Modell recht hat.
 - Kelly Stake: Vorgeschlagener Einsatz als Anteil der Bankroll, basierend auf Edge und Quote. QuantBot nutzt Fractional Kelly, also einen Bruchteil, um das Risiko zu senken. Rein theoretisch.
-- Confidence: Wie sicher das Modell ist, von 0 bis 100. Setzt sich aus Ensemble-Einigkeit und Datenqualität zusammen.
+- Prognosequalität (früher oft „Confidence“): Messbare Zuverlässigkeit von 0 bis 100 aus Ensemble-Einigkeit und Datenqualität — keine Gewinnchance und keine Siegprognose.
 - Data Quality: Wie gut die Datenlage ist, von 0 bis 100 (Anzahl Spiele, Buchmacher, Verletzungsinfos).
 
 ## Backtest-Kennzahlen

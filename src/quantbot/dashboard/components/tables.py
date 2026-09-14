@@ -6,6 +6,7 @@ from collections.abc import Sequence
 
 import pandas as pd
 
+from quantbot.analysis.value import format_edge_band_pp, format_ev_pct, format_model_prob
 from quantbot.backtest.metrics import BacktestMetrics
 from quantbot.dashboard.ux import (
     SIGNAL_COLUMNS_BY_MODE,
@@ -20,6 +21,7 @@ from quantbot.orchestrator import SignalReport
 SIGNAL_COLUMNS = [
     "Match",
     "Signal",
+    "Model P",
     "Odds",
     "Edge",
     "EV",
@@ -28,6 +30,15 @@ SIGNAL_COLUMNS = [
     "Data quality",
     "Reason",
 ]
+
+
+def _chosen_model_prob(signal) -> float | None:  # type: ignore[no-untyped-def]
+    if signal.chosen_outcome is None:
+        return None
+    for metric in signal.metrics:
+        if metric.outcome is signal.chosen_outcome:
+            return float(metric.model_prob)
+    return None
 
 
 def signals_dataframe(
@@ -61,11 +72,16 @@ def signals_dataframe(
                 "Tipp": tip,
                 "Begründung": why,
                 "Signal": tip if mode is not UXMode.EXPERT else s.signal.value,
+                "Model P": format_model_prob(_chosen_model_prob(s)),
                 "Odds": "—" if s.decimal_odds is None else f"{s.decimal_odds:.2f}",
-                "Edge": "—" if s.edge is None else f"{s.edge:.1%}",
-                "EV": "—" if s.expected_value is None else f"{s.expected_value:.1%}",
+                "Edge": format_edge_band_pp(
+                    s.edge,
+                    model_confidence=s.model_confidence,
+                    ensemble_agreement=getattr(report.analysis, "ensemble_agreement", None),
+                ),
+                "EV": format_ev_pct(s.expected_value),
                 "Stake %": f"{s.stake_fraction * 100.0:.2f}",
-                "Confidence": f"{s.model_confidence:.0f}",
+                "Confidence": f"◆ {s.model_confidence:.0f}",
                 "Data quality": f"{s.data_quality:.0f}",
                 "Reason": why,
             }
@@ -114,6 +130,8 @@ def beginner_tip_cards(
 ) -> list[dict[str, str]]:
     """Top value tips for the beginner home view (bets first, then no-bets)."""
 
+    from quantbot.analysis.value import format_edge_band_pp, format_model_prob
+
     bets = [r for r in reports if r.signal.is_bet]
     others = [r for r in reports if not r.signal.is_bet]
     ordered = bets + others
@@ -121,6 +139,13 @@ def beginner_tip_cards(
     for report in ordered[:limit]:
         s = report.signal
         m = report.match
+        model_p = _chosen_model_prob(s)
+        quality = report.analysis.confidence_level.value
+        quality_lbl = {
+            "high": "Hoch" if lang == "de" else "High",
+            "medium": "Mittel" if lang == "de" else "Medium",
+            "low": "Niedrig" if lang == "de" else "Low",
+        }.get(quality, quality)
         cards.append(
             {
                 "match": f"{m.home_team.name} vs {m.away_team.name}",
@@ -134,6 +159,15 @@ def beginner_tip_cards(
                 "why": reason_for_mode(s, UXMode.BEGINNER, lang),
                 "is_bet": "1" if s.is_bet else "0",
                 "signal": s.signal.value,
+                "model_p": format_model_prob(model_p, digits=0),
+                "edge_pp": format_edge_band_pp(
+                    s.edge,
+                    model_confidence=s.model_confidence,
+                    ensemble_agreement=getattr(report.analysis, "ensemble_agreement", None),
+                    digits=1,
+                ),
+                "quality": quality_lbl,
+                "reason_codes": ", ".join(s.reason_codes),
             }
         )
     return cards

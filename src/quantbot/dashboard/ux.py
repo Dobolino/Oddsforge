@@ -23,8 +23,10 @@ class UXMode(str, Enum):
 
 # Pages visible in the sidebar, in display order.
 PAGES_BY_MODE: dict[UXMode, tuple[str, ...]] = {
-    UXMode.BEGINNER: ("signals", "slip", "tracker", "glossary"),
-    UXMode.ADVANCED: ("signals", "slip", "card", "tracker", "backtest", "glossary"),
+    # Beginner: no tip slip / accumulators — Gemini+Claude: kombis raise risk for newcomers.
+    UXMode.BEGINNER: ("signals", "tracker", "glossary"),
+    # Advanced: calibration is a must-have signal-quality view (Claude review).
+    UXMode.ADVANCED: ("signals", "slip", "card", "tracker", "calibration", "backtest", "glossary"),
     UXMode.EXPERT: (
         "signals",
         "slip",
@@ -43,10 +45,11 @@ PAGES_BY_MODE: dict[UXMode, tuple[str, ...]] = {
 # Internal keys stay English; display labels are localized in the table builder.
 SIGNAL_COLUMNS_BY_MODE: dict[UXMode, tuple[str, ...]] = {
     UXMode.BEGINNER: ("Match", "Tipp", "Begründung"),
-    UXMode.ADVANCED: ("Match", "Signal", "Odds", "Edge", "EV", "Stake %", "Reason"),
+    UXMode.ADVANCED: ("Match", "Signal", "Model P", "Odds", "Edge", "EV", "Stake %", "Reason"),
     UXMode.EXPERT: (
         "Match",
         "Signal",
+        "Model P",
         "Odds",
         "Edge",
         "EV",
@@ -62,11 +65,12 @@ _COLUMN_LABELS: dict[str, dict[str, str]] = {
     "Tipp": {"de": "Tipp", "en": "Tip"},
     "Begründung": {"de": "Begründung", "en": "Reason"},
     "Signal": {"de": "Tipp", "en": "Signal"},
+    "Model P": {"de": "Modell-P", "en": "Model P"},
     "Odds": {"de": "Quote", "en": "Odds"},
-    "Edge": {"de": "Vorsprung", "en": "Edge"},
-    "EV": {"de": "Erwartungswert", "en": "EV"},
+    "Edge": {"de": "Edge (pp)", "en": "Edge (pp)"},
+    "EV": {"de": "Erwartete Rendite", "en": "Expected return"},
     "Stake %": {"de": "Einsatz %", "en": "Stake %"},
-    "Confidence": {"de": "Modellvertrauen", "en": "Confidence"},
+    "Confidence": {"de": "Prognosequalität", "en": "Forecast quality"},
     "Data quality": {"de": "Datenqualität", "en": "Data quality"},
     "Reason": {"de": "Begründung", "en": "Reason"},
 }
@@ -79,12 +83,13 @@ def column_label(key: str, lang: str = "de") -> str:
     return entry.get("en", key)
 
 _SIGNAL_PLAIN: dict[SignalType, dict[str, str]] = {
-    SignalType.VALUE_HOME: {"de": "Tipp: Heimsieg", "en": "Tip: home win"},
-    SignalType.VALUE_DRAW: {"de": "Tipp: Unentschieden", "en": "Tip: draw"},
-    SignalType.VALUE_AWAY: {"de": "Tipp: Auswärtssieg", "en": "Tip: away win"},
-    SignalType.VALUE_OVER: {"de": "Tipp: Über 2,5 Tore", "en": "Tip: over 2.5 goals"},
-    SignalType.VALUE_UNDER: {"de": "Tipp: Unter 2,5 Tore", "en": "Tip: under 2.5 goals"},
-    SignalType.NO_BET: {"de": "Kein Tipp", "en": "No tip"},
+    # Claude review: avoid “Empfehlung”; prefer neutral value language.
+    SignalType.VALUE_HOME: {"de": "Value erkannt: Heimsieg", "en": "Value spotted: home win"},
+    SignalType.VALUE_DRAW: {"de": "Value erkannt: Unentschieden", "en": "Value spotted: draw"},
+    SignalType.VALUE_AWAY: {"de": "Value erkannt: Auswärtssieg", "en": "Value spotted: away win"},
+    SignalType.VALUE_OVER: {"de": "Value erkannt: Über 2,5 Tore", "en": "Value spotted: over 2.5 goals"},
+    SignalType.VALUE_UNDER: {"de": "Value erkannt: Unter 2,5 Tore", "en": "Value spotted: under 2.5 goals"},
+    SignalType.NO_BET: {"de": "Kein Value", "en": "No value"},
 }
 
 # Clear beginner colors: home = green, draw = amber, away = blue,
@@ -107,8 +112,16 @@ def plain_signal_label(signal: SignalType, lang: str = "de", *, line: float | No
     if line is not None and signal in (SignalType.VALUE_OVER, SignalType.VALUE_UNDER):
         line_s = str(line).replace(".", ",") if lang == "de" else str(line)
         if signal is SignalType.VALUE_OVER:
-            return f"Tipp: Über {line_s} Tore" if lang == "de" else f"Tip: over {line_s} goals"
-        return f"Tipp: Unter {line_s} Tore" if lang == "de" else f"Tip: under {line_s} goals"
+            return (
+                f"Value erkannt: Über {line_s} Tore"
+                if lang == "de"
+                else f"Value spotted: over {line_s} goals"
+            )
+        return (
+            f"Value erkannt: Unter {line_s} Tore"
+            if lang == "de"
+            else f"Value spotted: under {line_s} goals"
+        )
     return label
 
 

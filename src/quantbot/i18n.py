@@ -31,8 +31,8 @@ _STRINGS: dict[str, dict[str, str]] = {
         "en": "Only the essentials: one tip, one reason.",
     },
     "ux.advanced_hint": {
-        "de": "Tipp plus Wahrscheinlichkeiten, Vorsprung und Einsatz.",
-        "en": "Tip plus probabilities, edge and stake.",
+        "de": "Tipp plus Modell-P, Edge in Prozentpunkten und erwartete Rendite.",
+        "en": "Tip plus model P, edge in percentage points and expected return.",
     },
     "ux.expert_hint": {
         "de": "Alle Kennzahlen, Modelle, Backtest und Diagnose.",
@@ -48,15 +48,33 @@ _STRINGS: dict[str, dict[str, str]] = {
     "welcome.steps": {
         "de": "1. Links Liga „Alle“ oder eine Liga wählen.\n"
               "2. Datumsbereich setzen (Heute / 3 Tage / 7 Tage).\n"
-              "3. Unter Tipps lesen, dann Tippschein öffnen.",
+              "3. Unter Tipps die Modell-Signale lesen — ohne Kombi-Schein im Einfach-Modus.",
         "en": "1. Choose „All“ or one league on the left.\n"
               "2. Set a date range (Today / 3 days / 7 days).\n"
-              "3. Read Tips, then open the tip slip.",
+              "3. Read model signals under Tips — no accumulator slip in Simple mode.",
     },
     "welcome.dismiss": {"de": "Verstanden — starten", "en": "Got it — start"},
     "welcome.go_tips": {"de": "Zu den Tipps", "en": "Go to tips"},
     "welcome.go_slip": {"de": "Tippschein öffnen", "en": "Open tip slip"},
     "welcome.later": {"de": "Später", "en": "Later"},
+    "welcome.responsible": {
+        "de": "Nur für Erwachsene (18+). Glücksspiel kann süchtig machen. "
+              "Hilfe: BZgA-Hotline 0800 1 37 27 00 · check-dein-spiel.de · "
+              "Selbstsperre über OASIS (gluecksspiel-behoerde.de). "
+              "QuantBot ist eine statistische Entscheidungshilfe — keine Gewinnzusage.",
+        "en": "Adults only (18+). Gambling can be addictive. "
+              "Help: BZgA hotline 0800 1 37 27 00 · check-dein-spiel.de · "
+              "Self-exclusion via OASIS (gluecksspiel-behoerde.de). "
+              "QuantBot is statistical decision support — not a promise of profit.",
+    },
+    "welcome.age_confirm": {
+        "de": "Ich bin mindestens 18 Jahre alt und verstehe die Risiken von Glücksspiel.",
+        "en": "I am at least 18 years old and understand the risks of gambling.",
+    },
+    "welcome.age_required": {
+        "de": "Bitte bestätige zuerst das Alter (18+), bevor du startest.",
+        "en": "Please confirm you are 18+ before starting.",
+    },
     "matchwarn.title": {
         "de": "Achtung: Teamnamen-Zuordnung unsicher",
         "en": "Warning: uncertain team-name matching",
@@ -80,25 +98,39 @@ _STRINGS: dict[str, dict[str, str]] = {
     "safety.banner": {
         "de": "QuantBot platziert keine Wetten und garantiert keinen Gewinn. "
               "Fussball ist nicht sicher vorhersagbar. Entscheide selbst und "
-              "setze nie mehr, als du verlieren kannst.",
+              "setze nie mehr, als du verlieren kannst. Hilfe bei Glücksspielproblemen: "
+              "Check dein Spiel (check-dein-spiel.de) · BZgA-Hotline 0800 1 37 27 00 · "
+              "Selbstsperre OASIS (gluecksspiel-behoerde.de). "
+              "Erfolgreiches Spielen kann bei Buchmachern zu Limits/Kontosperren führen.",
         "en": "QuantBot does not place bets and guarantees no profit. "
               "Football is not reliably predictable. Decide yourself and "
-              "never stake more than you can afford to lose.",
+              "never stake more than you can afford to lose. Help with gambling problems: "
+              "Check dein Spiel (check-dein-spiel.de) · BZgA hotline 0800 1 37 27 00 · "
+              "Self-exclusion OASIS (gluecksspiel-behoerde.de). "
+              "Successful play can lead to bookmaker limits or account restrictions.",
     },
     "safety.short": {
-        "de": "Nur Entscheidungshilfe — QuantBot wettet nicht.",
-        "en": "Decision support only — QuantBot does not bet.",
+        "de": "Nur Entscheidungshilfe — QuantBot wettet nicht. Hilfe: check-dein-spiel.de · 0800 1 37 27 00.",
+        "en": "Decision support only — QuantBot does not bet. Help: check-dein-spiel.de · 0800 1 37 27 00.",
     },
     "safety.demo": {
         "de": "Du siehst Demodaten mit erfundenen Zahlen. Gut zum Ausprobieren, "
-              "nicht zum Wetten.",
+              "nicht zum Wetten — Demo-Trefferquoten sind keine reale Renditeerwartung.",
         "en": "You are seeing demo data with made-up numbers. Fine for trying "
-              "the app, not for real betting.",
+              "the app, not for real betting — demo hit rates are not a real return expectation.",
+    },
+    "safety.account_limits": {
+        "de": "Hinweis: Positive Modell-Ergebnisse können bei regulierten Buchmachern "
+              "zu Einsatzlimits oder Kontosperren führen — reale Kelly-Strategien sind dadurch eingeschränkt.",
+        "en": "Note: Positive model results can lead to stake limits or account restrictions "
+              "at regulated bookmakers — real Kelly strategies are limited by that.",
     },
     "ctrl.window_sidebar": {"de": "Spieltag-Fenster", "en": "Matchday window"},
     "slip.from_tips": {
-        "de": "Aus Tipps übernommen: Beste Chancen — kurze Kombi mit den Tipps höchster Modellwahrscheinlichkeit.",
-        "en": "Taken from Tips: Best win chance — short slip with the highest-probability tips.",
+        "de": "Aus Tipps übernommen: kurze Kombi mit den Tipps höchster Modellwahrscheinlichkeit "
+              "(Näherung — Spiele sind oft korreliert).",
+        "en": "Taken from Tips: short slip with the highest model-probability tips "
+              "(approximation — matches are often correlated).",
     },
     "slip.adjust": {"de": "Schein anpassen", "en": "Adjust slip"},
     "track.learn_miss": {
@@ -106,29 +138,53 @@ _STRINGS: dict[str, dict[str, str]] = {
         "en": "Missed a tip? Often „No tip“ was the better call — uncertain matches are skipped on purpose.",
     },
     "sig.beginner_intro": {
-        "de": "Hier siehst du den klarsten Tipp für die kommenden Spiele. "
-              "Ein Vorschlag, eine kurze Begründung. Mehr nicht.",
-        "en": "Here is the clearest tip for the upcoming matches. "
-              "One suggestion, one short reason. Nothing more.",
+        "de": "Hier siehst du den klarsten Value für die kommenden Spiele. "
+              "Ein Modell-Signal, eine kurze Begründung. Mehr nicht.",
+        "en": "Here is the clearest value for the upcoming matches. "
+              "One model signal, one short reason. Nothing more.",
+    },
+    "sig.hit_rate_caption": {
+        "de": "Bisherige Trefferquote (abgerechnet): {rate} — keine Garantie für künftige Tipps.",
+        "en": "Settled hit rate so far: {rate} — no guarantee for future tips.",
+    },
+    "sig.hit_rate_none": {
+        "de": "Noch keine abgerechneten Tipps — Trefferquote erscheint nach ersten Ergebnissen.",
+        "en": "No settled tips yet — hit rate appears after the first results.",
+    },
+    "sig.edge_band_hint": {
+        "de": "Edge wird mit Unsicherheitsband gezeigt (kein formales Konfidenzintervall).",
+        "en": "Edge is shown with an uncertainty band (not a formal confidence interval).",
     },
     "sig.no_clear_tip": {
-        "de": "Heute kein klarer Tipp. Oft ist „kein Tipp“ die beste Entscheidung.",
-        "en": "No clear tip today. Often „no tip“ is the best decision.",
+        "de": "Kein ausreichend belastbarer Value gefunden. „Kein Tipp“ ist hier die korrekte Entscheidung — nicht ein Fehler.",
+        "en": "No sufficiently robust value found. „No tip“ is the correct decision here — not a failure.",
+    },
+    "sig.model_estimate_caption": {
+        "de": "Modellschätzung, keine Gewinnzusage.",
+        "en": "Model estimate, not a promise of winning.",
+    },
+    "sig.beginner_metrics": {
+        "de": "Modell {model} · Marktvorteil {edge} · Prognosequalität {quality}",
+        "en": "Model {model} · Market edge {edge} · Forecast quality {quality}",
     },
     "sig.all_matches": {"de": "Alle Spiele im Überblick", "en": "All matches at a glance"},
     "sig.other_matches": {"de": "Weitere Tipps", "en": "More tips"},
     "sig.tip_of_day": {"de": "Klarer Vorschlag", "en": "Clear suggestion"},
     "term.edge": {
-        "de": "Edge = geschätzter Vorteil gegenüber dem Markt (Modell minus faire Marktquote).",
-        "en": "Edge = estimated advantage versus the market (model minus fair market).",
+        "de": "Edge = Vorteil in Prozentpunkten (Modell-P minus faire Markt-P). Nicht dasselbe wie relative %.",
+        "en": "Edge = advantage in percentage points (model P minus fair market P). Not the same as relative %.",
     },
     "term.ev": {
-        "de": "EV = erwarteter Gewinn pro Einsatz, wenn die Schätzung stimmt.",
-        "en": "EV = expected profit per stake if the estimate is right.",
+        "de": "Erwartete Rendite = EV in Prozent (p × Quote − 1). Positiv ≠ Gewinn auf einer einzelnen Wette.",
+        "en": "Expected return = EV as percent (p × odds − 1). Positive ≠ a win on a single bet.",
     },
     "term.stake": {
-        "de": "Einsatz % = theoretischer Vorschlag nach Kelly. Kein Aufruf, echt zu setzen.",
-        "en": "Stake % = theoretical Kelly suggestion. Not a call to stake real money.",
+        "de": "Einsatz % = theoretischer Fractional-Kelly-Vorschlag. Kein Aufruf, echt zu setzen.",
+        "en": "Stake % = theoretical fractional-Kelly suggestion. Not a call to stake real money.",
+    },
+    "term.forecast_quality": {
+        "de": "Prognosequalität = messbare Zuverlässigkeit (Kalibrierung/Daten/Agreement), keine Gewinnchance.",
+        "en": "Forecast quality = measurable reliability (calibration/data/agreement), not a win chance.",
     },
     # Nav / pages
     "nav.pages": {"de": "Seiten", "en": "Pages"},
@@ -183,14 +239,20 @@ _STRINGS: dict[str, dict[str, str]] = {
     "col.dataset": {"de": "Datensatz", "en": "Dataset"},
     # Calibration page
     "cal.intro": {
-        "de": "Sind die Wahrscheinlichkeiten realistisch? Vorhergesagte Konfidenz gegen tatsächliche Trefferquote, aus dem Walk-Forward.",
-        "en": "Are the probabilities realistic? Predicted confidence versus actual accuracy, from the walk-forward.",
+        "de": "Kalibrierung des Live-Defaults Dixon-Coles (Walk-Forward): "
+              "vorhergesagte Wahrscheinlichkeit gegen tatsächliche Trefferquote. "
+              "Brier Score und ECE zeigen, wie gut p_Modell dem echten Outcome entspricht.",
+        "en": "Calibration of the live default Dixon–Coles (walk-forward): "
+              "predicted probability versus actual hit rate. "
+              "Brier score and ECE show how well p_model matches real outcomes.",
     },
     "cal.confidence": {"de": "Vorhergesagte Konfidenz", "en": "Predicted confidence"},
     "cal.accuracy": {"de": "Tatsächliche Trefferquote", "en": "Actual accuracy"},
     "cal.note": {
-        "de": "Punkte über der Diagonale bedeuten zu vorsichtig, darunter zu selbstsicher.",
-        "en": "Points above the diagonal mean underconfident, below means overconfident.",
+        "de": "Punkte über der Diagonale bedeuten zu vorsichtig, darunter zu selbstsicher. "
+              "Ohne gute Kalibrierung ist Edge nur Rauschen — prüfe Brier/ECE vor Live-Nutzung.",
+        "en": "Points above the diagonal mean underconfident, below means overconfident. "
+              "Without good calibration, edge is noise — check Brier/ECE before live use.",
     },
     # Model comparison
     "models.intro": {
@@ -220,8 +282,11 @@ _STRINGS: dict[str, dict[str, str]] = {
     "card.fair_vs_market": {"de": "Faire vs Marktquote", "en": "Fair vs market odds"},
     "card.fair": {"de": "Fair", "en": "Fair"},
     "card.market": {"de": "Markt", "en": "Market"},
+    "card.reliability": {
+        "de": "Prognosequalität (nicht Gewinnchance)",
+        "en": "Forecast quality (not win chance)",
+    },
     "card.divergence": {"de": "Abweichung Modell zu Markt", "en": "Model vs market divergence"},
-    "card.reliability": {"de": "Verlässlichkeit (nicht Gewinnchance)", "en": "Reliability (not win chance)"},
     "card.data_quality": {"de": "Datenqualität", "en": "Data quality"},
     "card.why": {"de": "Warum dieses Signal", "en": "Why this signal"},
     "card.decision": {"de": "Entscheidung", "en": "Decision"},
@@ -239,8 +304,10 @@ _STRINGS: dict[str, dict[str, str]] = {
     "dq.injuries": {"de": "Verletzungsdaten", "en": "Injury data"},
     "dq.liquidity": {"de": "Liquidität", "en": "Liquidity"},
     "card.disclaimer": {
-        "de": "Keine Gewinngarantie. Modellwahrscheinlichkeit ist nicht das tatsächliche Ergebnis.",
-        "en": "No guarantee of profit. Model probability is not the actual outcome.",
+        "de": "Keine Gewinn- oder Renditegarantie. Modellwahrscheinlichkeit ist eine Schätzung, "
+              "keine Gewinnzusage. Vergangene Modellleistung ist keine Garantie zukünftiger Ergebnisse.",
+        "en": "No win or return guarantee. Model probability is an estimate, not a promise of winning. "
+              "Past model performance does not guarantee future results.",
     },
     # Tracker page
     "track.intro": {
@@ -355,29 +422,33 @@ _STRINGS: dict[str, dict[str, str]] = {
               "and date range. QuantBot places nothing — copy only.",
     },
     "slip.style": {"de": "Schein-Art", "en": "Slip style"},
-    "slip.style_safe": {"de": "Beste Chancen", "en": "Best win chance"},
+    "slip.style_safe": {"de": "Hohe Modell-P", "en": "High model-P"},
     "slip.style_boosted": {
-        "de": "Beste Chancen + Quoten-Booster",
-        "en": "Best chance + odds boosters",
+        "de": "Auswahl + höhere Quoten",
+        "en": "Selection + higher odds",
     },
     "slip.style_safe_hint": {
-        "de": "Nimmt die Tipps mit der höchsten Modell-Wahrscheinlichkeit.",
-        "en": "Takes the tips with the highest model probability.",
+        "de": "Modell-Signale mit der höchsten Modell-Wahrscheinlichkeit "
+              "(Produkt-Näherung bei Kombis — keine Unabhängigkeitsgarantie).",
+        "en": "Model signals with the highest model probability "
+              "(product approximation for combis — no independence guarantee).",
     },
     "slip.style_boosted_hint": {
-        "de": "Sichere Kern-Tipps plus zusätzliche Tipps mit höherer Quote, um die Kombi-Quote zu heben.",
-        "en": "Safer core tips plus extra higher-odds tips to lift the combined price.",
+        "de": "Kern-Signale plus zusätzliche Tipps mit höherer Quote. "
+              "Nur Auswahlhilfe — Kombis erhöhen Varianz und Ruin-Risiko stärker als die EV suggeriert.",
+        "en": "Core signals plus extra higher-odds tips. "
+              "Selection aid only — accumulators raise variance and ruin risk more than EV suggests.",
     },
     "slip.max_legs": {"de": "Anzahl Tipps im Schein", "en": "Number of tips on the slip"},
     "slip.core_legs": {"de": "Kern-Tipps", "en": "Core tips"},
-    "slip.boost_legs": {"de": "Booster-Tipps", "en": "Booster tips"},
+    "slip.boost_legs": {"de": "Zusatz-Tipps", "en": "Extra tips"},
     "slip.edit_legs": {
         "de": "Tipps auswählen (Haken weg = raus aus dem Schein)",
         "en": "Select tips (uncheck = remove from the slip)",
     },
     "slip.legs_risk": {
-        "de": "Mehr Tipps = höhere Quote, aber kleinere Chance, dass alles trifft.",
-        "en": "More tips = higher odds, but a lower chance that all hit.",
+        "de": "Mehr Tipps = höhere Quote, aber kleinere Chance, dass alles trifft. Spiele sind oft korreliert.",
+        "en": "More tips = higher odds, but a lower chance that all hit. Matches are often correlated.",
     },
     "slip.empty": {
         "de": "Keine Value-Tipps für einen Schein. Oft ist kein Schein die beste Entscheidung.",
@@ -385,17 +456,26 @@ _STRINGS: dict[str, dict[str, str]] = {
     },
     "slip.combined_odds": {"de": "Kombi-Quote", "en": "Combined odds"},
     "slip.combined_prob": {"de": "Geschätzte Trefferchance", "en": "Estimated hit chance"},
-    "slip.combined_ev": {"de": "Erwartungswert (Kombi)", "en": "Expected value (slip)"},
+    "slip.combined_ev": {"de": "Erwartete Rendite (Kombi)", "en": "Expected return (slip)"},
     "slip.legs": {"de": "Tipps im Schein", "en": "Legs on the slip"},
     "slip.role": {"de": "Rolle", "en": "Role"},
     "slip.role_core": {"de": "Kern", "en": "Core"},
-    "slip.role_boost": {"de": "Booster", "en": "Booster"},
+    "slip.role_boost": {"de": "Zusatz", "en": "Extra"},
     "slip.disclaimer": {
         "de": "Unabhängigkeitsannahme: Die Trefferchance ist das Produkt der Einzelwahrscheinlichkeiten. "
-              "In der Praxis hängen Spiele zusammen. Kein Aufruf zum Wetten.",
+              "In der Praxis hängen Spiele und Märkte zusammen — die Kombi-Chance ist daher nur eine Näherung. "
+              "Keine Gewinn- oder Renditegarantie. Kein Aufruf zum Wetten.",
         "en": "Independence assumption: hit chance is the product of single probabilities. "
-              "In practice matches are correlated. Not a call to bet.",
+              "In practice matches and markets are correlated — the combined chance is only an approximation. "
+              "No win or return guarantee. Not a call to bet.",
     },
+    "slip.glossary_gate": {
+        "de": "Bevor der Tippschein freigeschaltet wird: bitte einmal das Glossar lesen "
+              "(Begriffe wie Edge, EV und Unabhängigkeit). Danach kannst du den Schein öffnen.",
+        "en": "Before the tip slip unlocks: please open the glossary once "
+              "(terms like edge, EV and independence). After that you can open the slip.",
+    },
+    "slip.glossary_cta": {"de": "Zum Glossar", "en": "Open glossary"},
     "slip.col_prob": {"de": "Chance", "en": "Chance"},
     "track.week_summary": {
         "de": "Zuletzt abgerechnet: {correct} von {bets} Tipps richtig ({rate}).",
@@ -411,26 +491,29 @@ _STRINGS: dict[str, dict[str, str]] = {
     },
     # Signals page
     "sig.intro": {
-        "de": "Signale vergleichen Modellwahrscheinlichkeiten mit margenfreien Marktpreisen. Edge, Erwartungswert und ein Fractional-Kelly-Einsatz je Spiel.",
-        "en": "Signals compare model probabilities against margin-free market prices. Edge, expected value and a fractional-Kelly stake per fixture.",
+        "de": "Signale vergleichen Modellwahrscheinlichkeiten mit margenfreien Marktpreisen. "
+              "Edge in Prozentpunkten, erwartete Rendite und theoretischer Fractional-Kelly-Einsatz.",
+        "en": "Signals compare model probabilities against margin-free market prices. "
+              "Edge in percentage points, expected return and a theoretical fractional-Kelly stake.",
     },
     "sig.matches": {"de": "Ausgewertete Spiele", "en": "Matches evaluated"},
     "sig.values": {"de": "Value-Signale", "en": "Value signals"},
-    "sig.avg_edge": {"de": "Ø Edge", "en": "Avg edge"},
+    "sig.avg_edge": {"de": "Ø Edge (pp)", "en": "Avg edge (pp)"},
     "sig.avg_stake": {"de": "Ø Kelly-Einsatz", "en": "Avg Kelly stake"},
     "sig.table": {"de": "Signale", "en": "Signals"},
     # Columns
     "col.match": {"de": "Spiel", "en": "Match"},
     "col.signal": {"de": "Signal", "en": "Signal"},
     "col.odds": {"de": "Quote", "en": "Odds"},
-    "col.edge": {"de": "Edge", "en": "Edge"},
-    "col.ev": {"de": "EV", "en": "EV"},
+    "col.edge": {"de": "Edge (pp)", "en": "Edge (pp)"},
+    "col.ev": {"de": "Erw. Rendite", "en": "Exp. return"},
     "col.stake": {"de": "Einsatz %", "en": "Stake %"},
-    "col.conf": {"de": "Konfidenz", "en": "Confidence"},
+    "col.conf": {"de": "Prognosequalität", "en": "Forecast quality"},
     "col.reason": {"de": "Begründung", "en": "Rationale"},
     "col.metric": {"de": "Kennzahl", "en": "Metric"},
     "col.value": {"de": "Wert", "en": "Value"},
     "col.data_quality": {"de": "Datenqualität", "en": "Data quality"},
+    "col.model_p": {"de": "Modell-P", "en": "Model P"},
     # Insights page
     "ins.intro": {
         "de": "Die Dixon-Coles Ergebnis-Matrix und wie jedes Modell die 1X2-Wahrscheinlichkeit aufteilt.",
@@ -452,6 +535,24 @@ _STRINGS: dict[str, dict[str, str]] = {
         "en": "Strictly chronological. The closing line feeds only Closing Line Value, never the decision.",
     },
     "bt.roi": {"de": "ROI (Yield)", "en": "ROI (yield)"},
+    "bt.roi_caveat": {
+        "de": "ROI ohne Standardabweichung und Max-Drawdown ist irreführend. "
+              "Vergangene Backtest-Ergebnisse sind keine Garantie für die Zukunft. "
+              "Demo-Daten verzerren die reale Erwartung. "
+              "Overround-Filter sind Liquiditäts-Proxys, kein Qualitätsmaß für das Modell.",
+        "en": "ROI without standard deviation and max drawdown is misleading. "
+              "Past backtest results are not a guarantee of the future. "
+              "Demo data distorts real expectations. "
+              "Overround filters are liquidity proxies, not a model-quality measure.",
+    },
+    "bt.monte_carlo": {"de": "Bankroll-Simulation (theoretisch)", "en": "Bankroll simulation (theoretical)"},
+    "bt.monte_carlo_hint": {
+        "de": "Monte-Carlo unter Modellwahrscheinlichkeiten — zeigt Drawdown-Risiko, keine Prognose.",
+        "en": "Monte Carlo under model probabilities — shows drawdown risk, not a forecast.",
+    },
+    "bt.risk_of_ruin": {"de": "Ruin-Risiko (50%-Schwelle)", "en": "Risk of ruin (50% threshold)"},
+    "bt.dd_p95": {"de": "Max-Drawdown p95", "en": "Max drawdown p95"},
+    "bt.final_p5": {"de": "End-Bankroll p5", "en": "Final bankroll p5"},
     "bt.final": {"de": "Endkapital", "en": "Final bankroll"},
     "bt.max_dd": {"de": "Max Drawdown", "en": "Max drawdown"},
     "bt.beat_clv": {"de": "Beat-CLV-Rate", "en": "Beat-CLV rate"},
@@ -515,8 +616,10 @@ GLOSSARY: list[dict[str, object]] = [
              "Value auf Heimsieg, Unentschieden oder Auswärtssieg. Die Quote ist im Verhältnis zur geschätzten Wahrscheinlichkeit zu hoch.",
              "Value on a home win, draw or away win. The odds are too high relative to the estimated probability."),
             ("NO_BET",
-             "Keine Empfehlung. Die Begründung nennt den Grund, etwa zu wenig Edge oder Datenqualität.",
-             "No recommendation. The rationale states why, e.g. too little edge or data quality."),
+             "Kein Modell-Signal — korrektes Ergebnis, wenn kein ausreichend belastbarer Value vorliegt. "
+             "Reason-Codes erklären warum (z. B. NO_BET_LOW_EDGE).",
+             "No model signal — the correct outcome when there is no sufficiently robust value. "
+             "Reason codes explain why (e.g. NO_BET_LOW_EDGE)."),
         ],
     },
     {
@@ -539,18 +642,27 @@ GLOSSARY: list[dict[str, object]] = [
     {
         "title": {"de": "Value & Einsatz", "en": "Value & Staking"},
         "items": [
-            ("Edge",
-             "Modellwahrscheinlichkeit minus faire Marktwahrscheinlichkeit. Positiv heisst, das Modell hält das Ergebnis für wahrscheinlicher als der Markt.",
-             "Model probability minus fair market probability. Positive means the model rates the outcome higher than the market."),
-            ("EV (Erwartungswert)",
-             "Erwarteter Gewinn pro Einheit Einsatz. 0.10 heisst im Schnitt 10 Prozent Gewinn, wenn das Modell recht hat.",
-             "Expected value per unit staked. 0.10 means 10 percent average profit if the model is right."),
+            ("Edge (absolut, pp)",
+             "Modellwahrscheinlichkeit minus faire Marktwahrscheinlichkeit, in Prozentpunkten. "
+             "Beispiel: 56,3 % − 50,0 % = +6,3 Prozentpunkte. Nicht dasselbe wie relative %.",
+             "Model probability minus fair market probability, in percentage points. "
+             "Example: 56.3% − 50.0% = +6.3 percentage points. Not the same as relative %."),
+            ("Edge (relativ)",
+             "(Modell − Markt) / Markt. Beispiel: (0,563 − 0,50) / 0,50 = 12,6 % relativ.",
+             "(Model − market) / market. Example: (0.563 − 0.50) / 0.50 = 12.6% relative."),
+            ("Erwartete Rendite / EV",
+             "EV = p × Quote − 1. Als Prozent: +21,0 % bedeutet erwartete Rendite, wenn die Schätzung stimmt — "
+             "nicht den Gewinn einer einzelnen Wette.",
+             "EV = p × odds − 1. As percent: +21.0% means expected return if the estimate is right — "
+             "not the profit on a single bet."),
             ("Kelly-Einsatz / Kelly stake",
-             "Vorgeschlagener Einsatz als Anteil der Bankroll. Fractional Kelly senkt das Risiko. Rein theoretisch.",
-             "Suggested stake as a fraction of bankroll. Fractional Kelly lowers risk. Purely theoretical."),
-            ("Konfidenz / Confidence",
-             "Wie sicher das Modell ist (0 bis 100), aus Ensemble-Einigkeit und Datenqualität.",
-             "How confident the model is (0 to 100), from ensemble agreement and data quality."),
+             "Theoretischer Einsatzanteil der Bankroll. Fractional Kelly senkt das Risiko. Nie automatisch ausgeführt.",
+             "Theoretical bankroll fraction. Fractional Kelly lowers risk. Never auto-executed."),
+            ("Prognosequalität / Forecast quality",
+             "Messbare Zuverlässigkeit aus Kalibrierungshinweisen, Datenqualität und Modellübereinstimmung (0–100). "
+             "Keine Gewinnwahrscheinlichkeit und kein „KI ist sich sicher“.",
+             "Measurable reliability from calibration cues, data quality and model agreement (0–100). "
+             "Not a win probability and not „the AI is sure“."),
         ],
     },
     {

@@ -16,9 +16,12 @@ from quantbot.analysis.calibration import BaseCalibrator
 from quantbot.analysis.confidence import DataQualitySignals
 from quantbot.analysis.engine import AnalysisEngine, AnalysisResult
 from quantbot.backtest.engine import BacktestResult, WalkForwardBacktester
+from quantbot.config import get_settings
 from quantbot.data.base import BaseDataProvider
 from quantbot.data.dummy import DummyDataProvider
 from quantbot.decision.engine import DecisionEngine
+from quantbot.decision.rules import NoBetRules
+from quantbot.decision.sizing import KellySizer
 from quantbot.logging import get_logger
 from quantbot.markets.odds import MarketEngine
 from quantbot.models.base import BaseModel
@@ -67,10 +70,24 @@ class QuantBotOrchestrator:
         self.model = (
             CalibratedModel(base_model, calibrator) if calibrator is not None else base_model
         )
-        self.market_engine = market_engine or MarketEngine()
+        settings = get_settings()
+        self.market_engine = market_engine or MarketEngine(method=settings.margin_method)
         self.analysis_engine = analysis_engine or AnalysisEngine()
-        self.decision_engine = decision_engine or DecisionEngine()
+        if decision_engine is None:
+            decision_engine = DecisionEngine(
+                rules=NoBetRules(
+                    min_edge=settings.min_edge,
+                    min_data_quality=settings.min_data_quality,
+                    min_model_confidence=settings.min_model_confidence,
+                ),
+                sizer=KellySizer(
+                    kelly_fraction=settings.kelly_fraction,
+                    max_fraction=0.05,
+                ),
+            )
+        self.decision_engine = decision_engine
         self.initial_bankroll = initial_bankroll
+        self._totals_margin_method = settings.totals_margin_method
 
     # --- Universe helpers ---
 
@@ -187,7 +204,7 @@ class QuantBotOrchestrator:
         )
         if totals_entry is None:
             return signal_1x2
-        totals_engine = TotalsMarketEngine(method=self.market_engine.method)
+        totals_engine = TotalsMarketEngine(method=self._totals_margin_method)
         totals_market = totals_engine.to_market_data(totals_entry)
         try:
             totals_metrics = totals_metrics_from_prediction(

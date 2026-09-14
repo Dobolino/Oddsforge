@@ -150,7 +150,17 @@ def build_match_card(
     divergence: dict[str, dict[str, object]] = {}
     for o in _ORDER:
         edge = probs[o] - market_probs[o]
-        divergence[o.value] = {"edge": round(edge, 4), "tier": divergence_tier(edge)}
+        # Ensemble model-prob spread → edge band (Claude: show uncertainty, not a point).
+        u = uncertainty[o.value]
+        edge_low = float(u["low"]) - market_probs[o]
+        edge_high = float(u["high"]) - market_probs[o]
+        divergence[o.value] = {
+            "edge": round(edge, 4),
+            "edge_pp": round(edge * 100.0, 2),
+            "edge_low_pp": round(edge_low * 100.0, 2),
+            "edge_high_pp": round(edge_high * 100.0, 2),
+            "tier": divergence_tier(edge),
+        }
 
     dq = evaluator.data_quality(quality)
     reliability, rel_level = evaluator.reliability_score(
