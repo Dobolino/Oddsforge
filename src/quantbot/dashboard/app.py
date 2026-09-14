@@ -126,6 +126,7 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     st.sidebar.title(f"QuantBot v{__version__}")
     st.sidebar.caption("Stand: Wettschein · Datum heute · UX-Modi")
     st.sidebar.caption("Stand: Wettschein · Datum heute · UX-Modi")
+    st.sidebar.caption("Stand: Wettschein · Datum heute · UX-Modi")
 
     default_lang = get_settings().language if get_settings().language in LANGUAGES else DEFAULT_LANGUAGE
     lang = st.sidebar.radio(
