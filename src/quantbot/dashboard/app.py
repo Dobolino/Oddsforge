@@ -136,7 +136,7 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
 
     st.set_page_config(page_title="QuantBot", page_icon="⚽", layout="wide")
     st.sidebar.title(f"QuantBot v{__version__}")
-    st.sidebar.caption(f"Stand: v{__version__} · farbige Tipps · Tippschein-Fix")
+    st.sidebar.caption(f"Stand: v{__version__} · Verlauf · Cache · Schlüssel · Über/Unter")
 
     default_lang = get_settings().language if get_settings().language in LANGUAGES else DEFAULT_LANGUAGE
     lang = st.sidebar.radio(
@@ -267,7 +267,10 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     else:
         season = st.sidebar.text_input(t("ctrl.season", lang), default_season)
 
-    orchestrator = QuantBotOrchestrator(provider=provider)
+    orchestrator = QuantBotOrchestrator(
+        provider=provider,
+        model=DixonColesModel(min_matches=5),
+    )
     mode = "live" if live else "demo"
     C = _install_cache()
 

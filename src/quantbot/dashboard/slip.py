@@ -12,7 +12,7 @@ from math import prod
 
 from quantbot.dashboard.ux import plain_signal_label, tip_badge_html, tip_kind_from_label
 from quantbot.orchestrator import SignalReport
-from quantbot.schemas import MatchOutcome
+from quantbot.schemas import MatchOutcome, TotalsSide
 
 
 @dataclass(frozen=True)
@@ -20,7 +20,7 @@ class SlipLeg:
     match_id: str
     match: str
     tip: str
-    outcome: MatchOutcome
+    outcome: MatchOutcome | TotalsSide
     odds: float
     model_prob: float
     edge: float
@@ -67,7 +67,7 @@ def _leg_from_report(report: SignalReport, lang: str, role: str) -> SlipLeg | No
     return SlipLeg(
         match_id=match.match_id,
         match=f"{match.home_team.name} vs {match.away_team.name}",
-        tip=plain_signal_label(signal.signal, lang),
+        tip=plain_signal_label(signal.signal, lang, line=signal.totals_line),
         outcome=signal.chosen_outcome,
         odds=float(signal.decimal_odds),
         model_prob=float(metric.model_prob),

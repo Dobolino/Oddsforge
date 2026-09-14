@@ -27,7 +27,7 @@ from quantbot.data.providers.football_data import FootballDataProvider
 from quantbot.data.providers.leagues import football_data_code, odds_api_key
 from quantbot.data.providers.the_odds_api import TheOddsAPIProvider
 from quantbot.logging import get_logger
-from quantbot.schemas import League, Match, Odds
+from quantbot.schemas import League, Match, Odds, TotalsOdds
 
 logger = get_logger(__name__)
 
@@ -128,6 +128,7 @@ class LiveDataProvider(BaseDataProvider):
         self._matches_cache: list[Match] | None = None
         self._match_league: dict[str, League] = {}
         self._odds_cache: dict[League, dict[str, list[Odds]]] = {}
+        self._totals_cache: dict[League, dict[str, list[TotalsOdds]]] = {}
         self._match_reports: dict[League, NameMatchReport] = {}
 
     @property
@@ -187,6 +188,7 @@ class LiveDataProvider(BaseDataProvider):
                 index[key] = (m.match_id, m.home_team.name, m.away_team.name)
 
         mapped: dict[str, list[Odds]] = {}
+        totals_mapped: dict[str, list[TotalsOdds]] = {}
         report = NameMatchReport(league=league.value)
         try:
             events = self._odds.fetch_events(odds_api_key(league), regions=self._regions)
@@ -243,9 +245,16 @@ class LiveDataProvider(BaseDataProvider):
                 continue
 
             odds = [o.model_copy(update={"match_id": fd_id}) for o in self._odds.event_to_odds(event)]
-            if not odds:
+            totals = [
+                t.model_copy(update={"match_id": fd_id})
+                for t in self._odds.event_to_totals(event)
+            ]
+            if not odds and not totals:
                 continue
-            mapped[fd_id] = odds
+            if odds:
+                mapped[fd_id] = odds
+            if totals:
+                totals_mapped[fd_id] = totals
             used_fixture_ids.add(fd_id)
             if uncertain:
                 report.matched_fuzzy += 1
@@ -273,7 +282,13 @@ class LiveDataProvider(BaseDataProvider):
         )
         self._match_reports[league] = report
         self._odds_cache[league] = mapped
+        self._totals_cache[league] = totals_mapped
         return mapped
+
+    def _totals_for_league(self, league: League) -> dict[str, list[TotalsOdds]]:
+        if league not in self._totals_cache:
+            self._odds_for_league(league)
+        return self._totals_cache.get(league, {})
 
     def _fetch_odds(self, match_id: str) -> Sequence[Odds]:
         league = self._match_league.get(match_id)
@@ -283,6 +298,15 @@ class LiveDataProvider(BaseDataProvider):
         if league is None:
             return ()
         return self._odds_for_league(league).get(match_id, ())
+
+    def _fetch_totals_odds(self, match_id: str) -> Sequence[TotalsOdds]:
+        league = self._match_league.get(match_id)
+        if league is None:
+            self._fetch_matches()
+            league = self._match_league.get(match_id)
+        if league is None:
+            return ()
+        return self._totals_for_league(league).get(match_id, ())
 
 
 def build_live_provider(

@@ -60,23 +60,34 @@ _SIGNAL_PLAIN: dict[SignalType, dict[str, str]] = {
     SignalType.VALUE_HOME: {"de": "Tipp: Heimsieg", "en": "Tip: home win"},
     SignalType.VALUE_DRAW: {"de": "Tipp: Unentschieden", "en": "Tip: draw"},
     SignalType.VALUE_AWAY: {"de": "Tipp: Auswärtssieg", "en": "Tip: away win"},
+    SignalType.VALUE_OVER: {"de": "Tipp: Über 2,5 Tore", "en": "Tip: over 2.5 goals"},
+    SignalType.VALUE_UNDER: {"de": "Tipp: Unter 2,5 Tore", "en": "Tip: under 2.5 goals"},
     SignalType.NO_BET: {"de": "Kein Tipp", "en": "No tip"},
 }
 
-# Clear beginner colors: home = green, draw = amber, away = blue, no tip = gray.
+# Clear beginner colors: home = green, draw = amber, away = blue,
+# over = teal, under = slate, no tip = gray.
 _TIP_COLORS: dict[SignalType, dict[str, str]] = {
     SignalType.VALUE_HOME: {"bg": "#1b7f4a", "fg": "#ffffff"},
     SignalType.VALUE_DRAW: {"bg": "#c47a00", "fg": "#ffffff"},
     SignalType.VALUE_AWAY: {"bg": "#1f5fbf", "fg": "#ffffff"},
+    SignalType.VALUE_OVER: {"bg": "#0f766e", "fg": "#ffffff"},
+    SignalType.VALUE_UNDER: {"bg": "#475569", "fg": "#ffffff"},
     SignalType.NO_BET: {"bg": "#6b7280", "fg": "#ffffff"},
 }
 
 
-def plain_signal_label(signal: SignalType, lang: str = "de") -> str:
+def plain_signal_label(signal: SignalType, lang: str = "de", *, line: float | None = None) -> str:
     """Human tip label instead of VALUE_HOME / NO_BET."""
 
     entry = _SIGNAL_PLAIN[signal]
-    return entry.get(lang) or entry["de"]
+    label = entry.get(lang) or entry["de"]
+    if line is not None and signal in (SignalType.VALUE_OVER, SignalType.VALUE_UNDER):
+        line_s = str(line).replace(".", ",") if lang == "de" else str(line)
+        if signal is SignalType.VALUE_OVER:
+            return f"Tipp: Über {line_s} Tore" if lang == "de" else f"Tip: over {line_s} goals"
+        return f"Tipp: Unter {line_s} Tore" if lang == "de" else f"Tip: under {line_s} goals"
+    return label
 
 
 def tip_badge_html(signal: SignalType, lang: str = "de", *, large: bool = False, text: str | None = None) -> str:
@@ -99,6 +110,10 @@ def tip_kind_from_label(label: str) -> SignalType:
     """Best-effort map of a tip label back to SignalType (for slip coloring)."""
 
     low = label.lower()
+    if "über" in low or "over" in low:
+        return SignalType.VALUE_OVER
+    if "unter" in low or "under" in low:
+        return SignalType.VALUE_UNDER
     if "heim" in low or "home" in low:
         return SignalType.VALUE_HOME
     if "unentschieden" in low or "draw" in low:

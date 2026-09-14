@@ -143,6 +143,14 @@ class QuantBotOrchestrator:
                 prediction, market, entry.decimal_odds(), quality
             )
             signal = self.decision_engine.decide(analysis, market)
+            signal = self._maybe_prefer_totals(
+                match=match,
+                as_of=as_of,
+                prediction=prediction,
+                data_quality=analysis.data_quality,
+                model_confidence=analysis.model_confidence,
+                signal_1x2=signal,
+            )
             reports.append(SignalReport(match=match, signal=signal, analysis=analysis))
 
         n_bets = sum(1 for r in reports if r.signal.is_bet)
@@ -155,6 +163,52 @@ class QuantBotOrchestrator:
             n_bets,
         )
         return reports
+
+    def _maybe_prefer_totals(
+        self,
+        *,
+        match: Match,
+        as_of: datetime,
+        prediction,
+        data_quality: float,
+        model_confidence: float,
+        signal_1x2: ValueSignal,
+    ) -> ValueSignal:
+        """If a totals tip clears the same rules with better EV, prefer it."""
+
+        from quantbot.analysis.value import totals_metrics_from_prediction
+        from quantbot.markets.totals import TotalsMarketEngine
+        from quantbot.schemas.enums import DEFAULT_TOTALS_LINE
+
+        if prediction.score_matrix is None:
+            return signal_1x2
+        totals_entry = self.provider.get_latest_totals_odds(
+            match.match_id, as_of, line=DEFAULT_TOTALS_LINE
+        )
+        if totals_entry is None:
+            return signal_1x2
+        totals_engine = TotalsMarketEngine(method=self.market_engine.method)
+        totals_market = totals_engine.to_market_data(totals_entry)
+        try:
+            totals_metrics = totals_metrics_from_prediction(
+                prediction, totals_entry, totals_market
+            )
+        except ValueError:
+            return signal_1x2
+        totals_signal = self.decision_engine.decide_totals(
+            match_id=match.match_id,
+            market=totals_market,
+            metrics=totals_metrics,
+            data_quality=data_quality,
+            model_confidence=model_confidence,
+        )
+        if not totals_signal.is_bet:
+            return signal_1x2
+        if not signal_1x2.is_bet:
+            return totals_signal
+        if (totals_signal.expected_value or 0.0) > (signal_1x2.expected_value or 0.0):
+            return totals_signal
+        return signal_1x2
 
     # --- Match cards (full transparent analysis per fixture) ---
 

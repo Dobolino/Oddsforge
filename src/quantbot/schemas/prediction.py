@@ -57,6 +57,32 @@ class ScoreMatrix(QuantBotModel):
             MatchOutcome.AWAY: away,
         }
 
+    def totals_probabilities(self, line: float = 2.5) -> dict[str, float]:
+        """Over/Under probabilities for a totals line (e.g. 2.5 goals).
+
+        ``over`` is P(home_goals + away_goals > line), ``under`` is
+        P(total < line). For half-lines such as 2.5 there is no push mass;
+        over + under equals 1.0.
+        """
+
+        from quantbot.schemas.enums import TotalsSide
+
+        over = under = 0.0
+        for i, row in enumerate(self.matrix):
+            for j, cell in enumerate(row):
+                total = i + j
+                if total > line:
+                    over += cell
+                elif total < line:
+                    under += cell
+                # Exactly on an integer line would be a push; half-lines skip.
+        mass = over + under
+        if mass <= 0.0:
+            return {TotalsSide.OVER: 0.5, TotalsSide.UNDER: 0.5}
+        return {
+            TotalsSide.OVER: over / mass,
+            TotalsSide.UNDER: under / mass,
+        }
 
 class Prediction(QuantBotModel):
     """A model's probabilistic forecast for one match.

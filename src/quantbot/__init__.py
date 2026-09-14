@@ -6,7 +6,7 @@ Decision Support. Version 1 is decision support only and never places bets.
 
 from __future__ import annotations
 
-__version__ = "0.2.6"
+__version__ = "0.2.7"
 
 from quantbot.config import Settings, get_settings
 

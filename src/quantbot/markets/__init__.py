@@ -13,9 +13,11 @@ from quantbot.markets.margin import (
 )
 from quantbot.markets.arbitrage import ArbitrageEngine, ArbitrageOpportunity
 from quantbot.markets.odds import MarketEngine
+from quantbot.markets.totals import TotalsMarketEngine, actual_totals_label, tip_label_for
 
 __all__ = [
     "MarketEngine",
+    "TotalsMarketEngine",
     "ArbitrageEngine",
     "ArbitrageOpportunity",
     "booksum",
@@ -25,4 +27,6 @@ __all__ = [
     "remove_margin",
     "shins_method",
     "validate_odds",
+    "actual_totals_label",
+    "tip_label_for",
 ]

@@ -12,7 +12,9 @@ from datetime import datetime
 from pydantic import Field, model_validator
 
 from quantbot.schemas.base import QuantBotModel
-from quantbot.schemas.enums import MatchOutcome, SignalType
+from quantbot.schemas.enums import MatchOutcome, SignalType, TotalsSide
+
+Selection = MatchOutcome | TotalsSide
 
 
 class ValueMetrics(QuantBotModel):
@@ -26,7 +28,7 @@ class ValueMetrics(QuantBotModel):
         expected_value: (model_prob * decimal_odds) - 1.
     """
 
-    outcome: MatchOutcome
+    outcome: Selection
     model_prob: float = Field(ge=0.0, le=1.0)
     fair_market_prob: float = Field(gt=0.0, lt=1.0)
     decimal_odds: float = Field(gt=1.0)
@@ -61,12 +63,13 @@ class ValueSignal(QuantBotModel):
         data_quality: 0-100 completeness/reliability score of the inputs.
         model_confidence: 0-100 model self-assessed confidence.
         stake_fraction: Fraction of bankroll (theoretical), 0.0 for NO_BET.
+        totals_line: Set when the tip is an Over/Under selection.
     """
 
     match_id: str = Field(min_length=1)
     timestamp: datetime
     signal: SignalType
-    chosen_outcome: MatchOutcome | None = None
+    chosen_outcome: Selection | None = None
     edge: float | None = None
     expected_value: float | None = None
     decimal_odds: float | None = Field(default=None, gt=1.0)
@@ -80,6 +83,7 @@ class ValueSignal(QuantBotModel):
     rationale_de: str = Field(default="", description="Plain-language German reason.")
     rationale_en: str = Field(default="", description="Plain-language English reason.")
     metrics: tuple[ValueMetrics, ...] = Field(default_factory=tuple)
+    totals_line: float | None = Field(default=None, gt=0.0)
 
     @model_validator(mode="after")
     def _validate(self) -> ValueSignal:
@@ -94,17 +98,34 @@ class ValueSignal(QuantBotModel):
         else:
             if self.chosen_outcome is None:
                 raise ValueError(f"{self.signal.value} requires a chosen_outcome")
-            expected = _SIGNAL_TO_OUTCOME[self.signal]
+            expected = _SIGNAL_TO_SELECTION[self.signal]
             if self.chosen_outcome is not expected:
                 raise ValueError(
                     f"{self.signal.value} must choose {expected.value}, "
                     f"got {self.chosen_outcome.value}"
                 )
+            if self.signal in (SignalType.VALUE_OVER, SignalType.VALUE_UNDER):
+                if self.totals_line is None:
+                    raise ValueError("totals tips require totals_line")
+            elif self.totals_line is not None:
+                raise ValueError("1X2 tips must not set totals_line")
         return self
 
     @property
     def is_bet(self) -> bool:
         return self.signal is not SignalType.NO_BET
+
+    @property
+    def tip_label(self) -> str | None:
+        """Stable tip id string for history (e.g. home, over_2.5)."""
+
+        if self.chosen_outcome is None:
+            return None
+        if isinstance(self.chosen_outcome, TotalsSide) and self.totals_line is not None:
+            line = self.totals_line
+            line_s = str(int(line)) if float(line).is_integer() else str(line)
+            return f"{self.chosen_outcome.value}_{line_s}"
+        return self.chosen_outcome.value
 
     def plain_rationale(self, lang: str = "de") -> str:
         """Prefer bilingual plain text; fall back to the technical rationale."""
@@ -116,8 +137,10 @@ class ValueSignal(QuantBotModel):
         return self.rationale
 
 
-_SIGNAL_TO_OUTCOME: dict[SignalType, MatchOutcome] = {
+_SIGNAL_TO_SELECTION: dict[SignalType, Selection] = {
     SignalType.VALUE_HOME: MatchOutcome.HOME,
     SignalType.VALUE_DRAW: MatchOutcome.DRAW,
     SignalType.VALUE_AWAY: MatchOutcome.AWAY,
+    SignalType.VALUE_OVER: TotalsSide.OVER,
+    SignalType.VALUE_UNDER: TotalsSide.UNDER,
 }

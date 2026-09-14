@@ -120,6 +120,7 @@ def tip_record_from_match_signal(
     if not signal.is_bet or signal.chosen_outcome is None:
         return None
     tip_id = f"{match.match_id}::{as_of.isoformat()}"
+    tip_value = getattr(signal, "tip_label", None) or signal.chosen_outcome.value
     return TipRecord(
         tip_id=tip_id,
         match_id=match.match_id,
@@ -127,7 +128,7 @@ def tip_record_from_match_signal(
         league=match.league.value,
         home=match.home_team.name,
         away=match.away_team.name,
-        tip=signal.chosen_outcome.value,
+        tip=tip_value,
         odds=round(float(signal.decimal_odds), 2) if signal.decimal_odds else None,
         model_prob=(
             None
@@ -212,8 +213,21 @@ def build_rounds(
             if not signal.is_bet or signal.chosen_outcome is None:
                 continue
             name = f"{match.home_team.name} vs {match.away_team.name}"
-            actual = None if upcoming else match.result.outcome  # type: ignore[union-attr]
-            is_correct = None if upcoming else (signal.chosen_outcome is actual)
+            tip_value = getattr(signal, "tip_label", None) or signal.chosen_outcome.value
+            if upcoming:
+                actual_label = None
+                is_correct = None
+            elif signal.totals_line is not None and match.result is not None:
+                from quantbot.markets.totals import actual_totals_label
+
+                actual_label = actual_totals_label(
+                    match.result.total_goals, signal.totals_line
+                )
+                is_correct = tip_value == actual_label
+            else:
+                actual = match.result.outcome  # type: ignore[union-attr]
+                actual_label = actual.value
+                is_correct = signal.chosen_outcome is actual
             if not upcoming:
                 bets += 1
                 if is_correct:
@@ -221,14 +235,14 @@ def build_rounds(
             entries.append(
                 {
                     "match": name,
-                    "tip": signal.chosen_outcome.value,
+                    "tip": tip_value,
                     "odds": round(signal.decimal_odds, 2) if signal.decimal_odds else None,
                     "stake": round(signal.stake_fraction * 100, 2),
                     "model_prob": _model_prob_for_signal(signal),
                     "as_of": match.prediction_timestamp.isoformat(),
                     "league": match.league.value,
                     "kickoff": match.kickoff.isoformat(),
-                    "actual": None if actual is None else actual.value,
+                    "actual": actual_label,
                     "correct": is_correct,
                     "settled": not upcoming,
                 }
@@ -305,13 +319,23 @@ def collect_tip_records(
         if record is not None:
             upcoming = week_of[match.match_id] in upcoming_weeks
             if not upcoming and match.result is not None:
-                actual = match.result.outcome
+                tip_value = record.tip
+                if signal.totals_line is not None:
+                    from quantbot.markets.totals import actual_totals_label
+
+                    actual_label = actual_totals_label(
+                        match.result.total_goals, signal.totals_line
+                    )
+                    is_correct = tip_value == actual_label
+                else:
+                    actual_label = match.result.outcome.value
+                    is_correct = signal.chosen_outcome is match.result.outcome
                 record = TipRecord(
                     **{
                         **asdict(record),
                         "settled": True,
-                        "actual": actual.value,
-                        "correct": signal.chosen_outcome is actual,
+                        "actual": actual_label,
+                        "correct": is_correct,
                     }
                 )
             records.append(record)
@@ -399,12 +423,18 @@ class TipHistoryStore:
         return added
 
     def settle(self, match_id: str, actual: MatchOutcome | str) -> int:
-        """Mark pending tips for ``match_id`` using the real outcome."""
+        """Mark pending 1X2 tips for ``match_id`` using the real outcome.
+
+        Totals tips (``over_*`` / ``under_*``) are left untouched here; use
+        :meth:`settle_from_matches` which routes by tip shape.
+        """
 
         actual_value = actual.value if isinstance(actual, MatchOutcome) else str(actual)
         updated = 0
         for i, tip in enumerate(self._tips):
             if tip.match_id != match_id or tip.settled:
+                continue
+            if tip.tip.startswith("over_") or tip.tip.startswith("under_"):
                 continue
             is_correct = tip.tip == actual_value
             self._tips[i] = TipRecord(
@@ -420,14 +450,55 @@ class TipHistoryStore:
             self.save()
         return updated
 
+    def settle_totals(self, match_id: str, actual: str) -> int:
+        """Mark pending totals tips for ``match_id`` (e.g. ``over_2.5``)."""
+
+        updated = 0
+        for i, tip in enumerate(self._tips):
+            if tip.match_id != match_id or tip.settled:
+                continue
+            if not (tip.tip.startswith("over_") or tip.tip.startswith("under_")):
+                continue
+            is_correct = tip.tip == actual
+            self._tips[i] = TipRecord(
+                **{
+                    **asdict(tip),
+                    "settled": True,
+                    "actual": actual,
+                    "correct": is_correct,
+                }
+            )
+            updated += 1
+        if updated:
+            self.save()
+        return updated
+
     def settle_from_matches(self, matches: Sequence[Match]) -> int:
         """Settle any pending tips whose matches now have a finished result."""
+
+        from quantbot.markets.totals import actual_totals_label
+        from quantbot.schemas.enums import DEFAULT_TOTALS_LINE
 
         n = 0
         for match in matches:
             if match.result is None or not match.is_finished:
                 continue
             n += self.settle(match.match_id, match.result.outcome)
+            # Settle each pending totals tip with its own line.
+            pending_totals = [
+                t
+                for t in self._tips
+                if t.match_id == match.match_id
+                and not t.settled
+                and (t.tip.startswith("over_") or t.tip.startswith("under_"))
+            ]
+            for tip in pending_totals:
+                try:
+                    line = float(tip.tip.split("_", 1)[1])
+                except ValueError:
+                    line = DEFAULT_TOTALS_LINE
+                actual = actual_totals_label(match.result.total_goals, line)
+                n += self.settle_totals(match.match_id, actual)
         return n
 
     def hit_rate(self) -> float | None:

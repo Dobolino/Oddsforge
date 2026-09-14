@@ -79,7 +79,7 @@ class TheOddsAPIProvider:
         return data
 
     def fetch_events(
-        self, sport_key: str, regions: str = "eu", markets: str = "h2h"
+        self, sport_key: str, regions: str = "eu", markets: str = "h2h,totals"
     ) -> list[dict[str, Any]]:
         """Raw event list for a sport (odds included)."""
 
@@ -134,6 +134,54 @@ class TheOddsAPIProvider:
                 )
             )
         return odds
+
+    def event_to_totals(
+        self, event: dict[str, Any], *, line: float = 2.5
+    ) -> list[TotalsOdds]:
+        """Parse totals (Over/Under) quotes for a preferred line."""
+
+        from quantbot.schemas import TotalsOdds
+
+        match_id = event["id"]
+        commence = event.get("commence_time")
+        out: list[TotalsOdds] = []
+
+        for bookmaker in event.get("bookmakers", []):
+            totals_markets = [
+                m for m in bookmaker.get("markets", []) if m.get("key") == "totals"
+            ]
+            for market in totals_markets:
+                over_price: float | None = None
+                under_price: float | None = None
+                market_line: float | None = None
+                for outcome in market.get("outcomes", []):
+                    name = str(outcome.get("name", "")).lower()
+                    point = outcome.get("point")
+                    if point is None:
+                        continue
+                    point_f = float(point)
+                    if abs(point_f - line) > 1e-9:
+                        continue
+                    market_line = point_f
+                    price = float(outcome["price"])
+                    if name.startswith("over"):
+                        over_price = price
+                    elif name.startswith("under"):
+                        under_price = price
+                if over_price is None or under_price is None or market_line is None:
+                    continue
+                ts = market.get("last_update") or bookmaker.get("last_update") or commence
+                out.append(
+                    TotalsOdds(
+                        match_id=match_id,
+                        bookmaker=bookmaker.get("key", bookmaker.get("title", "unknown")),
+                        timestamp=_parse_iso(ts),
+                        line=market_line,
+                        over=over_price,
+                        under=under_price,
+                    )
+                )
+        return out
 
     def fetch_market_data(self, sport_key: str, regions: str = "eu") -> list[MarketData]:
         """Consensus fair :class:`MarketData` per match with any 1X2 odds."""

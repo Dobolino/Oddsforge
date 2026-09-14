@@ -13,6 +13,13 @@ class MatchOutcome(str, Enum):
     AWAY = "away"
 
 
+class TotalsSide(str, Enum):
+    """Over/Under side of a totals (goals) market."""
+
+    OVER = "over"
+    UNDER = "under"
+
+
 class League(str, Enum):
     """Supported competitions. Extend as new ones are added."""
 
@@ -53,6 +60,8 @@ class SignalType(str, Enum):
     VALUE_HOME = "value_home"
     VALUE_DRAW = "value_draw"
     VALUE_AWAY = "value_away"
+    VALUE_OVER = "value_over"
+    VALUE_UNDER = "value_under"
     NO_BET = "no_bet"
 
 
@@ -70,3 +79,11 @@ OUTCOME_ORDER: tuple[MatchOutcome, ...] = (
     MatchOutcome.DRAW,
     MatchOutcome.AWAY,
 )
+
+TOTALS_ORDER: tuple[TotalsSide, ...] = (
+    TotalsSide.OVER,
+    TotalsSide.UNDER,
+)
+
+# Default totals line (goals); configurable where scores are derived.
+DEFAULT_TOTALS_LINE = 2.5

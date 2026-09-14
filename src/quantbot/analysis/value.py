@@ -14,10 +14,14 @@ from quantbot.schemas import (
     MatchOutcome,
     Odds,
     Prediction,
+    TotalsMarketData,
+    TotalsOdds,
+    TotalsSide,
     ValueMetrics,
 )
 
 _ORDER: tuple[MatchOutcome, ...] = (MatchOutcome.HOME, MatchOutcome.DRAW, MatchOutcome.AWAY)
+_TOTALS: tuple[TotalsSide, ...] = (TotalsSide.OVER, TotalsSide.UNDER)
 
 
 def edge(model_prob: float, fair_market_prob: float) -> float:
@@ -78,6 +82,32 @@ class ValueCalculator:
             )
         return tuple(out)
 
+    def totals_metrics(
+        self,
+        model_probs: dict[TotalsSide, float],
+        market: TotalsMarketData,
+        decimal_odds: dict[TotalsSide, float],
+    ) -> tuple[ValueMetrics, ...]:
+        """Over/Under value metrics for one totals line."""
+
+        fair = market.fair_probabilities()
+        out: list[ValueMetrics] = []
+        for side in _TOTALS:
+            mp = model_probs[side]
+            fp = fair[side]
+            od = decimal_odds[side]
+            out.append(
+                ValueMetrics(
+                    outcome=side,
+                    model_prob=mp,
+                    fair_market_prob=fp,
+                    decimal_odds=od,
+                    edge=edge(mp, fp),
+                    expected_value=expected_value(mp, od),
+                )
+            )
+        return tuple(out)
+
     @staticmethod
     def best_by_ev(metrics: Sequence[ValueMetrics]) -> ValueMetrics:
         return max(metrics, key=lambda m: m.expected_value)
@@ -85,3 +115,17 @@ class ValueCalculator:
     @staticmethod
     def best_by_edge(metrics: Sequence[ValueMetrics]) -> ValueMetrics:
         return max(metrics, key=lambda m: m.edge)
+
+
+def totals_metrics_from_prediction(
+    prediction: Prediction,
+    totals: TotalsOdds,
+    market: TotalsMarketData,
+) -> tuple[ValueMetrics, ...]:
+    """Derive Over/Under metrics from a score matrix and totals quote."""
+
+    if prediction.score_matrix is None:
+        raise ValueError("prediction has no score_matrix for totals")
+    model_probs = prediction.score_matrix.totals_probabilities(totals.line)
+    calc = ValueCalculator()
+    return calc.totals_metrics(model_probs, market, totals.decimal_odds())

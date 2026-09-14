@@ -16,12 +16,14 @@ from random import Random
 
 from quantbot.data.base import BaseDataProvider
 from quantbot.schemas import (
+    DEFAULT_TOTALS_LINE,
     League,
     Match,
     MatchResult,
     MatchStatus,
     Odds,
     Team,
+    TotalsOdds,
 )
 
 UTC = timezone.utc
@@ -186,6 +188,52 @@ class DummyDataProvider(BaseDataProvider):
                     home=round(1.0 / book[0], 3),
                     draw=round(1.0 / book[1], 3),
                     away=round(1.0 / book[2], 3),
+                    is_closing=is_closing,
+                )
+            )
+        return tuple(snapshots)
+
+    def _fetch_totals_odds(self, match_id: str) -> Sequence[TotalsOdds]:
+        match = next((m for m in self._fetch_matches() if m.match_id == match_id), None)
+        if match is None:
+            return ()
+
+        strengths = self._team_strength()
+        # Rough expected total goals from the same strength model as results.
+        home_lambda = max(
+            0.2, 1.35 + 0.6 * strengths[match.home_team.team_id] + _HOME_ADVANTAGE
+        )
+        away_lambda = max(0.2, 1.35 + 0.6 * strengths[match.away_team.team_id])
+        # Soft Poisson P(total > 2.5) approximation via expected goals.
+        expected = home_lambda + away_lambda
+        # Map expected goals around 2.5 into an over probability in (0.25, 0.75).
+        p_over = 1.0 / (1.0 + math.exp(-(expected - DEFAULT_TOTALS_LINE)))
+        p_over = min(0.75, max(0.25, p_over))
+        p_under = 1.0 - p_over
+
+        offsets = [
+            (timedelta(hours=72), False),
+            (timedelta(hours=24), False),
+            (timedelta(hours=2), False),
+            (timedelta(minutes=10), True),
+        ]
+        snapshots: list[TotalsOdds] = []
+        for idx, (lead, is_closing) in enumerate(offsets):
+            rng = self._match_rng(match_id, f"totals:{idx}")
+            noisy_over = max(0.05, p_over * (1.0 + rng.uniform(-0.05, 0.05)))
+            noisy_under = max(0.05, p_under * (1.0 + rng.uniform(-0.05, 0.05)))
+            total = noisy_over + noisy_under
+            margin_factor = (1.0 + _BASE_OVERROUND) / total
+            book_over = noisy_over * margin_factor
+            book_under = noisy_under * margin_factor
+            snapshots.append(
+                TotalsOdds(
+                    match_id=match_id,
+                    bookmaker="dummy_book",
+                    timestamp=match.kickoff - lead,
+                    line=DEFAULT_TOTALS_LINE,
+                    over=round(1.0 / book_over, 3),
+                    under=round(1.0 / book_under, 3),
                     is_closing=is_closing,
                 )
             )

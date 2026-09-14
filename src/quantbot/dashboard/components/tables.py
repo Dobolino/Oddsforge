@@ -41,13 +41,15 @@ def signals_dataframe(
     for report in reports:
         s = report.signal
         m = report.match
-        tip = plain_signal_label(s.signal, lang)
+        tip = plain_signal_label(s.signal, lang, line=s.totals_line)
         if mode is UXMode.BEGINNER:
             # Emoji prefix so the table tip column is scannable without HTML.
             prefix = {
                 "value_home": "🟢 ",
                 "value_draw": "🟡 ",
                 "value_away": "🔵 ",
+                "value_over": "🟢 ",
+                "value_under": "⚪ ",
                 "no_bet": "⚪ ",
             }.get(s.signal.value, "")
             tip = f"{prefix}{tip}"
@@ -112,9 +114,13 @@ def beginner_tip_cards(
         cards.append(
             {
                 "match": f"{m.home_team.name} vs {m.away_team.name}",
-                "tip": plain_signal_label(s.signal, lang),
-                "tip_html": tip_badge_html(s.signal, lang, large=True),
-                "tip_html_small": tip_badge_html(s.signal, lang, large=False),
+                "tip": plain_signal_label(s.signal, lang, line=s.totals_line),
+                "tip_html": tip_badge_html(
+                    s.signal, lang, large=True, text=plain_signal_label(s.signal, lang, line=s.totals_line)
+                ),
+                "tip_html_small": tip_badge_html(
+                    s.signal, lang, large=False, text=plain_signal_label(s.signal, lang, line=s.totals_line)
+                ),
                 "why": reason_for_mode(s, UXMode.BEGINNER, lang),
                 "is_bet": "1" if s.is_bet else "0",
                 "signal": s.signal.value,

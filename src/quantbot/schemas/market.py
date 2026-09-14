@@ -12,7 +12,7 @@ from datetime import datetime
 from pydantic import Field, model_validator
 
 from quantbot.schemas.base import PROB_SUM_TOLERANCE, QuantBotModel
-from quantbot.schemas.enums import MarginMethod, MatchOutcome
+from quantbot.schemas.enums import MarginMethod, MatchOutcome, TotalsSide
 
 
 class MarketData(QuantBotModel):
@@ -59,4 +59,39 @@ class MarketData(QuantBotModel):
             MatchOutcome.HOME: 1.0 / self.fair_home,
             MatchOutcome.DRAW: 1.0 / self.fair_draw,
             MatchOutcome.AWAY: 1.0 / self.fair_away,
+        }
+
+
+class TotalsMarketData(QuantBotModel):
+    """Fair Over/Under probabilities for one totals line (margin removed)."""
+
+    match_id: str = Field(min_length=1)
+    bookmaker: str = Field(min_length=1)
+    timestamp: datetime
+    method: MarginMethod
+    line: float = Field(gt=0.0)
+    fair_over: float = Field(gt=0.0, lt=1.0)
+    fair_under: float = Field(gt=0.0, lt=1.0)
+    overround: float = Field(ge=0.0)
+    is_closing: bool = False
+
+    @model_validator(mode="after")
+    def _validate(self) -> TotalsMarketData:
+        if self.timestamp.tzinfo is None:
+            raise ValueError("timestamp must be timezone-aware")
+        total = self.fair_over + self.fair_under
+        if abs(total - 1.0) > PROB_SUM_TOLERANCE:
+            raise ValueError(f"fair totals probabilities must sum to 1.0, got {total}")
+        return self
+
+    def fair_probabilities(self) -> dict[TotalsSide, float]:
+        return {
+            TotalsSide.OVER: self.fair_over,
+            TotalsSide.UNDER: self.fair_under,
+        }
+
+    def fair_odds(self) -> dict[TotalsSide, float]:
+        return {
+            TotalsSide.OVER: 1.0 / self.fair_over,
+            TotalsSide.UNDER: 1.0 / self.fair_under,
         }
