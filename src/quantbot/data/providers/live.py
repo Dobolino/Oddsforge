@@ -17,10 +17,12 @@ from __future__ import annotations
 import unicodedata
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
+from datetime import datetime
 from difflib import SequenceMatcher
 from pathlib import Path
 
 from quantbot.data.base import BaseDataProvider
+from quantbot.data.finished_cache import CachingMatchProvider, FinishedMatchCache
 from quantbot.data.providers.football_data import FootballDataProvider
 from quantbot.data.providers.leagues import football_data_code, odds_api_key
 from quantbot.data.providers.the_odds_api import TheOddsAPIProvider
@@ -112,7 +114,7 @@ class LiveDataProvider(BaseDataProvider):
 
     def __init__(
         self,
-        football: FootballDataProvider,
+        football: FootballDataProvider | CachingMatchProvider,
         odds: TheOddsAPIProvider,
         leagues: Sequence[League],
         regions: str = "eu,uk",
@@ -132,6 +134,16 @@ class LiveDataProvider(BaseDataProvider):
     def provider_name(self) -> str:
         codes = ",".join(lg.value for lg in self._leagues)
         return f"live(football_data+the_odds_api; {codes})"
+
+    @property
+    def finished_last_updated(self) -> datetime | None:
+        """When finished match results were last written to the local archive."""
+
+        football = self._football
+        if isinstance(football, CachingMatchProvider):
+            return football.last_updated
+        cache = getattr(football, "cache", None)
+        return getattr(cache, "last_updated", None)
 
     def name_match_report(self, league: League | None = None) -> NameMatchReport | None:
         """Return the latest name-matching report (builds odds cache if needed)."""
@@ -285,11 +297,15 @@ def build_live_provider(
     """Build a :class:`LiveDataProvider` from API keys and a cache directory."""
 
     cache_dir = Path(cache_dir)
-    football = FootballDataProvider(
+    football_inner = FootballDataProvider(
         football_api_key,
         cache_dir=cache_dir / "football_data",
         ttl_seconds=ttl_seconds,
         min_interval=min_interval,
+    )
+    football = CachingMatchProvider(
+        football_inner,
+        FinishedMatchCache(),
     )
     odds = TheOddsAPIProvider(
         the_odds_api_key,

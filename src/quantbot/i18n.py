@@ -254,6 +254,14 @@ _STRINGS: dict[str, dict[str, str]] = {
     "mode.demo": {"de": "Modus: Demodaten", "en": "Mode: demo data"},
     "mode.live": {"de": "Modus: echte Daten", "en": "Mode: real data"},
     "mode.live_failed": {"de": "Echte Daten nicht erreichbar, nutze Demodaten.", "en": "Real data unavailable, using demo data."},
+    "mode.finished_cache": {
+        "de": "Ergebnisse lokal gespeichert (zuletzt {when}). Abgeschlossene Spiele werden nicht erneut geladen.",
+        "en": "Results stored locally (last {when}). Finished matches are not re-fetched.",
+    },
+    "mode.finished_cache_never": {
+        "de": "Noch keine abgeschlossenen Spiele lokal gespeichert.",
+        "en": "No finished matches stored locally yet.",
+    },
     "no_matches": {
         "de": "Keine Spiele für {league} {season} gefunden.",
         "en": "No matches found for {league} {season}.",

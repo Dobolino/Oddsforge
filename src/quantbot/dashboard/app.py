@@ -220,6 +220,12 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
             )
             live = True
             st.sidebar.success(t("mode.live", lang))
+            last = getattr(provider, "finished_last_updated", None)
+            if last is not None:
+                when = last.astimezone().strftime("%Y-%m-%d %H:%M")
+                st.sidebar.caption(t("mode.finished_cache", lang).format(when=when))
+            else:
+                st.sidebar.caption(t("mode.finished_cache_never", lang))
         except Exception:  # noqa: BLE001
             st.sidebar.warning(t("mode.live_failed", lang))
             provider = None

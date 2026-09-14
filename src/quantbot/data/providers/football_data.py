@@ -94,13 +94,31 @@ class FootballDataProvider:
 
     # --- Matches / fixtures ---
 
-    def fetch_matches(self, competition: str) -> list[Match]:
-        """Return matches for a competition code (e.g. 'PL', 'BL1', 'CL')."""
+    def fetch_matches(
+        self,
+        competition: str,
+        *,
+        status: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+    ) -> list[Match]:
+        """Return matches for a competition code (e.g. 'PL', 'BL1', 'CL').
+
+        Optional filters are forwarded to the upstream API so callers can skip
+        finished fixtures once results are archived locally.
+        """
 
         if competition not in _COMPETITION_TO_LEAGUE:
             raise ValueError(f"unsupported competition code: {competition!r}")
         league = _COMPETITION_TO_LEAGUE[competition]
-        data = self._get(f"/v4/competitions/{competition}/matches")
+        params: dict[str, str] = {}
+        if status:
+            params["status"] = status
+        if date_from:
+            params["dateFrom"] = date_from
+        if date_to:
+            params["dateTo"] = date_to
+        data = self._get(f"/v4/competitions/{competition}/matches", params=params or None)
         matches: list[Match] = []
         for raw in data.get("matches", []):
             match = self._to_match(raw, league)
