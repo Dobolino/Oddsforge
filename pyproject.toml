@@ -1,6 +1,6 @@
 [project]
 name = "quantbot"
-version = "0.2.2"
+version = "0.2.3"
 description = "Probabilistic market analysis framework for quantitative sports betting and prediction markets."
 readme = "README.md"
 requires-python = ">=3.11"

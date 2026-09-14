@@ -380,7 +380,7 @@ def _welcome_card(lang: str) -> None:  # pragma: no cover - requires Streamlit r
         st.subheader(t("welcome.title", lang))
         st.write(t("welcome.body", lang))
         st.markdown(t("welcome.steps", lang))
-        if st.button(t("welcome.dismiss", lang), type="primary"):
+        if st.button(t("welcome.dismiss", lang), type="primary", key="welcome_dismiss"):
             st.session_state["welcome_dismissed"] = True
             st.rerun()
 
