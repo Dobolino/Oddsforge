@@ -24,6 +24,8 @@ class SlipLeg:
     model_prob: float
     edge: float
     role: str  # "core" | "boost"
+    league: str = ""
+    kickoff_date: str = ""  # YYYY-MM-DD for multi-day slips
 
 
 @dataclass(frozen=True)
@@ -70,6 +72,23 @@ def _leg_from_report(report: SignalReport, lang: str, role: str) -> SlipLeg | No
         model_prob=float(metric.model_prob),
         edge=float(signal.edge or 0.0),
         role=role,
+        league=match.league.value.replace("_", " ").title(),
+        kickoff_date=match.kickoff.date().isoformat(),
+    )
+
+
+def _copy_leg(leg: SlipLeg, *, role: str) -> SlipLeg:
+    return SlipLeg(
+        match_id=leg.match_id,
+        match=leg.match,
+        tip=leg.tip,
+        outcome=leg.outcome,
+        odds=leg.odds,
+        model_prob=leg.model_prob,
+        edge=leg.edge,
+        role=role,
+        league=leg.league,
+        kickoff_date=leg.kickoff_date,
     )
 
 
@@ -114,35 +133,149 @@ def build_boosted_slip(
 
     by_prob = sorted(legs, key=lambda leg: (-leg.model_prob, -leg.edge))
     core_n = max(1, min(core_legs, len(by_prob)))
-    core = [
-        SlipLeg(
-            match_id=leg.match_id,
-            match=leg.match,
-            tip=leg.tip,
-            outcome=leg.outcome,
-            odds=leg.odds,
-            model_prob=leg.model_prob,
-            edge=leg.edge,
-            role="core",
-        )
-        for leg in by_prob[:core_n]
-    ]
+    core = [_copy_leg(leg, role="core") for leg in by_prob[:core_n]]
     used = {leg.match_id for leg in core}
 
     boosters = [
-        SlipLeg(
-            match_id=leg.match_id,
-            match=leg.match,
-            tip=leg.tip,
-            outcome=leg.outcome,
-            odds=leg.odds,
-            model_prob=leg.model_prob,
-            edge=leg.edge,
-            role="boost",
-        )
+        _copy_leg(leg, role="boost")
         for leg in sorted(by_prob, key=lambda leg: (-leg.odds, -leg.edge))
         if leg.match_id not in used and leg.odds >= min_boost_odds
     ][: max(0, boost_legs)]
 
     chosen = tuple(core + boosters)
     return BettingSlip(legs=chosen, style="boosted")
+
+
+def format_ticket(
+    slip: BettingSlip,
+    *,
+    lang: str = "de",
+    stake: float = 10.0,
+) -> str:
+    """Plain-text tip-slip layout (copyable, beginner-friendly)."""
+
+    de = lang.startswith("de")
+    lines: list[str] = []
+    lines.append("╔══════════════════════════════════════╗")
+    title = "         TIPPSCHEIN (Vorschlag)         " if de else "       BETTING SLIP (suggestion)        "
+    lines.append(f"║{title}║")
+    kind = (
+        "Sicherer Kombi-Schein"
+        if slip.style == "safe"
+        else "Kombi mit Quoten-Booster"
+    ) if de else (
+        "Safer accumulator"
+        if slip.style == "safe"
+        else "Accumulator with odds boosters"
+    )
+    lines.append(f"║  {kind:<36}║")
+    lines.append("╠══════════════════════════════════════╣")
+    for i, leg in enumerate(slip.legs, start=1):
+        tip_short = leg.tip.replace("Tipp: ", "").replace("Tip: ", "")
+        role = "  ★ Booster" if leg.role == "boost" else ""
+        meta = " · ".join(p for p in (leg.kickoff_date, leg.league) if p)
+        lines.append(f"║  {i}. {leg.match[:34]:<34}║")
+        if meta:
+            lines.append(f"║     {meta[:34]:<34}║")
+        lines.append(f"║     → {tip_short[:20]:<20}  {leg.odds:>5.2f}{role:<8}║")
+        if i < len(slip.legs):
+            lines.append("║                                      ║")
+    lines.append("╠══════════════════════════════════════╣")
+    payout = stake * slip.combined_odds
+    if de:
+        lines.append(f"║  Einsatz:           {stake:>8.2f} €       ║")
+        lines.append(f"║  Gesamtquote:       {slip.combined_odds:>8.2f}         ║")
+        lines.append(f"║  Möglicher Gewinn:  {payout:>8.2f} €       ║")
+        lines.append(f"║  Geschätzte Chance: {slip.combined_prob * 100:>7.1f} %        ║")
+    else:
+        lines.append(f"║  Stake:             {stake:>8.2f}          ║")
+        lines.append(f"║  Combined odds:     {slip.combined_odds:>8.2f}         ║")
+        lines.append(f"║  Potential return:  {payout:>8.2f}          ║")
+        lines.append(f"║  Estimated chance:  {slip.combined_prob * 100:>7.1f} %        ║")
+    lines.append("╠══════════════════════════════════════╣")
+    note = (
+        "  Nur Vorschlag. QuantBot wettet nicht.  "
+        if de
+        else "  Suggestion only. QuantBot does not bet. "
+    )
+    lines.append(f"║{note}║")
+    lines.append("╚══════════════════════════════════════╝")
+    return "\n".join(lines)
+
+
+def ticket_html(
+    slip: BettingSlip,
+    *,
+    lang: str = "de",
+    stake: float = 10.0,
+) -> str:
+    """HTML tip-slip that looks like a paper ticket."""
+
+    de = lang.startswith("de")
+    payout = stake * slip.combined_odds
+    kind = (
+        "Sicherer Kombi"
+        if slip.style == "safe"
+        else "Kombi + Quoten-Booster"
+    ) if de else (
+        "Safer accumulator"
+        if slip.style == "safe"
+        else "Accumulator + odds boost"
+    )
+    rows = []
+    for i, leg in enumerate(slip.legs, start=1):
+        tip_short = leg.tip.replace("Tipp: ", "").replace("Tip: ", "")
+        badge = (
+            '<span style="color:#c47a00;font-size:0.8rem;">★ Booster</span>'
+            if leg.role == "boost"
+            else ""
+        )
+        meta = " · ".join(p for p in (leg.kickoff_date, leg.league) if p)
+        meta_line = (
+            f'<div style="margin-top:2px;font-size:0.8rem;opacity:0.7;">{meta}</div>'
+            if meta
+            else ""
+        )
+        rows.append(
+            f"""
+            <tr>
+              <td style="padding:10px 8px;border-bottom:1px dashed #ccc;vertical-align:top;width:2rem;">{i}.</td>
+              <td style="padding:10px 8px;border-bottom:1px dashed #ccc;">
+                <div style="font-weight:700;">{leg.match}</div>
+                {meta_line}
+                <div style="margin-top:4px;">→ <b>{tip_short}</b> {badge}</div>
+              </td>
+              <td style="padding:10px 8px;border-bottom:1px dashed #ccc;text-align:right;font-size:1.15rem;font-weight:700;">{leg.odds:.2f}</td>
+            </tr>
+            """
+        )
+    stake_lbl = "Einsatz" if de else "Stake"
+    odds_lbl = "Gesamtquote" if de else "Combined odds"
+    win_lbl = "Möglicher Gewinn" if de else "Potential return"
+    chance_lbl = "Geschätzte Chance" if de else "Estimated chance"
+    title = "TIPPSCHEIN" if de else "BETTING SLIP"
+    sub = (
+        "Nur ein Vorschlag zum Abschreiben — QuantBot setzt nichts."
+        if de
+        else "Suggestion only — QuantBot places nothing."
+    )
+    currency = "€" if de else ""
+    return f"""
+    <div style="
+      max-width:520px;margin:0.5rem 0 1rem 0;padding:1.25rem 1.4rem;
+      background:linear-gradient(180deg,#fffef8 0%,#f7f1e1 100%);
+      color:#1a1a1a;border:2px solid #222;border-radius:6px;
+      box-shadow:4px 4px 0 #222;font-family:ui-monospace,Menlo,Consolas,monospace;
+    ">
+      <div style="text-align:center;letter-spacing:0.18em;font-weight:800;font-size:1.25rem;">{title}</div>
+      <div style="text-align:center;margin:0.35rem 0 0.9rem 0;font-size:0.9rem;">{kind}</div>
+      <table style="width:100%;border-collapse:collapse;">{''.join(rows)}</table>
+      <div style="margin-top:1rem;padding-top:0.75rem;border-top:2px solid #222;">
+        <div style="display:flex;justify-content:space-between;margin:0.25rem 0;"><span>{stake_lbl}</span><b>{stake:.2f} {currency}</b></div>
+        <div style="display:flex;justify-content:space-between;margin:0.25rem 0;"><span>{odds_lbl}</span><b>{slip.combined_odds:.2f}</b></div>
+        <div style="display:flex;justify-content:space-between;margin:0.25rem 0;font-size:1.15rem;"><span>{win_lbl}</span><b>{payout:.2f} {currency}</b></div>
+        <div style="display:flex;justify-content:space-between;margin:0.25rem 0;"><span>{chance_lbl}</span><b>{slip.combined_prob * 100:.1f} %</b></div>
+      </div>
+      <div style="margin-top:0.9rem;text-align:center;font-size:0.8rem;opacity:0.8;">{sub}</div>
+    </div>
+    """

@@ -46,12 +46,12 @@ _STRINGS: dict[str, dict[str, str]] = {
               "QuantBot never places bets — you decide.",
     },
     "welcome.steps": {
-        "de": "1. Links eine Liga wählen (z. B. Premier League).\n"
-              "2. Die Ansicht auf Anfänger lassen.\n"
-              "3. Unter Tipps den Vorschlag lesen. Mehr brauchst du nicht.",
-        "en": "1. Choose a league on the left (e.g. Premier League).\n"
-              "2. Leave the view on Beginner.\n"
-              "3. Read the suggestion under Tips. That is all you need.",
+        "de": "1. Links Liga „Alle“ oder eine Liga wählen.\n"
+              "2. Datumsbereich setzen (Heute / 3 Tage / 7 Tage).\n"
+              "3. Unter Tipps lesen, dann Tippschein öffnen.",
+        "en": "1. Choose „All“ or one league on the left.\n"
+              "2. Set a date range (Today / 3 days / 7 days).\n"
+              "3. Read Tips, then open the tip slip.",
     },
     "welcome.dismiss": {"de": "Verstanden — starten", "en": "Got it — start"},
     "matchwarn.title": {
@@ -116,7 +116,16 @@ _STRINGS: dict[str, dict[str, str]] = {
     # Nav / pages
     "nav.pages": {"de": "Seiten", "en": "Pages"},
     "page.signals": {"de": "Tipps", "en": "Tips"},
-    "page.slip": {"de": "Wettschein", "en": "Betting slip"},
+    "page.slip": {"de": "Tippschein", "en": "Tip slip"},
+    "slip.range_note": {"de": "Spieltage {start} bis {end}.", "en": "Match days {start} to {end}."},
+    "slip.copy_title": {"de": "Als Text zum Kopieren", "en": "As text to copy"},
+    "slip.ticket_title": {"de": "Dein Tippschein", "en": "Your tip slip"},
+    "slip.stake": {"de": "Denkbarer Einsatz (€)", "en": "Notional stake"},
+    "slip.all_leagues": {"de": "Der Schein holt Value-Tipps aus allen gewählten Ligen im Datumsbereich.", "en": "The slip pulls value tips from all selected leagues in the date window."},
+    "sig.open_slip_hint": {"de": "Willst du daraus einen Tippschein? Button darunter oder links unter Seiten „Tippschein“.", "en": "Want a tip slip from this? Use the button below or Tip slip under Pages."},
+    "sig.open_slip": {"de": "Tippschein anzeigen", "en": "Show tip slip"},
+    "sig.range_summary": {"de": "Zeitraum {start}–{end}: {n} Spiele, {k} klare Tipps.", "en": "Window {start}–{end}: {n} matches, {k} clear tips."},
+    "sig.all_leagues_intro": {"de": "Tipps nach Liga unterteilt. Der Tippschein kann alle Ligen im Zeitraum mischen.", "en": "Tips grouped by league. The tip slip can mix all leagues in the date window."},
     "page.insights": {"de": "Modell-Einblicke", "en": "Model insights"},
     "page.backtest": {"de": "Backtest", "en": "Backtest"},
     "page.glossary": {"de": "Glossar", "en": "Glossary"},
@@ -248,6 +257,23 @@ _STRINGS: dict[str, dict[str, str]] = {
     # Controls
     "ctrl.language": {"de": "Sprache", "en": "Language"},
     "ctrl.league": {"de": "Liga", "en": "League"},
+    "ctrl.league_all": {"de": "Alle Ligen", "en": "All leagues"},
+    "ctrl.league_all_hint": {
+        "de": "„Alle Ligen“ zeigt Tipps und Tippschein über mehrere Wettbewerbe.",
+        "en": "„All leagues“ shows tips and the tip slip across competitions.",
+    },
+    "ctrl.league_all_pick_one": {
+        "de": "Für diese Seite bitte eine einzelne Liga wählen. „Alle“ gilt für Tipps, Tippschein und Verlauf.",
+        "en": "Pick a single league for this page. „All“ applies to Tips, Tip slip and Tracker.",
+    },
+    "ctrl.date_range": {"de": "Spieltage (von–bis)", "en": "Match days (from–to)"},
+    "ctrl.date_range_hint": {
+        "de": "Nur Spiele in diesem Zeitraum kommen auf Tipps und Tippschein.",
+        "en": "Only matches in this window appear on Tips and the tip slip.",
+    },
+    "ctrl.range_today": {"de": "Heute", "en": "Today"},
+    "ctrl.range_3d": {"de": "3 Tage", "en": "3 days"},
+    "ctrl.range_7d": {"de": "7 Tage", "en": "7 days"},
     "ctrl.season": {"de": "Saison", "en": "Season"},
     "ctrl.as_of": {"de": "Prognosedatum (Stand)", "en": "Prediction date (as of)"},
     "ctrl.as_of_today": {"de": "Auf heute setzen", "en": "Jump to today"},
@@ -260,10 +286,10 @@ _STRINGS: dict[str, dict[str, str]] = {
         "en": "In demo mode the default is mid-season so fixtures are visible.",
     },
     "slip.intro": {
-        "de": "Theoretischer Kombi-Schein aus den Value-Tipps. QuantBot setzt nichts — du siehst nur, "
-              "welche Kombination rechnerisch die besten Gewinnchancen hat, optional mit Quoten-Boostern.",
-        "en": "Theoretical accumulator from value tips. QuantBot places nothing — you only see which "
-              "combination has the best calculated win chance, optionally with odds boosters.",
+        "de": "Hier entsteht ein Tippschein wie beim Buchmacher: Spiel, Tipp, Quote, "
+              "über Liga und Datumsbereich. QuantBot setzt nichts — nur zum Abschreiben.",
+        "en": "Builds a tip slip like at a bookmaker: match, tip, odds, across league "
+              "and date range. QuantBot places nothing — copy only.",
     },
     "slip.style": {"de": "Schein-Art", "en": "Slip style"},
     "slip.style_safe": {"de": "Beste Chancen", "en": "Best win chance"},
