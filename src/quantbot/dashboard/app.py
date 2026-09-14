@@ -321,7 +321,7 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
                 dc.fit_until(universe, as_of)
                 dcp = dc.predict(match)
                 if dcp.score_matrix is not None:
-                    st.plotly_chart(scoreline_heatmap_figure(dcp.score_matrix.matrix), use_container_width=True)
+                    st.plotly_chart(scoreline_heatmap_figure(dcp.score_matrix.matrix), width="stretch")
             except (ValueError, RuntimeError):
                 st.info("Insufficient history." if lang == "en" else "Zu wenig Historie.")
         with col2:
@@ -329,7 +329,7 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
             st.caption(t("ins.compare_hint", lang))
             if model_probs:
                 labels = (t("ins.home", lang), t("ins.draw", lang), t("ins.away", lang))
-                st.plotly_chart(model_comparison_figure(model_probs, labels), use_container_width=True)
+                st.plotly_chart(model_comparison_figure(model_probs, labels), width="stretch")
 
     else:  # backtest
         st.header(t("page.backtest", lang))
@@ -347,11 +347,11 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
             c2.metric("Sharpe / Sortino", f"{m.sharpe:.2f} / {m.sortino:.2f}")
             c3.metric(t("bt.max_dd", lang), f"{m.max_drawdown * 100:.2f}%")
             c4.metric(t("bt.beat_clv", lang), "-" if m.beat_clv_rate is None else f"{m.beat_clv_rate * 100:.1f}%")
-        st.plotly_chart(equity_curve_figure(result.bankroll_curve, result.initial_bankroll), use_container_width=True)
+        st.plotly_chart(equity_curve_figure(result.bankroll_curve, result.initial_bankroll), width="stretch")
         if ux_mode is UXMode.EXPERT:
             clvs = [b.clv for b in result.settled_bets if b.clv is not None]
             if clvs:
-                st.plotly_chart(clv_distribution_figure(clvs), use_container_width=True)
+                st.plotly_chart(clv_distribution_figure(clvs), width="stretch")
         st.subheader(t("bt.metrics", lang))
         st.table(metrics_dataframe(m, mode=ux_mode))
 
@@ -366,7 +366,7 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
             for tab, rows in zip(tabs, (by_odds(bets), by_edge(bets), by_league(bets), by_month(bets))):
                 with tab:
                     if rows:
-                        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+                        st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
                     else:
                         st.caption("-")
 
@@ -443,13 +443,13 @@ def _pick_window(lang, orchestrator, leagues, season, live: bool):  # type: igno
         st.session_state[key] = (start_default, end_default)
 
     presets = st.columns(3)
-    if presets[0].button(t("ctrl.range_today", lang), use_container_width=True):
+    if presets[0].button(t("ctrl.range_today", lang), width="stretch"):
         st.session_state[key] = (start_default, start_default)
         st.rerun()
-    if presets[1].button(t("ctrl.range_3d", lang), use_container_width=True):
+    if presets[1].button(t("ctrl.range_3d", lang), width="stretch"):
         st.session_state[key] = (start_default, start_default + timedelta(days=2))
         st.rerun()
-    if presets[2].button(t("ctrl.range_7d", lang), use_container_width=True):
+    if presets[2].button(t("ctrl.range_7d", lang), width="stretch"):
         st.session_state[key] = (start_default, start_default + timedelta(days=6))
         st.rerun()
 
@@ -659,7 +659,7 @@ def _diagnostics_page(lang, C, provider, mode, league, season) -> None:  # type:
             t("col.brier", lang): r["brier"],
             t("col.delta", lang): r["delta"],
         } for r in rep["rows"]]
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
 
     st.subheader(t("diag.importance", lang))
     st.caption(t("diag.importance_hint", lang))
@@ -667,7 +667,7 @@ def _diagnostics_page(lang, C, provider, mode, league, season) -> None:  # type:
     if imp:
         st.dataframe(
             pd.DataFrame([{t("col.feature", lang): r["feature"], t("col.importance", lang): r["importance"]} for r in imp]),
-            use_container_width=True, hide_index=True,
+            width="stretch", hide_index=True,
         )
 
     st.subheader(t("diag.experiments", lang))
@@ -687,7 +687,7 @@ def _diagnostics_page(lang, C, provider, mode, league, season) -> None:  # type:
             t("col.logloss", lang): r.metrics.get("log_loss"),
             t("col.samples", lang): r.n_samples,
         } for r in runs]),
-        use_container_width=True, hide_index=True,
+        width="stretch", hide_index=True,
     )
 
 
@@ -709,7 +709,7 @@ def _evaluation_page(page, lang, C, provider, mode, league, season) -> None:  # 
         c1.metric(t("col.brier", lang), report["brier"])
         c2.metric(t("col.logloss", lang), report["log_loss"])
         c3.metric(t("col.ece", lang), report["ece"])
-        st.plotly_chart(reliability_diagram_figure(report["curve"]), use_container_width=True)
+        st.plotly_chart(reliability_diagram_figure(report["curve"]), width="stretch")
         st.caption(t("cal.note", lang))
     else:  # models
         st.header(t("page.models", lang))
@@ -722,7 +722,7 @@ def _evaluation_page(page, lang, C, provider, mode, league, season) -> None:  # 
             t("col.ece", lang): r["ece"],
             t("col.samples", lang): r["n"],
         } for r in rows]
-        st.dataframe(pd.DataFrame(table), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(table), width="stretch", hide_index=True)
 
 
 def _card_page(lang, C, orchestrator, mode, league, season) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
@@ -758,7 +758,7 @@ def _card_page(lang, C, orchestrator, mode, league, season) -> None:  # type: ig
     with col1:
         st.markdown(f"**{t('card.consensus', lang)}** · {t('card.agreement', lang)}: {c.agreement:.0f}/100")
         rows = [{t("col.model", lang): m["name"], **{out_lbl[o]: f"{m[o] * 100:.0f}%" for o in outcomes}} for m in c.models]
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
         st.markdown(f"**{t('card.reliability', lang)}**: {c.reliability:.0f}/100 ({c.reliability_level})")
         st.markdown(f"**{t('card.data_quality', lang)}**: {c.data_quality:.0f}/100")
         for comp in c.data_quality_components:
@@ -772,7 +772,7 @@ def _card_page(lang, C, orchestrator, mode, league, season) -> None:  # type: ig
             t("card.market", lang): c.market_odds[o],
             t("card.divergence", lang): f"{c.divergence[o]['edge'] * 100:+.1f}% ({t('div.' + c.divergence[o]['tier'], lang)})",
         } for o in outcomes]
-        st.dataframe(pd.DataFrame(frows), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(frows), width="stretch", hide_index=True)
         st.markdown(f"**{t('card.decision', lang)}**: {c.signal}  ·  {t('card.stake', lang)}: {c.stake_fraction:.2f}%")
 
     st.markdown(f"**{t('card.why', lang)}**")
@@ -828,7 +828,7 @@ def _tracker_page(lang, C, provider, mode, leagues, season) -> None:  # type: ig
                         t("track.result", lang): result,
                         "": outcome,
                     })
-                st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+                st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
 
 
 def _glossary_page(lang: str) -> None:  # pragma: no cover - requires Streamlit runtime

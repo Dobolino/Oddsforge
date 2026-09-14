@@ -77,7 +77,7 @@ def render_signals_table(df: pd.DataFrame) -> None:  # pragma: no cover - Stream
     height = min(520, 38 * max(len(df), 1) + 40)
     st.dataframe(
         df,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_config=config,
         height=height,
