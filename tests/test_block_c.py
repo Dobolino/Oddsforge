@@ -125,6 +125,52 @@ def test_odds_api_transforms_to_odds(tmp_path) -> None:  # type: ignore[no-untyp
     assert pinnacle.timestamp == datetime(2024, 8, 17, 12, 0, tzinfo=UTC)
 
 
+def test_odds_api_skips_decimal_odds_of_one() -> None:
+    """Live feeds can return home=1.0; that must not raise ValidationError."""
+
+    provider = TheOddsAPIProvider.__new__(TheOddsAPIProvider)
+    event = {
+        "id": "evt-suspended",
+        "home_team": "Arsenal",
+        "away_team": "Chelsea",
+        "commence_time": "2024-08-17T14:00:00Z",
+        "bookmakers": [
+            {
+                "key": "suspended",
+                "title": "Suspended",
+                "markets": [
+                    {
+                        "key": "h2h",
+                        "outcomes": [
+                            {"name": "Arsenal", "price": 1.0},
+                            {"name": "Chelsea", "price": 3.5},
+                            {"name": "Draw", "price": 3.3},
+                        ],
+                    }
+                ],
+            },
+            {
+                "key": "bet365",
+                "title": "Bet365",
+                "markets": [
+                    {
+                        "key": "h2h",
+                        "outcomes": [
+                            {"name": "Arsenal", "price": 2.2},
+                            {"name": "Chelsea", "price": 3.5},
+                            {"name": "Draw", "price": 3.3},
+                        ],
+                    }
+                ],
+            },
+        ],
+    }
+    odds = provider.event_to_odds(event)
+    assert len(odds) == 1
+    assert odds[0].bookmaker == "bet365"
+    assert odds[0].home == pytest.approx(2.2)
+
+
 def test_odds_api_market_data_consensus(tmp_path) -> None:  # type: ignore[no-untyped-def]
     provider = TheOddsAPIProvider("key", cache_dir=tmp_path, client=_odds_client())
     markets = provider.fetch_market_data("soccer_epl")

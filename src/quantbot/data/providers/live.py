@@ -244,11 +244,21 @@ class LiveDataProvider(BaseDataProvider):
                 )
                 continue
 
-            odds = [o.model_copy(update={"match_id": fd_id}) for o in self._odds.event_to_odds(event)]
-            totals = [
-                t.model_copy(update={"match_id": fd_id})
-                for t in self._odds.event_to_totals(event)
-            ]
+            try:
+                odds = [
+                    o.model_copy(update={"match_id": fd_id})
+                    for o in self._odds.event_to_odds(event)
+                ]
+                totals = [
+                    t.model_copy(update={"match_id": fd_id})
+                    for t in self._odds.event_to_totals(event)
+                ]
+            except Exception:  # noqa: BLE001 — one bad event must not kill the dashboard
+                logger.exception(
+                    "Skipping odds event %s after parse/validation failure",
+                    event.get("id"),
+                )
+                continue
             if not odds and not totals:
                 continue
             if odds:

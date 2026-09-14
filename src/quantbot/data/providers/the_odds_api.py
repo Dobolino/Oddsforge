@@ -32,6 +32,12 @@ def _parse_iso(value: str) -> datetime:
     return parsed
 
 
+def _valid_decimal_odds(*prices: float) -> bool:
+    """Decimal odds must be strictly greater than 1.0 (schema + EV math)."""
+
+    return all(price > 1.0 for price in prices)
+
+
 class TheOddsAPIProvider:
     """Client for The Odds API (v4) h2h markets.
 
@@ -122,15 +128,30 @@ class TheOddsAPIProvider:
                 prices[outcome["name"]] = float(outcome["price"])
             if not {home_name, away_name, "Draw"} <= set(prices):
                 continue  # incomplete 1X2 market
+            home_p = prices[home_name]
+            draw_p = prices["Draw"]
+            away_p = prices[away_name]
+            # Live feeds occasionally return 1.0 / <=1 (suspended or junk lines).
+            # Skip that bookmaker instead of crashing dashboard validation.
+            if not _valid_decimal_odds(home_p, draw_p, away_p):
+                logger.warning(
+                    "Skipping invalid 1X2 odds for %s @ %s (home=%.3f draw=%.3f away=%.3f)",
+                    match_id,
+                    bookmaker.get("key", bookmaker.get("title", "unknown")),
+                    home_p,
+                    draw_p,
+                    away_p,
+                )
+                continue
             ts = h2h.get("last_update") or bookmaker.get("last_update") or commence
             odds.append(
                 Odds(
                     match_id=match_id,
                     bookmaker=bookmaker.get("key", bookmaker.get("title", "unknown")),
                     timestamp=_parse_iso(ts),
-                    home=prices[home_name],
-                    draw=prices["Draw"],
-                    away=prices[away_name],
+                    home=home_p,
+                    draw=draw_p,
+                    away=away_p,
                 )
             )
         return odds
@@ -169,6 +190,16 @@ class TheOddsAPIProvider:
                     elif name.startswith("under"):
                         under_price = price
                 if over_price is None or under_price is None or market_line is None:
+                    continue
+                if not _valid_decimal_odds(over_price, under_price):
+                    logger.warning(
+                        "Skipping invalid totals odds for %s @ %s (over=%.3f under=%.3f line=%.1f)",
+                        match_id,
+                        bookmaker.get("key", bookmaker.get("title", "unknown")),
+                        over_price,
+                        under_price,
+                        market_line,
+                    )
                     continue
                 ts = market.get("last_update") or bookmaker.get("last_update") or commence
                 out.append(
