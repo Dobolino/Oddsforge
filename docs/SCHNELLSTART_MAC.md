@@ -99,6 +99,10 @@ Alternativ `.env.example` nach `.env` kopieren und die Keys eintragen (siehe REA
 
 ## Wenn etwas klemmt
 
+- **„Keine Spiele für … 2026-2027“** bei echten Daten: Die API hat für diese Saison
+  noch keine Spiele (oder der Schlüssel schlägt fehl). QuantBot wechselt automatisch
+  auf die neueste verfügbare Saison. Manuell: Ansicht **Fortgeschritten**, Saison
+  z. B. `2025-2026` eintragen. Football-Data-Schlüssel und Quota prüfen.
 - **„python3: command not found“**: Python von python.org oder per Homebrew installieren, Terminal neu öffnen.
 - **Startdatei lässt sich nicht öffnen**: Rechtsklick → Öffnen; oder `chmod +x` wie oben.
 - **„quantbot wird nicht erkannt“**: Umgebung aktivieren mit `source .venv/bin/activate`.

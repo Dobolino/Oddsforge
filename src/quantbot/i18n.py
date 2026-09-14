@@ -298,6 +298,25 @@ _STRINGS: dict[str, dict[str, str]] = {
         "de": "Die Demodaten decken nur die Saison 2024-2025 ab. Für andere Ligen und Saisons oben die API-Schlüssel eintragen.",
         "en": "The demo data only covers the 2024-2025 season. For other leagues and seasons enter the API keys above.",
     },
+    "no_matches_live_empty": {
+        "de": "Football-Data lieferte keine Spiele. Prüfe den Football-Data-API-Schlüssel, "
+              "dein Kontingent und die Internetverbindung. Danach Dashboard neu starten "
+              "(oder Update QuantBot + Start).",
+        "en": "Football-Data returned no fixtures. Check the Football-Data API key, "
+              "quota and network, then restart the dashboard (or Update QuantBot + Start).",
+    },
+    "no_matches_live_hint": {
+        "de": "Live-Modus aktiv, aber keine Spiele für {season}. "
+              "Unter Fortgeschritten eine andere Saison eintragen (z. B. 2025-2026) "
+              "oder den Football-Data-Schlüssel prüfen.",
+        "en": "Live mode is on, but there are no fixtures for {season}. "
+              "In Advanced mode try another season (e.g. 2025-2026) "
+              "or check the Football-Data API key.",
+    },
+    "no_matches_season_fallback": {
+        "de": "Für {preferred} keine Spiele — zeige verfügbare Saison {season}.",
+        "en": "No fixtures for {preferred} — showing available season {season}.",
+    },
     # Controls
     "ctrl.language": {"de": "Sprache", "en": "Language"},
     "ctrl.league": {"de": "Liga", "en": "League"},

@@ -155,18 +155,21 @@ class CachingMatchProvider:
         status: str | None = None,
         date_from: str | None = None,
         date_to: str | None = None,
+        season: int | None = None,
         allow_unfiltered_fallback: bool = True,
     ) -> list[Match]:
         self.network_calls += 1
         if callable(self._inner) and not hasattr(self._inner, "fetch_matches"):
             return list(self._inner(competition))
-        kwargs: dict[str, str] = {}
+        kwargs: dict[str, object] = {}
         if status is not None:
             kwargs["status"] = status
         if date_from is not None:
             kwargs["date_from"] = date_from
         if date_to is not None:
             kwargs["date_to"] = date_to
+        if season is not None:
+            kwargs["season"] = season
         try:
             if kwargs:
                 return list(self._inner.fetch_matches(competition, **kwargs))
@@ -176,12 +179,16 @@ class CachingMatchProvider:
                 return []
             return list(self._inner.fetch_matches(competition))
 
-    def fetch_matches(self, competition: str) -> list[Match]:
+    def fetch_matches(self, competition: str, *, season: int | None = None) -> list[Match]:
         """Merge permanent finished archive with a live competition refresh.
 
         Cold start (no finished rows for this league): one full network fetch,
         archive finished. Warm start: only request open fixtures (plus recently
         finished via date filter when supported); finished rows come from disk.
+
+        ``season`` is the Football-Data start year (e.g. 2026 for 2026-2027).
+        On cold start we also try the previous year and an unfiltered fetch if
+        the preferred season returns nothing.
         """
 
         from datetime import timedelta
@@ -190,15 +197,40 @@ class CachingMatchProvider:
         archived = self.cache.for_league(league) if league is not None else []
 
         if not archived:
-            network = self._call_inner(competition)
+            network: list[Match] = []
+            years: list[int | None]
+            if season is not None:
+                years = [season, season - 1, None]
+            else:
+                years = [None]
+            for year in years:
+                network = self._call_inner(competition, season=year)
+                if network:
+                    break
             self.cache.put_finished([m for m in network if m.is_finished])
             return list(network)
 
         open_or_all = self._call_inner(
             competition,
             status=_OPEN_STATUSES,
+            season=season,
             allow_unfiltered_fallback=True,
         )
+        # If a preferred season returned nothing, try without season filter
+        # (Football-Data "current") then the previous year.
+        if not open_or_all and season is not None:
+            open_or_all = self._call_inner(
+                competition,
+                status=_OPEN_STATUSES,
+                allow_unfiltered_fallback=True,
+            )
+        if not open_or_all and season is not None:
+            open_or_all = self._call_inner(
+                competition,
+                status=_OPEN_STATUSES,
+                season=season - 1,
+                allow_unfiltered_fallback=True,
+            )
         recent_finished: list[Match] = []
         if self.cache.last_updated is not None:
             since = self.cache.last_updated.astimezone(timezone.utc).date()
@@ -207,6 +239,7 @@ class CachingMatchProvider:
                 competition,
                 status="FINISHED",
                 date_from=date_from,
+                season=season,
                 allow_unfiltered_fallback=False,
             )
 

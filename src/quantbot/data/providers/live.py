@@ -17,7 +17,7 @@ from __future__ import annotations
 import unicodedata
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from difflib import SequenceMatcher
 from pathlib import Path
 
@@ -156,14 +156,34 @@ class LiveDataProvider(BaseDataProvider):
 
     # --- Matches / fixtures (Football-Data) ---
 
+    def _season_start_year(self) -> int:
+        now = datetime.now(timezone.utc)
+        return now.year if now.month >= 7 else now.year - 1
+
+    def available_seasons(self) -> list[str]:
+        """Season labels present in the loaded fixture set, newest first."""
+
+        seasons = {m.season for m in self._fetch_matches()}
+        return sorted(seasons, reverse=True)
+
     def _fetch_matches(self) -> Sequence[Match]:
         if self._matches_cache is not None:
             return self._matches_cache
 
         matches: list[Match] = []
+        season_year = self._season_start_year()
         for league in self._leagues:
             try:
-                league_matches = self._football.fetch_matches(football_data_code(league))
+                league_matches = self._football.fetch_matches(
+                    football_data_code(league), season=season_year
+                )
+            except TypeError:
+                # Older fetchers without a season kwarg.
+                try:
+                    league_matches = self._football.fetch_matches(football_data_code(league))
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Could not load %s fixtures: %s", league.value, exc)
+                    continue
             except Exception as exc:  # noqa: BLE001 - one league must not break the rest
                 logger.warning("Could not load %s fixtures: %s", league.value, exc)
                 continue

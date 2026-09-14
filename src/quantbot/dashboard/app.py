@@ -49,6 +49,23 @@ def _current_season() -> str:
     return f"{start}-{start + 1}"
 
 
+def _resolve_season(provider, preferred: str, *, live: bool) -> tuple[str, str | None]:
+    """Pick a season that actually has fixtures when live data is empty.
+
+    Returns ``(season, note_key)`` where ``note_key`` is an i18n key for an
+    optional caption, or ``None`` when ``preferred`` already works.
+    """
+
+    if not live or provider is None:
+        return preferred, None
+    available = getattr(provider, "available_seasons", lambda: [])()
+    if not available:
+        return preferred, "no_matches_live_empty"
+    if preferred in available:
+        return preferred, None
+    return available[0], "no_matches_season_fallback"
+
+
 # --- Cached heavy computations ---
 # Streamlit does not hash arguments whose names start with "_", so the live
 # provider / orchestrator can be passed without being hashed; ``mode`` (demo or
@@ -266,9 +283,16 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     # Beginners do not need to type a season string.
     default_season = _current_season() if live else "2024-2025"
     if ux_mode is UXMode.BEGINNER:
-        season = default_season
+        preferred_season = default_season
     else:
-        season = st.sidebar.text_input(t("ctrl.season", lang), default_season)
+        preferred_season = st.sidebar.text_input(t("ctrl.season", lang), default_season)
+    season, season_note = _resolve_season(provider, preferred_season, live=live)
+    if season_note == "no_matches_season_fallback":
+        st.sidebar.info(
+            t("no_matches_season_fallback", lang).format(
+                preferred=preferred_season, season=season
+            )
+        )
 
     orchestrator = QuantBotOrchestrator(
         provider=provider,
@@ -307,6 +331,10 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
         st.warning(t("no_matches", lang).format(league=label, season=season))
         if not live:
             st.info(t("no_matches_demo", lang))
+        elif season_note == "no_matches_live_empty":
+            st.info(t("no_matches_live_empty", lang))
+        else:
+            st.info(t("no_matches_live_hint", lang).format(season=season))
         return
 
     if multi_league and page not in ("signals", "slip", "tracker"):
