@@ -15,6 +15,7 @@ from itertools import combinations
 from random import Random
 
 from quantbot.data.base import BaseDataProvider
+from quantbot.data.basketball_demo import build_nba_matches, build_nba_odds, build_nba_totals
 from quantbot.schemas import (
     DEFAULT_TOTALS_LINE,
     League,
@@ -136,6 +137,7 @@ class DummyDataProvider(BaseDataProvider):
                         result=result,
                     )
                 )
+        matches.extend(build_nba_matches(seed=self._seed))
         return tuple(matches)
 
     def _match_rng(self, match_id: str, salt: str) -> Random:
@@ -158,6 +160,8 @@ class DummyDataProvider(BaseDataProvider):
         match = next((m for m in self._fetch_matches() if m.match_id == match_id), None)
         if match is None:
             return ()
+        if match.league is League.NBA:
+            return tuple(build_nba_odds([match], seed=self._seed).get(match_id, []))
 
         p_home, p_draw, p_away = self._fair_probabilities(
             match.home_team.team_id, match.away_team.team_id
@@ -197,6 +201,8 @@ class DummyDataProvider(BaseDataProvider):
         match = next((m for m in self._fetch_matches() if m.match_id == match_id), None)
         if match is None:
             return ()
+        if match.league is League.NBA:
+            return tuple(build_nba_totals([match], seed=self._seed).get(match_id, []))
 
         strengths = self._team_strength()
         # Rough expected total goals from the same strength model as results.

@@ -13,11 +13,18 @@ from datetime import datetime
 from pydantic import Field, model_validator
 
 from quantbot.schemas.base import QuantBotModel
-from quantbot.schemas.enums import InjuryStatus, League, MatchOutcome, MatchStatus
+from quantbot.schemas.enums import (
+    InjuryStatus,
+    League,
+    MatchOutcome,
+    MatchStatus,
+    Sport,
+    sport_for_league,
+)
 
 
 class Team(QuantBotModel):
-    """A football team."""
+    """A competing team (football club or basketball franchise)."""
 
     team_id: str = Field(min_length=1)
     name: str = Field(min_length=1)
@@ -51,13 +58,14 @@ class MatchResult(QuantBotModel):
 
 
 class Match(QuantBotModel):
-    """A single football fixture.
+    """A single fixture (football or basketball).
 
     Attributes:
         prediction_timestamp: The instant at which prediction is made. All
             features must be temporally isolated to before this point.
-        kickoff: Scheduled kickoff time (timezone-aware).
+        kickoff: Scheduled kickoff / tip-off time (timezone-aware).
         result: Final score, present only for finished matches.
+        sport: Defaults from ``league`` when omitted.
     """
 
     match_id: str = Field(min_length=1)
@@ -71,9 +79,17 @@ class Match(QuantBotModel):
     home_injury_status: InjuryStatus = InjuryStatus.UNKNOWN
     away_injury_status: InjuryStatus = InjuryStatus.UNKNOWN
     result: MatchResult | None = None
+    sport: Sport | None = None
 
     @model_validator(mode="after")
     def _validate_temporal_and_teams(self) -> Match:
+        if self.sport is None:
+            object.__setattr__(self, "sport", sport_for_league(self.league))
+        elif self.sport is not sport_for_league(self.league):
+            raise ValueError(
+                f"sport {self.sport.value!r} does not match league {self.league.value!r}"
+            )
+
         if self.home_team.team_id == self.away_team.team_id:
             raise ValueError("home_team and away_team must differ")
 

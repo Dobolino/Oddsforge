@@ -24,9 +24,9 @@ class UXMode(str, Enum):
 # Pages visible in the sidebar, in display order.
 PAGES_BY_MODE: dict[UXMode, tuple[str, ...]] = {
     # Beginner: no tip slip / accumulators — Gemini+Claude: kombis raise risk for newcomers.
-    UXMode.BEGINNER: ("signals", "tracker", "glossary"),
+    UXMode.BEGINNER: ("signals", "tracker", "settings", "glossary"),
     # Advanced: calibration is a must-have signal-quality view (Claude review).
-    UXMode.ADVANCED: ("signals", "slip", "card", "tracker", "calibration", "backtest", "glossary"),
+    UXMode.ADVANCED: ("signals", "slip", "card", "tracker", "calibration", "backtest", "settings", "glossary"),
     UXMode.EXPERT: (
         "signals",
         "slip",
@@ -37,6 +37,7 @@ PAGES_BY_MODE: dict[UXMode, tuple[str, ...]] = {
         "models",
         "diagnostics",
         "backtest",
+        "settings",
         "glossary",
     ),
 }
@@ -111,17 +112,16 @@ def plain_signal_label(signal: SignalType, lang: str = "de", *, line: float | No
     label = entry.get(lang) or entry["de"]
     if line is not None and signal in (SignalType.VALUE_OVER, SignalType.VALUE_UNDER):
         line_s = str(line).replace(".", ",") if lang == "de" else str(line)
-        if signal is SignalType.VALUE_OVER:
-            return (
-                f"Value erkannt: Über {line_s} Tore"
-                if lang == "de"
-                else f"Value spotted: over {line_s} goals"
-            )
-        return (
-            f"Value erkannt: Unter {line_s} Tore"
-            if lang == "de"
-            else f"Value spotted: under {line_s} goals"
-        )
+        # Basketball totals use large point lines; football stays on goals.
+        points = float(line) >= 100.0
+        if lang == "de":
+            unit = "Punkte" if points else "Tore"
+            prefix = "Über" if signal is SignalType.VALUE_OVER else "Unter"
+            return f"Value erkannt: {prefix} {line_s} {unit}"
+        unit = "points" if points else "goals"
+        side = "over" if signal is SignalType.VALUE_OVER else "under"
+        return f"Value spotted: {side} {line_s} {unit}"
+
     return label
 
 

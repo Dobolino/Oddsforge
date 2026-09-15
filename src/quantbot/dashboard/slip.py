@@ -28,6 +28,7 @@ class SlipLeg:
     role: str  # "core" | "boost"
     league: str = ""
     kickoff_date: str = ""  # YYYY-MM-DD for multi-day slips
+    sport: str = ""  # football | basketball
 
 
 @dataclass(frozen=True)
@@ -76,6 +77,7 @@ def _leg_from_report(report: SignalReport, lang: str, role: str) -> SlipLeg | No
         role=role,
         league=match.league.value.replace("_", " ").title(),
         kickoff_date=match.kickoff.date().isoformat(),
+        sport=(match.sport.value if getattr(match, "sport", None) is not None else ""),
     )
 
 
@@ -91,6 +93,7 @@ def _copy_leg(leg: SlipLeg, *, role: str) -> SlipLeg:
         role=role,
         league=leg.league,
         kickoff_date=leg.kickoff_date,
+        sport=leg.sport,
     )
 
 
@@ -166,6 +169,76 @@ def default_leg_count(*, beginner: bool, span_days: int, available: int) -> int:
         return min(available, 3)
     suggested = min(8, max(3, span_days + 1))
     return min(available, suggested)
+
+
+
+
+def build_smart_cross_sport_slip(
+    reports: list[SignalReport],
+    *,
+    lang: str = "de",
+    max_legs: int = 4,
+    min_edge: float = 0.02,
+    min_data_quality: float = 70.0,
+    prefer_mixed: bool = True,
+) -> BettingSlip | None:
+    """Auto-pick top-value legs across sports under strict No-Bet gates.
+
+    Requires edge > ``min_edge`` (default 2%) and data quality > ``min_data_quality``.
+    When ``prefer_mixed`` is True and both sports have eligible legs, include at
+    least one leg from each sport when ``max_legs`` >= 2.
+    """
+
+    eligible: list[tuple[SignalReport, SlipLeg]] = []
+    for report in reports:
+        signal = report.signal
+        if not signal.is_bet:
+            continue
+        edge = float(signal.edge or 0.0)
+        quality = float(signal.data_quality or 0.0)
+        if edge <= min_edge or quality <= min_data_quality:
+            continue
+        leg = _leg_from_report(report, lang, role="core")
+        if leg is not None:
+            eligible.append((report, leg))
+
+    if not eligible:
+        return None
+
+    def sort_key(item: tuple[SignalReport, SlipLeg]) -> tuple[float, float]:
+        report, leg = item
+        ev = float(report.signal.expected_value or 0.0)
+        return (-ev, -leg.edge)
+
+    eligible.sort(key=sort_key)
+    max_legs = max(1, max_legs)
+
+    chosen: list[SlipLeg] = []
+    if prefer_mixed and max_legs >= 2:
+        by_sport: dict[str, list[SlipLeg]] = {}
+        for report, leg in eligible:
+            sport = leg.sport or (
+                report.match.sport.value
+                if getattr(report.match, "sport", None) is not None
+                else "football"
+            )
+            by_sport.setdefault(sport, []).append(leg)
+        if len(by_sport) >= 2:
+            for sport in sorted(by_sport.keys()):
+                if len(chosen) >= max_legs:
+                    break
+                chosen.append(by_sport[sport][0])
+            used = {leg.match_id for leg in chosen}
+            for _, leg in eligible:
+                if len(chosen) >= max_legs:
+                    break
+                if leg.match_id not in used:
+                    chosen.append(leg)
+                    used.add(leg.match_id)
+            return BettingSlip(legs=tuple(chosen[:max_legs]), style="smart")
+
+    chosen = [leg for _, leg in eligible[:max_legs]]
+    return BettingSlip(legs=tuple(chosen), style="smart")
 
 
 def format_ticket(

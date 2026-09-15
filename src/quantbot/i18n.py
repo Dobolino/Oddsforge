@@ -347,6 +347,46 @@ _STRINGS: dict[str, dict[str, str]] = {
     "keys.title": {"de": "API-Schlüssel (für echte Daten)", "en": "API keys (for real data)"},
     "keys.football": {"de": "Football-Data.org Schlüssel", "en": "Football-Data.org key"},
     "keys.odds": {"de": "The Odds API Schlüssel", "en": "The Odds API key"},
+    "ctrl.sport": {"de": "Sport", "en": "Sport"},
+    "ctrl.sport_all": {"de": "Alle Sportarten", "en": "All sports"},
+    "ctrl.sport_football": {"de": "Fußball", "en": "Football"},
+    "ctrl.sport_basketball": {"de": "Basketball / NBA", "en": "Basketball / NBA"},
+    "ctrl.sport_hint": {
+        "de": "Filtert die Liga-Liste. Tippschein kann Quersport-Kombi erlauben.",
+        "en": "Filters the league list. Tip slips can mix sports.",
+    },
+    "page.settings": {"de": "Einstellungen", "en": "Settings"},
+    "settings.intro": {
+        "de": "API-Schlüssel und Verbindungsstatus. Schlüssel werden nur lokal gespeichert.",
+        "en": "API keys and connection status. Keys are stored only on this machine.",
+    },
+    "settings.validate": {"de": "Verbindungsstatus", "en": "Connection status"},
+    "settings.keys_sidebar_hint": {
+        "de": "Schlüssel kannst du in der Seitenleiste unter API-Schlüssel speichern oder ändern.",
+        "en": "Save or change keys in the sidebar under API keys.",
+    },
+    "keys.basketball": {"de": "BallDontLie / NBA Schlüssel (optional)", "en": "BallDontLie / NBA key (optional)"},
+    "keys.basketball_missing": {"de": "BallDontLie / NBA: nicht hinterlegt (Demo-NBA aktiv)", "en": "BallDontLie / NBA: not set (demo NBA active)"},
+    "keys.basketball_optional": {
+        "de": "Optional — ohne Schlüssel nutzt QuantBot NBA-Demodaten.",
+        "en": "Optional — without a key QuantBot uses NBA demo data.",
+    },
+    "status.active": {"de": "AKTIV", "en": "ACTIVE"},
+    "status.missing": {"de": "FEHLT", "en": "MISSING"},
+    "slip.smart_cross_sport": {"de": "⚡ Smart Cross-Sport Selection", "en": "⚡ Smart Cross-Sport Selection"},
+    "slip.cross_sport_note": {
+        "de": "Hinweis: Unkorrelierte Sportarten (z. B. Premier League + NBA) senken Liga-Abhängigkeit, aber Kombi-/Parlay-Drag bleibt.",
+        "en": "Note: Mixing uncorrelated sports (e.g. Premier League + NBA) reduces single-league dependency, but parlay drag still applies.",
+    },
+    "slip.smart_empty": {
+        "de": "Keine Legs erfüllen die Smart-Kriterien (Edge > 2 %, Datenqualität > 70 %).",
+        "en": "No legs meet the smart criteria (edge > 2%, data quality > 70%).",
+    },
+    "slip.smart_done": {
+        "de": "Smart Selection: {n} Legs übernommen.",
+        "en": "Smart selection applied: {n} legs.",
+    },
+
     "keys.hint": {
         "de": "Leer lassen für Demodaten. Mit beiden Schlüsseln laufen echte Spiele. Schlüssel werden nur lokal auf diesem PC gespeichert.",
         "en": "Leave empty for demo data. With both keys real matches are used. Keys are stored only on this PC.",

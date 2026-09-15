@@ -135,8 +135,13 @@ class QuantBotOrchestrator:
         if as_of.tzinfo is None:
             raise ValueError("as_of must be timezone-aware")
 
+        from quantbot.models.basketball import BasketballModel
+        from quantbot.schemas.enums import DEFAULT_NBA_TOTALS_LINE, Sport, sport_for_league
+
         universe = self.universe(league, season)
-        self.model.fit_until(universe, as_of)
+        use_basketball = sport_for_league(league) is Sport.BASKETBALL
+        model = BasketballModel() if use_basketball else self.model
+        model.fit_until(universe, as_of)
         counts = self._team_counts(universe, as_of)
 
         reports: list[SignalReport] = []
@@ -144,7 +149,7 @@ class QuantBotOrchestrator:
             entry = self.provider.get_latest_odds(match.match_id, as_of)
             if entry is None:
                 continue
-            prediction = self.model.predict(match)
+            prediction = model.predict(match)
             market = self.market_engine.to_market_data(entry)
             snapshots = self.provider.get_odds(match.match_id, as_of)
             quality = DataQualitySignals(
@@ -160,14 +165,24 @@ class QuantBotOrchestrator:
                 prediction, market, entry.decimal_odds(), quality
             )
             signal = self.decision_engine.decide(analysis, market)
-            signal = self._maybe_prefer_totals(
-                match=match,
-                as_of=as_of,
-                prediction=prediction,
-                data_quality=analysis.data_quality,
-                model_confidence=analysis.model_confidence,
-                signal_1x2=signal,
-            )
+            if use_basketball and isinstance(model, BasketballModel):
+                signal = self._maybe_prefer_nba_totals(
+                    match=match,
+                    as_of=as_of,
+                    model=model,
+                    data_quality=analysis.data_quality,
+                    model_confidence=analysis.model_confidence,
+                    signal_ml=signal,
+                )
+            else:
+                signal = self._maybe_prefer_totals(
+                    match=match,
+                    as_of=as_of,
+                    prediction=prediction,
+                    data_quality=analysis.data_quality,
+                    model_confidence=analysis.model_confidence,
+                    signal_1x2=signal,
+                )
             reports.append(SignalReport(match=match, signal=signal, analysis=analysis))
 
         n_bets = sum(1 for r in reports if r.signal.is_bet)
@@ -226,6 +241,65 @@ class QuantBotOrchestrator:
         if (totals_signal.expected_value or 0.0) > (signal_1x2.expected_value or 0.0):
             return totals_signal
         return signal_1x2
+
+    def _maybe_prefer_nba_totals(
+        self,
+        *,
+        match: Match,
+        as_of: datetime,
+        model,
+        data_quality: float,
+        model_confidence: float,
+        signal_ml: ValueSignal,
+    ) -> ValueSignal:
+        """Prefer NBA totals when EV beats the moneyline tip."""
+
+        from quantbot.analysis.value import expected_value as ev_fn
+        from quantbot.markets.totals import TotalsMarketEngine
+        from quantbot.schemas import TotalsSide, ValueMetrics
+        from quantbot.schemas.enums import DEFAULT_NBA_TOTALS_LINE
+
+        totals_entry = self.provider.get_latest_totals_odds(
+            match.match_id, as_of, line=DEFAULT_NBA_TOTALS_LINE
+        )
+        if totals_entry is None:
+            return signal_ml
+        p_over, p_under = model.totals_probabilities(match, line=DEFAULT_NBA_TOTALS_LINE)
+        totals_engine = TotalsMarketEngine(method=self._totals_margin_method)
+        totals_market = totals_engine.to_market_data(totals_entry)
+        fair = totals_market.fair_probabilities()
+        metrics = (
+            ValueMetrics(
+                outcome=TotalsSide.OVER,
+                model_prob=p_over,
+                fair_market_prob=fair[TotalsSide.OVER],
+                decimal_odds=totals_entry.over,
+                edge=p_over - fair[TotalsSide.OVER],
+                expected_value=ev_fn(p_over, totals_entry.over),
+            ),
+            ValueMetrics(
+                outcome=TotalsSide.UNDER,
+                model_prob=p_under,
+                fair_market_prob=fair[TotalsSide.UNDER],
+                decimal_odds=totals_entry.under,
+                edge=p_under - fair[TotalsSide.UNDER],
+                expected_value=ev_fn(p_under, totals_entry.under),
+            ),
+        )
+        totals_signal = self.decision_engine.decide_totals(
+            match_id=match.match_id,
+            market=totals_market,
+            metrics=metrics,
+            data_quality=data_quality,
+            model_confidence=model_confidence,
+        )
+        if not totals_signal.is_bet:
+            return signal_ml
+        if not signal_ml.is_bet:
+            return totals_signal
+        if (totals_signal.expected_value or 0.0) > (signal_ml.expected_value or 0.0):
+            return totals_signal
+        return signal_ml
 
     # --- Match cards (full transparent analysis per fixture) ---
 
