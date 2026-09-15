@@ -160,8 +160,16 @@ class FootballDataProvider:
             season=_season_label(kickoff),
             kickoff=kickoff,
             prediction_timestamp=kickoff - _PREDICTION_LEAD,
-            home_team=Team(team_id=str(home["id"]), name=home.get("name", str(home["id"]))),
-            away_team=Team(team_id=str(away["id"]), name=away.get("name", str(away["id"]))),
+            home_team=Team(
+                team_id=str(home["id"]),
+                name=home.get("name", str(home["id"])),
+                short_name=home.get("shortName") or home.get("tla"),
+            ),
+            away_team=Team(
+                team_id=str(away["id"]),
+                name=away.get("name", str(away["id"])),
+                short_name=away.get("shortName") or away.get("tla"),
+            ),
             status=status,
             result=result,
         )

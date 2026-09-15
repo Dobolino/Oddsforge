@@ -50,16 +50,25 @@ def _current_season() -> str:
     return f"{start}-{start + 1}"
 
 
-def _resolve_season(provider, preferred: str, *, live: bool) -> tuple[str, str | None]:
+def _resolve_season(
+    provider, preferred: str, *, live: bool, leagues=None
+) -> tuple[str, str | None]:
     """Pick a season that actually has fixtures when live data is empty.
 
     Returns ``(season, note_key)`` where ``note_key`` is an i18n key for an
     optional caption, or ``None`` when ``preferred`` already works.
+    When ``leagues`` is a single league, only that league's seasons count —
+    so Alle-mode PL seasons cannot mask an empty Bundesliga season.
     """
 
     if not live or provider is None:
         return preferred, None
-    available = getattr(provider, "available_seasons", lambda: [])()
+    available_fn = getattr(provider, "available_seasons", lambda *a, **k: [])
+    league = leagues[0] if leagues is not None and len(leagues) == 1 else None
+    try:
+        available = available_fn(league) if league is not None else available_fn()
+    except TypeError:
+        available = available_fn()
     if not available:
         return preferred, "no_matches_live_empty"
     if preferred in available:
@@ -338,6 +347,11 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
                 st.sidebar.caption(t("mode.finished_cache", lang).format(when=when))
             else:
                 st.sidebar.caption(t("mode.finished_cache_never", lang))
+            errs = getattr(provider, "load_errors", None) or []
+            if errs:
+                st.sidebar.warning(t("mode.load_errors", lang).format(n=len(errs)))
+                for err in errs[:6]:
+                    st.sidebar.caption(err)
         except Exception:  # noqa: BLE001
             st.sidebar.warning(t("mode.live_failed", lang))
             provider = None
@@ -347,7 +361,7 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     # Beginners also need season when live data is empty for the default year.
     default_season = _current_season() if live else "2024-2025"
     preferred_season = st.sidebar.text_input(t("ctrl.season", lang), default_season)
-    season, season_note = _resolve_season(provider, preferred_season, live=live)
+    season, season_note = _resolve_season(provider, preferred_season, live=live, leagues=selected_leagues)
     if season_note == "no_matches_season_fallback":
         st.sidebar.info(
             t("no_matches_season_fallback", lang).format(
@@ -660,6 +674,21 @@ def _default_window_bounds(orchestrator, leagues, season: str, live: bool):  # t
     return start_default, end_default
 
 
+
+def _as_of_for_window(start_d: date, end_d: date, *, live: bool) -> datetime:
+    """Model stand for a kickoff window.
+
+    Live windows that include today use ``now`` so bookmaker ``last_update``
+    timestamps from later today remain visible. Historical / demo windows use
+    midnight UTC of the start day.
+    """
+
+    today = datetime.now(timezone.utc).date()
+    if live and start_d <= today <= end_d:
+        return datetime.now(timezone.utc)
+    return datetime(start_d.year, start_d.month, start_d.day, tzinfo=timezone.utc)
+
+
 def _pick_window(
     lang,
     orchestrator,
@@ -702,7 +731,7 @@ def _pick_window(
     if end_d < start_d:
         start_d, end_d = end_d, start_d
     ui.caption(t("ctrl.date_range_hint", lang))
-    as_of = datetime(start_d.year, start_d.month, start_d.day, tzinfo=timezone.utc)
+    as_of = _as_of_for_window(start_d, end_d, live=live)
     return as_of, start_d, end_d
 
 
@@ -755,6 +784,19 @@ def _signals_page(
             start=start_d.isoformat(), end=end_d.isoformat(), n=len(reports), k=n_bets
         )
     )
+    if live and not reports:
+        upcoming_n = 0
+        for league in leagues:
+            try:
+                upcoming_n += len(
+                    orchestrator.provider.get_upcoming_matches(league, season, as_of)
+                )
+            except Exception:  # noqa: BLE001
+                continue
+        if upcoming_n:
+            st.warning(t("sig.no_odds_matched", lang).format(n=upcoming_n))
+        else:
+            st.info(t("sig.no_fixtures_in_window", lang))
     if ux_mode is UXMode.BEGINNER:
         try:
             from quantbot.tracking import TipHistoryStore, tracker_path
