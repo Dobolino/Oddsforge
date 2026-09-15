@@ -92,3 +92,59 @@ class TotalsOdds(QuantBotModel):
             TotalsSide.OVER: self.over,
             TotalsSide.UNDER: self.under,
         }
+
+
+class MoneylineOdds(QuantBotModel):
+    """Two-way moneyline quote (home/away, no draw) — basketball etc."""
+
+    match_id: str = Field(min_length=1)
+    bookmaker: str = Field(min_length=1)
+    timestamp: datetime
+    home: float = Field(gt=1.0)
+    away: float = Field(gt=1.0)
+    is_closing: bool = False
+
+    @model_validator(mode="after")
+    def _validate_timestamp(self) -> MoneylineOdds:
+        if self.timestamp.tzinfo is None:
+            raise ValueError("timestamp must be timezone-aware")
+        return self
+
+    @property
+    def overround(self) -> float:
+        return (1.0 / self.home) + (1.0 / self.away) - 1.0
+
+    def to_three_way(self, *, draw_odds: float = 999.0) -> Odds:
+        """Embed moneyline into the shared 1X2 :class:`Odds` DTO.
+
+        Uses a near-impossible draw quote so existing Market/Decision engines
+        keep working without a parallel pipeline.
+        """
+
+        return Odds(
+            match_id=self.match_id,
+            bookmaker=self.bookmaker,
+            timestamp=self.timestamp,
+            home=self.home,
+            draw=draw_odds,
+            away=self.away,
+            is_closing=self.is_closing,
+        )
+
+
+class SpreadOdds(QuantBotModel):
+    """Point-spread quote from the home team's perspective."""
+
+    match_id: str = Field(min_length=1)
+    bookmaker: str = Field(min_length=1)
+    timestamp: datetime
+    line: float = Field(description="Home handicap, e.g. -3.5")
+    home: float = Field(gt=1.0)
+    away: float = Field(gt=1.0)
+    is_closing: bool = False
+
+    @model_validator(mode="after")
+    def _validate(self) -> SpreadOdds:
+        if self.timestamp.tzinfo is None:
+            raise ValueError("timestamp must be timezone-aware")
+        return self

@@ -25,14 +25,19 @@ from quantbot.dashboard.components import (
 )
 from quantbot.dashboard.leagues import (
     ALL_LEAGUES,
+    ALL_SPORTS,
     format_league_choice,
+    format_sport_choice,
     league_choices,
     league_title,
     resolve_leagues,
+    resolve_sport,
+    sport_choices,
 )
 from quantbot.dashboard.slip import (
     build_boosted_slip,
     build_safe_slip,
+    build_smart_cross_sport_slip,
     default_leg_count,
     format_ticket,
     slip_with_legs,
@@ -187,6 +192,25 @@ def _clear_local_cache() -> list[str]:
     return removed
 
 
+
+def _api_status_badges(lang: str, *, fd_key: str, odds_key: str, bball_key: str, live: bool) -> None:
+    """Compact header badges with masked key tails and active/missing dots."""
+
+    def _badge(label: str, key: str, active: bool) -> str:
+        dot = "🟢" if active else "🔴"
+        status = t("status.active", lang) if active else t("status.missing", lang)
+        tail = _mask_key(key) if key else "••••"
+        return f"{dot} {label}: {tail} [{status}]"
+
+    bits = [
+        _badge("Football-Data", fd_key, bool(fd_key)),
+        _badge("The Odds API", odds_key, bool(odds_key)),
+        _badge("BallDontLie / NBA", bball_key, bool(bball_key)),
+    ]
+    mode = t("mode.live", lang) if live else t("mode.demo", lang)
+    st.caption(" · ".join(bits) + f"  |  {mode}")
+
+
 def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     from pathlib import Path
 
@@ -267,14 +291,24 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
         format_func=lambda k: pages[k],
         key="nav_page",
     )
+    sport_choice = st.sidebar.selectbox(
+        t("ctrl.sport", lang),
+        sport_choices(),
+        index=0,
+        format_func=lambda c: format_sport_choice(c, lang),
+        help=t("ctrl.sport_hint", lang),
+        key="sport_filter",
+    )
+    selected_sport = resolve_sport(sport_choice)
+
     league_choice = st.sidebar.selectbox(
         t("ctrl.league", lang),
-        league_choices(),
+        league_choices(selected_sport),
         index=0,
         format_func=lambda c: format_league_choice(c, lang),
         help=t("ctrl.league_all_hint", lang),
     )
-    selected_leagues = resolve_leagues(league_choice)
+    selected_leagues = resolve_leagues(league_choice, selected_sport)
     multi_league = league_choice == ALL_LEAGUES
 
     # API keys: load from local file when present; never show plaintext.
@@ -286,12 +320,19 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
 
     fd_key = ""
     odds_key = ""
+    bball_key = ""
     with st.sidebar.expander(t("keys.title", lang), expanded=False):
         if stored is not None and not st.session_state["keys_edit_mode"]:
-            fd_key, odds_key = stored
+            fd_key, odds_key = stored.football, stored.odds
+            bball_key = stored.basketball
             st.success(t("keys.active", lang))
             st.caption(f"Football-Data: {_mask_key(fd_key)}")
             st.caption(f"The Odds API: {_mask_key(odds_key)}")
+            st.caption(
+                f"BallDontLie / NBA: {_mask_key(bball_key)}"
+                if bball_key
+                else t("keys.basketball_missing", lang)
+            )
             st.caption(t("keys.autoload", lang))
             c1, c2 = st.columns(2)
             if c1.button(t("keys.change", lang), key="keys_change_btn"):
@@ -304,9 +345,10 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
         else:
             fd_key = st.text_input(t("keys.football", lang), type="password", key="fd_key_input")
             odds_key = st.text_input(t("keys.odds", lang), type="password", key="odds_key_input")
+            bball_key = st.text_input(t("keys.basketball", lang), type="password", key="bball_key_input")
             st.caption(t("keys.hint", lang))
             if fd_key and odds_key:
-                save_api_keys(fd_key, odds_key)
+                save_api_keys(fd_key, odds_key, bball_key)
                 st.session_state["keys_edit_mode"] = False
                 st.success(t("keys.saved", lang))
                 st.rerun()
@@ -333,12 +375,27 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
         try:
             from quantbot.data.providers import build_live_provider
 
-            provider = build_live_provider(
-                fd_key,
-                odds_key,
-                selected_leagues,
-                cache_dir=Path.home() / ".quantbot" / "cache",
-            )
+            from quantbot.data.basketball import BasketballDataProvider
+            from quantbot.data.composite import CompositeDataProvider
+            from quantbot.schemas.enums import Sport, sport_for_league
+
+            football_leagues = [lg for lg in selected_leagues if sport_for_league(lg) is Sport.FOOTBALL]
+            basketball_leagues = [lg for lg in selected_leagues if sport_for_league(lg) is Sport.BASKETBALL]
+            live_provider = None
+            if football_leagues:
+                live_provider = build_live_provider(
+                    fd_key,
+                    odds_key,
+                    football_leagues,
+                    cache_dir=Path.home() / ".quantbot" / "cache",
+                )
+            basketball_provider = BasketballDataProvider()
+            if live_provider is not None and basketball_leagues:
+                provider = CompositeDataProvider(live_provider, basketball_provider)
+            elif live_provider is not None:
+                provider = live_provider
+            else:
+                provider = basketball_provider
             live = True
             st.sidebar.success(t("mode.live", lang))
             last = getattr(provider, "finished_last_updated", None)
@@ -376,6 +433,8 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     mode = "live" if live else "demo"
     C = _install_cache()
 
+    _api_status_badges(lang, fd_key=fd_key, odds_key=odds_key, bball_key=bball_key, live=live)
+
     # Thin safety line once onboarding is done; full banner only on first visit.
     if st.session_state.get("welcome_dismissed"):
         st.caption(t("safety.short", lang))
@@ -398,6 +457,10 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     # Always show the matchday / date-range control on Tips, Tip slip, and
     # Match card — including when no fixtures loaded yet. After the math-review
     # merge the picker was hidden behind the empty-season early return, so users
+
+    if page == "settings":
+        _settings_page(lang, fd_key=fd_key, odds_key=odds_key, bball_key=bball_key, live=live)
+        return
     # lost date + range selection whenever Football-Data returned no games.
     # Match card previously had no date UI and defaulted to mid-season as_of,
     # which hid current live fixtures.
@@ -863,6 +926,32 @@ def _signals_page(
             render_colored_signals_table(lg_reports, mode=ux_mode, lang=lang)
 
 
+
+def _settings_page(lang, *, fd_key: str, odds_key: str, bball_key: str, live: bool) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
+    """Dedicated API settings / connection status page."""
+
+    st.header(t("page.settings", lang))
+    st.caption(t("settings.intro", lang))
+    _api_status_badges(lang, fd_key=fd_key, odds_key=odds_key, bball_key=bball_key, live=live)
+
+    st.subheader(t("settings.validate", lang))
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown(f"**Football-Data.org**")
+        st.write(_mask_key(fd_key) if fd_key else t("status.missing", lang))
+        st.success(t("status.active", lang)) if fd_key else st.error(t("status.missing", lang))
+    with c2:
+        st.markdown(f"**The Odds API**")
+        st.write(_mask_key(odds_key) if odds_key else t("status.missing", lang))
+        st.success(t("status.active", lang)) if odds_key else st.error(t("status.missing", lang))
+    with c3:
+        st.markdown(f"**BallDontLie / NBA**")
+        st.write(_mask_key(bball_key) if bball_key else t("status.missing", lang))
+        st.success(t("status.active", lang)) if bball_key else st.warning(t("keys.basketball_optional", lang))
+
+    st.info(t("settings.keys_sidebar_hint", lang))
+
+
 def _slip_page(
     lang, ux_mode, C, orchestrator, mode, leagues, season, live, window=None
 ) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
@@ -897,6 +986,31 @@ def _slip_page(
         end_d,
     )
     available = sum(1 for r in reports if r.signal.is_bet)
+
+    if not beginner:
+        st.caption(t("slip.cross_sport_note", lang))
+        if st.button(t("slip.smart_cross_sport", lang), key="slip_smart_cross"):
+            smart = build_smart_cross_sport_slip(
+                reports,
+                lang=lang,
+                max_legs=min(4, max(1, available or 1)),
+                min_edge=0.02,
+                min_data_quality=70.0,
+                prefer_mixed=True,
+            )
+            if smart is None or not smart.legs:
+                st.warning(t("slip.smart_empty", lang))
+            else:
+                st.session_state["slip_pref_style"] = "safe"
+                # Pre-select smart legs via session checkboxes on next run
+                for leg in smart.legs:
+                    st.session_state[f"slip_leg::{leg.match_id}"] = True
+                st.success(
+                    t("slip.smart_done", lang).format(n=len(smart.legs))
+                )
+                st.session_state["slip_smart_override"] = [leg.match_id for leg in smart.legs]
+                st.rerun()
+
     span_days = (end_d - start_d).days + 1
     default_legs = default_leg_count(
         beginner=beginner, span_days=span_days, available=max(available, 1)
@@ -957,6 +1071,8 @@ def _slip_page(
             )
         return style_local, float(stake_local), slip_local
 
+    smart_ids = st.session_state.pop("slip_smart_override", None)
+
     if beginner:
         # Ticket first; knobs live in an expander so the slip stays the hero.
         with st.expander(t("slip.adjust", lang), expanded=False):
@@ -971,7 +1087,16 @@ def _slip_page(
                         selected_ids.append(leg.match_id)
                 slip = slip_with_legs(slip, selected_ids)
     else:
-        _style, stake, slip = _controls()
+        if smart_ids:
+            slip = build_smart_cross_sport_slip(
+                reports, lang=lang, max_legs=len(smart_ids), min_edge=0.02, min_data_quality=70.0
+            )
+            stake = float(st.session_state.get("slip_stake_input", 10.0))
+            _style = "safe"
+            if slip is not None:
+                slip = slip_with_legs(slip, smart_ids)
+        else:
+            _style, stake, slip = _controls()
         if slip is not None and slip.legs:
             st.subheader(t("slip.edit_legs", lang))
             selected_ids = []

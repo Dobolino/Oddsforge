@@ -24,7 +24,7 @@ from pathlib import Path
 from quantbot.data.base import BaseDataProvider
 from quantbot.data.finished_cache import CachingMatchProvider, FinishedMatchCache
 from quantbot.data.providers.football_data import FootballDataProvider
-from quantbot.data.providers.leagues import football_data_code, odds_api_key
+from quantbot.data.providers.leagues import football_data_code, has_football_data, odds_api_key
 from quantbot.data.providers.the_odds_api import TheOddsAPIProvider
 from quantbot.logging import get_logger
 from quantbot.schemas import League, Match, Odds, TotalsOdds
@@ -202,6 +202,8 @@ class LiveDataProvider(BaseDataProvider):
         matches: list[Match] = []
         season_year = self._season_start_year()
         for league in self._leagues:
+            if not has_football_data(league):
+                continue
             try:
                 league_matches = self._football.fetch_matches(
                     football_data_code(league), season=season_year

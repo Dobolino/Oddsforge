@@ -5,8 +5,19 @@ from __future__ import annotations
 from enum import Enum
 
 
+class Sport(str, Enum):
+    """Top-level sport family. Football remains the default everywhere."""
+
+    FOOTBALL = "football"
+    BASKETBALL = "basketball"
+
+
 class MatchOutcome(str, Enum):
-    """1X2 outcome of a football match from the home team's perspective."""
+    """Match outcome from the home team's perspective.
+
+    Football uses the full 1X2 set. Basketball moneyline uses HOME/AWAY only
+    (DRAW probability is carried near zero when a 3-way schema is reused).
+    """
 
     HOME = "home"
     DRAW = "draw"
@@ -14,7 +25,7 @@ class MatchOutcome(str, Enum):
 
 
 class TotalsSide(str, Enum):
-    """Over/Under side of a totals (goals) market."""
+    """Over/Under side of a totals market (goals or points)."""
 
     OVER = "over"
     UNDER = "under"
@@ -29,6 +40,7 @@ class League(str, Enum):
     SERIE_A = "serie_a"
     LIGUE_1 = "ligue_1"
     CHAMPIONS_LEAGUE = "champions_league"
+    NBA = "nba"
 
 
 class MatchStatus(str, Enum):
@@ -80,10 +92,39 @@ OUTCOME_ORDER: tuple[MatchOutcome, ...] = (
     MatchOutcome.AWAY,
 )
 
+MONEYLINE_ORDER: tuple[MatchOutcome, ...] = (
+    MatchOutcome.HOME,
+    MatchOutcome.AWAY,
+)
+
 TOTALS_ORDER: tuple[TotalsSide, ...] = (
     TotalsSide.OVER,
     TotalsSide.UNDER,
 )
 
-# Default totals line (goals); configurable where scores are derived.
+# Default totals lines by sport.
 DEFAULT_TOTALS_LINE = 2.5
+DEFAULT_NBA_TOTALS_LINE = 225.5
+
+# League → sport mapping (football leagues default when omitted).
+LEAGUE_SPORT: dict[League, Sport] = {
+    League.PREMIER_LEAGUE: Sport.FOOTBALL,
+    League.BUNDESLIGA: Sport.FOOTBALL,
+    League.LA_LIGA: Sport.FOOTBALL,
+    League.SERIE_A: Sport.FOOTBALL,
+    League.LIGUE_1: Sport.FOOTBALL,
+    League.CHAMPIONS_LEAGUE: Sport.FOOTBALL,
+    League.NBA: Sport.BASKETBALL,
+}
+
+
+def sport_for_league(league: League) -> Sport:
+    return LEAGUE_SPORT.get(league, Sport.FOOTBALL)
+
+
+def leagues_for_sport(sport: Sport | None) -> tuple[League, ...]:
+    """Leagues in a sport; ``None`` means every league."""
+
+    if sport is None:
+        return tuple(League)
+    return tuple(lg for lg in League if sport_for_league(lg) is sport)
