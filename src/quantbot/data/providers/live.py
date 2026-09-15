@@ -34,10 +34,13 @@ logger = get_logger(__name__)
 # Common club-name tokens dropped during normalization.
 _DROP_TOKENS = {
     "fc", "cf", "afc", "sc", "ac", "as", "ssc", "rc", "cd", "ud", "fk", "bk",
-    "calcio", "club", "de", "the", "1", "1899", "1846", "1900", "1904", "1909",
+    "fsv", "tsv", "sv", "vfb", "tsg", "spvgg",
+    "calcio", "club", "de", "the", "1", "04", "05",
+    "1899", "1846", "1900", "1904", "1909", "1905", "1907",
 }
 
 # Known cross-API aliases (normalized Football-Data name -> normalized Odds name).
+# Bundesliga is especially noisy: FD uses German names, The Odds API often English.
 _ALIASES: dict[str, str] = {
     "brighton hove albion": "brighton and hove albion",
     "wolverhampton wanderers": "wolves",
@@ -45,6 +48,13 @@ _ALIASES: dict[str, str] = {
     "internazionale": "inter milan",
     "borussia monchengladbach": "monchengladbach",
     "paris saint germain": "paris saint germain",
+    # Bundesliga / German clubs
+    "koln": "cologne",
+    "koeln": "cologne",
+    "bayern munchen": "bayern munich",
+    "bayern muenchen": "bayern munich",
+    "rasenballsport leipzig": "rb leipzig",
+    "m gladbach": "monchengladbach",
 }
 
 # Fuzzy pair score below this is rejected; at/above is accepted but uncertain.

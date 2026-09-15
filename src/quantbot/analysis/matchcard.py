@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
+from datetime import datetime
 
 from quantbot.analysis.confidence import ConfidenceEvaluator, DataQualitySignals, ensemble_agreement
 from quantbot.schemas import MarketData, Match, MatchOutcome, Prediction, ValueSignal
@@ -37,6 +38,7 @@ class MatchCard:
     match_id: str
     home: str
     away: str
+    kickoff: datetime
     probs: dict[str, float]
     uncertainty: dict[str, dict[str, float]]
     models: list[dict[str, object]]
@@ -56,7 +58,11 @@ class MatchCard:
     reasons: list[dict[str, str]] = field(default_factory=list)
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        payload = asdict(self)
+        kickoff = payload.get("kickoff")
+        if isinstance(kickoff, datetime):
+            payload["kickoff"] = kickoff.isoformat()
+        return payload
 
 
 def _reasons(
@@ -176,6 +182,7 @@ def build_match_card(
         match_id=match.match_id,
         home=match.home_team.name,
         away=match.away_team.name,
+        kickoff=match.kickoff,
         probs={o.value: round(probs[o], 4) for o in _ORDER},
         uncertainty=uncertainty,
         models=models,
