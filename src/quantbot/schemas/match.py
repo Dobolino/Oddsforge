@@ -21,6 +21,7 @@ class Team(QuantBotModel):
 
     team_id: str = Field(min_length=1)
     name: str = Field(min_length=1)
+    short_name: str | None = Field(default=None, min_length=1)
 
 
 class MatchResult(QuantBotModel):

@@ -216,6 +216,18 @@ _STRINGS: dict[str, dict[str, str]] = {
         "de": "Welche Features bringen wirklich etwas, und welche Modellversion war besser? Bitte vorsichtig lesen.",
         "en": "Which features actually help, and which model version was better? Read with care.",
     },
+    "sig.no_odds_matched": {
+        "de": "{n} kommende Spiele im Fenster, aber keine passenden Quoten "
+              "(Namens-Mismatch oder Odds-API). Sidebar-Warnungen und API-Key prüfen; "
+              "Cache leeren und neu laden.",
+        "en": "{n} upcoming matches in the window, but no matching odds "
+              "(name mismatch or Odds API). Check sidebar warnings and API key; "
+              "clear cache and reload.",
+    },
+    "sig.no_fixtures_in_window": {
+        "de": "Keine kommenden Spiele in diesem Zeitraum für die gewählte Liga/Saison.",
+        "en": "No upcoming matches in this window for the selected league/season.",
+    },
     "diag.ablation": {"de": "Ablation: Feature weglassen", "en": "Ablation: leave a feature out"},
     "diag.ablation_hint": {
         "de": "Höherer Brier nach dem Weglassen (positives Delta) heisst, das Feature war nützlich.",
@@ -371,6 +383,10 @@ _STRINGS: dict[str, dict[str, str]] = {
     "mode.demo": {"de": "Modus: Demodaten", "en": "Mode: demo data"},
     "mode.live": {"de": "Modus: echte Daten", "en": "Mode: real data"},
     "mode.live_failed": {"de": "Echte Daten nicht erreichbar, nutze Demodaten.", "en": "Real data unavailable, using demo data."},
+    "mode.load_errors": {
+        "de": "{n} Liga(en) konnten nicht vollständig geladen werden (siehe Details).",
+        "en": "{n} league(s) could not be fully loaded (see details).",
+    },
     "mode.finished_cache": {
         "de": "Ergebnisse lokal gespeichert (zuletzt {when}). Abgeschlossene Spiele werden nicht erneut geladen.",
         "en": "Results stored locally (last {when}). Finished matches are not re-fetched.",

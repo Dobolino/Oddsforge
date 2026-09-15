@@ -144,6 +144,8 @@ def test_normalize_bundesliga_cross_api_names() -> None:
     assert normalize_team("RasenBallsport Leipzig") == normalize_team("RB Leipzig")
     assert normalize_team("TSG 1899 Hoffenheim") == normalize_team("Hoffenheim")
     assert normalize_team("Borussia Mönchengladbach") == normalize_team("M'gladbach")
+    assert normalize_team("VfL Wolfsburg") == normalize_team("Wolfsburg")
+    assert normalize_team("Hamburger SV") == normalize_team("Hamburg")
 
 
 # --- Live provider ---

@@ -34,7 +34,7 @@ logger = get_logger(__name__)
 # Common club-name tokens dropped during normalization.
 _DROP_TOKENS = {
     "fc", "cf", "afc", "sc", "ac", "as", "ssc", "rc", "cd", "ud", "fk", "bk",
-    "fsv", "tsv", "sv", "vfb", "tsg", "spvgg",
+    "fsv", "tsv", "sv", "vfb", "vfl", "tsg", "spvgg",
     "calcio", "club", "de", "the", "1", "04", "05",
     "1899", "1846", "1900", "1904", "1909", "1905", "1907",
 }
@@ -55,6 +55,15 @@ _ALIASES: dict[str, str] = {
     "bayern muenchen": "bayern munich",
     "rasenballsport leipzig": "rb leipzig",
     "m gladbach": "monchengladbach",
+    "hamburger": "hamburg",
+    "hamburger sv": "hamburg",
+    "wolfsburg": "wolfsburg",
+    "freiburg": "freiburg",
+    "union berlin": "union berlin",
+    "stuttgart": "stuttgart",
+    "augsburg": "augsburg",
+    "bochum": "bochum",
+    "darmstadt": "darmstadt",
 }
 
 # Fuzzy pair score below this is rejected; at/above is accepted but uncertain.
@@ -140,6 +149,7 @@ class LiveDataProvider(BaseDataProvider):
         self._odds_cache: dict[League, dict[str, list[Odds]]] = {}
         self._totals_cache: dict[League, dict[str, list[TotalsOdds]]] = {}
         self._match_reports: dict[League, NameMatchReport] = {}
+        self._load_errors: list[str] = []
 
     @property
     def provider_name(self) -> str:
@@ -170,10 +180,19 @@ class LiveDataProvider(BaseDataProvider):
         now = datetime.now(timezone.utc)
         return now.year if now.month >= 7 else now.year - 1
 
-    def available_seasons(self) -> list[str]:
+    @property
+    def load_errors(self) -> list[str]:
+        """Soft-skipped fixture/odds load failures (league still continues)."""
+
+        return list(self._load_errors)
+
+    def available_seasons(self, league: League | None = None) -> list[str]:
         """Season labels present in the loaded fixture set, newest first."""
 
-        seasons = {m.season for m in self._fetch_matches()}
+        matches = self._fetch_matches()
+        if league is not None:
+            matches = [m for m in matches if m.league is league]
+        seasons = {m.season for m in matches}
         return sorted(seasons, reverse=True)
 
     def _fetch_matches(self) -> Sequence[Match]:
@@ -192,10 +211,14 @@ class LiveDataProvider(BaseDataProvider):
                 try:
                     league_matches = self._football.fetch_matches(football_data_code(league))
                 except Exception as exc:  # noqa: BLE001
+                    msg = f"{league.value}: fixtures — {exc}"
                     logger.warning("Could not load %s fixtures: %s", league.value, exc)
+                    self._load_errors.append(msg)
                     continue
             except Exception as exc:  # noqa: BLE001 - one league must not break the rest
+                msg = f"{league.value}: fixtures — {exc}"
                 logger.warning("Could not load %s fixtures: %s", league.value, exc)
+                self._load_errors.append(msg)
                 continue
             for m in league_matches:
                 self._match_league[m.match_id] = league
@@ -214,8 +237,16 @@ class LiveDataProvider(BaseDataProvider):
         index: dict[tuple[str, str], tuple[str, str, str]] = {}
         for m in self._matches_cache or []:
             if m.league is league:
-                key = (normalize_team(m.home_team.name), normalize_team(m.away_team.name))
-                index[key] = (m.match_id, m.home_team.name, m.away_team.name)
+                payload = (m.match_id, m.home_team.name, m.away_team.name)
+                home_keys = {normalize_team(m.home_team.name)}
+                away_keys = {normalize_team(m.away_team.name)}
+                if m.home_team.short_name:
+                    home_keys.add(normalize_team(m.home_team.short_name))
+                if m.away_team.short_name:
+                    away_keys.add(normalize_team(m.away_team.short_name))
+                for hk in home_keys:
+                    for ak in away_keys:
+                        index.setdefault((hk, ak), payload)
 
         mapped: dict[str, list[Odds]] = {}
         totals_mapped: dict[str, list[TotalsOdds]] = {}
@@ -223,7 +254,9 @@ class LiveDataProvider(BaseDataProvider):
         try:
             events = self._odds.fetch_events(odds_api_key(league), regions=self._regions)
         except Exception as exc:  # noqa: BLE001
+            msg = f"{league.value}: odds — {exc}"
             logger.warning("Could not load %s odds: %s", league.value, exc)
+            self._load_errors.append(msg)
             events = []
 
         used_fixture_ids: set[str] = set()

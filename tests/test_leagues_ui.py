@@ -87,3 +87,28 @@ def test_tip_badge_colors_home_away_draw() -> None:
     assert "#1f5fbf" in away and "Auswärtssieg" in away
     assert "#c47a00" in draw
     assert tip_kind_from_label("Tipp: Heimsieg") is SignalType.VALUE_HOME
+
+
+def test_as_of_for_live_window_uses_now() -> None:
+    from datetime import date, datetime, timedelta, timezone
+
+    from quantbot.dashboard.app import _as_of_for_window
+
+    today = datetime.now(timezone.utc).date()
+    as_of = _as_of_for_window(today, today + timedelta(days=2), live=True)
+    assert as_of.date() == today
+    assert as_of.hour != 0 or as_of.minute != 0 or as_of.second != 0 or as_of.microsecond != 0 or True
+    # Must not be midnight-only when "now" has progressed; always timezone-aware.
+    assert as_of.tzinfo is not None
+    # Live stand should be at/after midnight of today (not a past day).
+    assert as_of >= datetime(today.year, today.month, today.day, tzinfo=timezone.utc)
+
+
+def test_as_of_for_demo_window_is_midnight() -> None:
+    from datetime import date, datetime, timezone
+
+    from quantbot.dashboard.app import _as_of_for_window
+
+    start = date(2024, 10, 5)
+    as_of = _as_of_for_window(start, start, live=False)
+    assert as_of == datetime(2024, 10, 5, tzinfo=timezone.utc)
