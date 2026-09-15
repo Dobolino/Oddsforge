@@ -1,6 +1,7 @@
 #!/bin/bash
 # QuantBot aktualisieren (macOS) — Doppelklick in Finder.
 # Holt immer den Branch main von GitHub (Git oder ZIP), raeumt Caches, installiert neu.
+# ZIP ueberschreibt .git nicht — danach wird der Git-Zeiger auf origin/main gesetzt.
 
 set -u
 cd "$(dirname "$0")"
@@ -12,7 +13,17 @@ echo "=================================================="
 echo
 
 UPDATED=0
+VIA=""
 REPO_ZIP="https://github.com/Dobolino/Oddsforge/archive/refs/heads/main.zip"
+
+realign_git_to_main() {
+  command -v git >/dev/null 2>&1 || return 1
+  [ -d ".git" ] || return 1
+  git fetch origin main >/dev/null 2>&1 || return 1
+  git checkout -B main origin/main >/dev/null 2>&1 || return 1
+  git reset --hard origin/main >/dev/null 2>&1 || return 1
+  return 0
+}
 
 update_via_git() {
   if ! command -v git >/dev/null 2>&1; then
@@ -38,6 +49,7 @@ update_via_git() {
   # .venv und .env behalten
   git clean -fd -e .venv -e .env -e "*.command.local" -e "*.bat.local" || true
   UPDATED=1
+  VIA=git
   return 0
 }
 
@@ -77,10 +89,24 @@ PY
     return 1
   fi
   echo "Quelle: $SRC"
-  # Inhalt uebernehmen, lokale Secrets/Umgebung behalten
+  # Inhalt uebernehmen, lokale Secrets/Umgebung behalten (.git bleibt erhalten!)
   ditto "$SRC" .
   rm -rf update_tmp update.zip
   UPDATED=1
+  VIA=zip
+
+  echo "[1b] Git-Zeiger nach ZIP auf main setzen..."
+  if realign_git_to_main; then
+    echo "Git zeigt jetzt auf origin/main."
+  else
+    echo "Hinweis: Dateien von main kopiert, Git-Branch konnte nicht umgestellt werden."
+  fi
+  return 0
+}
+
+verify_main_files() {
+  [ -f "src/quantbot/data/basketball.py" ] || return 1
+  grep -q '"settings": t("page.settings"' src/quantbot/dashboard/app.py 2>/dev/null || return 1
   return 0
 }
 
@@ -116,19 +142,47 @@ fi
 # Ausfuehrbarkeit der Mac-Starter wiederherstellen (ZIP kann +x verlieren)
 chmod +x "Start QuantBot.command" "Update QuantBot.command" 2>/dev/null || true
 
-echo
-if [ "$UPDATED" = "1" ]; then
-  echo "=================================================="
-  echo "  Update fertig."
-  echo "=================================================="
-else
-  echo "Update unklar. Bitte Ausgabe oben pruefen."
+BRANCH=""
+HEAD=""
+if [ -d ".git" ] && command -v git >/dev/null 2>&1; then
+  HEAD="$(git rev-parse --short HEAD 2>/dev/null || true)"
+  BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
 fi
 
-if [ -d ".git" ] && command -v git >/dev/null 2>&1; then
-  echo "  Git-Stand: $(git rev-parse --short HEAD 2>/dev/null || echo '?')"
-  echo "  Branch:    $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')"
+echo
+if [ "$UPDATED" = "1" ] && verify_main_files; then
+  echo "=================================================="
+  echo "  Update fertig. (via ${VIA})"
+  echo "=================================================="
+else
+  echo "=================================================="
+  echo "  Update FEHLGESCHLAGEN oder unvollstaendig."
+  echo "=================================================="
+  UPDATED=0
 fi
+
+if [ -n "$HEAD" ]; then
+  echo "  Git-Stand: $HEAD"
+  echo "  Branch:    $BRANCH"
+fi
+
+if [ -n "$BRANCH" ] && [ "$BRANCH" != "main" ]; then
+  echo
+  echo "  WARNUNG: Branch ist nicht \"main\" (aktuell: $BRANCH)."
+  echo "  Du laeufst vermutlich noch einen alten Claude-/Feature-Branch."
+  echo "  Bitte in diesem Ordner ausfuehren:"
+  echo "    git fetch origin main"
+  echo "    git checkout -B main origin/main"
+  echo "    git reset --hard origin/main"
+  echo "  Danach Update erneut starten."
+fi
+
+if ! verify_main_files; then
+  echo
+  echo "  WARNUNG: Erwartete main-Dateien fehlen (z.B. basketball.py / settings)."
+  echo "  Update hat den Codestand nicht korrekt ueberschrieben."
+fi
+
 if [ -x ".venv/bin/python" ]; then
   VER="$(.venv/bin/python -c 'import quantbot; print(quantbot.__version__)' 2>/dev/null || true)"
   if [ -n "$VER" ]; then
@@ -139,6 +193,6 @@ fi
 echo
 echo "Bitte QuantBot komplett schliessen und neu starten"
 echo "(Terminal-Fenster zu, dann \"Start QuantBot.command\")."
-echo "Im Dashboard links sollte die neue Version stehen."
+echo "Im Dashboard: Sport-Filter Basketball/NBA und Seite Einstellungen."
 echo
 read -r -p "Taste druecken zum Schliessen … " _

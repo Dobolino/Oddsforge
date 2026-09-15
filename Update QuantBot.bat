@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 title QuantBot Update
 cd /d "%~dp0"
 
@@ -10,6 +10,7 @@ echo ==================================================
 echo.
 
 set "UPDATED=0"
+set "VIA="
 
 where git >nul 2>nul
 if errorlevel 1 goto ZIP
@@ -23,6 +24,8 @@ if errorlevel 1 (
   echo Git-Fetch fehlgeschlagen. Versuche ZIP-Download...
   goto ZIP
 )
+
+rem Drop local branch state; always track origin/main.
 git checkout -B main origin/main
 if errorlevel 1 (
   echo Konnte nicht auf main wechseln. Versuche ZIP-Download...
@@ -35,7 +38,8 @@ if errorlevel 1 (
 )
 git clean -fd -e .venv -e .env -e "*.bat.local"
 set "UPDATED=1"
-goto DEPS
+set "VIA=git"
+goto VERIFY
 
 :ZIP
 echo [1/3] ZIP: lade main von GitHub...
@@ -58,9 +62,18 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
 
 if errorlevel 1 goto DLFAIL
 set "UPDATED=1"
-goto DEPS
+set "VIA=zip"
 
-:DEPS
+rem ZIP does not replace .git — realign the repo pointer to origin/main when possible.
+where git >nul 2>nul
+if errorlevel 1 goto VERIFY
+if not exist ".git" goto VERIFY
+echo [1b] Git-Zeiger nach ZIP auf main setzen...
+git fetch origin main >nul 2>nul
+git checkout -B main origin/main >nul 2>nul
+git reset --hard origin/main >nul 2>nul
+
+:VERIFY
 echo.
 echo [2/3] Raeume alte Python-Caches...
 if exist "src\quantbot" for /d /r "src\quantbot" %%D in (__pycache__) do @if exist "%%D" rmdir /s /q "%%D" >nul 2>nul
@@ -78,26 +91,60 @@ if errorlevel 1 (
 
 :SHOW
 echo.
-if "%UPDATED%"=="1" (
+set "BRANCH="
+set "HEAD="
+if exist ".git" (
+  for /f "delims=" %%H in ('git rev-parse --short HEAD 2^>nul') do set "HEAD=%%H"
+  for /f "delims=" %%B in ('git rev-parse --abbrev-ref HEAD 2^>nul') do set "BRANCH=%%B"
+)
+
+rem Fingerprint: multi-sport merge must be present on a successful main update.
+set "OK_FILES=1"
+if not exist "src\quantbot\data\basketball.py" set "OK_FILES=0"
+findstr /C:"\"settings\": t(\"page.settings\"" "src\quantbot\dashboard\app.py" >nul 2>nul
+if errorlevel 1 set "OK_FILES=0"
+
+if "%UPDATED%"=="1" if "%OK_FILES%"=="1" (
   echo ==================================================
-  echo   Update fertig.
+  echo   Update fertig. ^(via %VIA%^)
   echo ==================================================
 ) else (
-  echo Update unklar. Bitte Ausgabe oben pruefen.
+  echo ==================================================
+  echo   Update FEHLGESCHLAGEN oder unvollstaendig.
+  echo ==================================================
+  set "UPDATED=0"
 )
-if exist ".git" (
-  for /f "delims=" %%H in ('git rev-parse --short HEAD 2^>nul') do echo   Git-Stand: %%H
-  for /f "delims=" %%B in ('git rev-parse --abbrev-ref HEAD 2^>nul') do echo   Branch:    %%B
+
+if defined HEAD (
+  echo   Git-Stand: %HEAD%
+  echo   Branch:    %BRANCH%
 )
+
+if /I not "%BRANCH%"=="main" if defined BRANCH (
+  echo.
+  echo   WARNUNG: Branch ist nicht "main" ^(aktuell: %BRANCH%^).
+  echo   Du laeufst vermutlich noch einen alten Claude-/Feature-Branch.
+  echo   Bitte in diesem Ordner ausfuehren:
+  echo     git fetch origin main
+  echo     git checkout -B main origin/main
+  echo     git reset --hard origin/main
+  echo   Danach Update erneut starten.
+)
+
+if "%OK_FILES%"=="0" (
+  echo.
+  echo   WARNUNG: Erwartete main-Dateien fehlen ^(z.B. basketball.py / settings^).
+  echo   Update hat den Codestand nicht korrekt ueberschrieben.
+  echo   OneDrive/Datei-Sperren? QuantBot schliessen, dann Update erneut.
+)
+
 if exist ".venv\Scripts\python.exe" (
   for /f "delims=" %%V in ('".venv\Scripts\python.exe" -c "import quantbot; print(quantbot.__version__)" 2^>nul') do echo   Version:   %%V
 )
 echo.
 echo Bitte QuantBot komplett schliessen und neu starten
 echo ^(schwarzes Fenster zu, dann "Start QuantBot.bat"^).
-echo Im Dashboard links sollte die neue Version stehen.
-echo Neu: farbige Tipps (Heimsieg/Auswaertssieg), Tippschein-Navigation Fix.
-echo Wenn die Version links NICHT passt: QuantBot komplett schliessen und neu starten.
+echo Im Dashboard: Sport-Filter Basketball/NBA und Seite Einstellungen.
 goto END
 
 :DLFAIL
