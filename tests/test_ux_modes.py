@@ -85,3 +85,28 @@ def test_plain_reason_uses_signal_fields() -> None:
     assert "data quality" in reason_for_mode(signal, UXMode.EXPERT, "de")
     assert "Daten" in reason_for_mode(signal, UXMode.BEGINNER, "de")
     assert plain_reason("", "de")
+
+
+def test_all_visible_pages_have_labels() -> None:
+    """Every page id from UX modes must exist in the dashboard label map."""
+
+    from quantbot.i18n import t
+
+    # Mirrors app.py all_pages keys — keep in sync when adding pages.
+    label_keys = {
+        "signals",
+        "slip",
+        "card",
+        "tracker",
+        "insights",
+        "calibration",
+        "models",
+        "diagnostics",
+        "backtest",
+        "settings",
+        "glossary",
+    }
+    for mode in UXMode:
+        missing = set(pages_for(mode)) - label_keys
+        assert not missing, f"{mode}: missing page labels {missing}"
+        assert t("page.settings", "de")
