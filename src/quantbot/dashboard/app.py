@@ -274,6 +274,7 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
         "models": t("page.models", lang),
         "diagnostics": t("page.diagnostics", lang),
         "backtest": t("page.backtest", lang),
+        "settings": t("page.settings", lang),
         "glossary": t("page.glossary", lang),
     }
     visible = pages_for(ux_mode)
