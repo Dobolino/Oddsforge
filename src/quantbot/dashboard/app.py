@@ -335,6 +335,22 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
                 else t("keys.basketball_missing", lang)
             )
             st.caption(t("keys.autoload", lang))
+            # Allow adding/updating the optional NBA key without re-entering football keys.
+            if not bball_key:
+                extra = st.text_input(
+                    t("keys.basketball", lang),
+                    type="password",
+                    key="bball_key_add_only",
+                )
+                if st.button(
+                    t("keys.save_basketball", lang),
+                    key="keys_save_bball_only",
+                    disabled=not bool(extra.strip()),
+                ):
+                    save_api_keys(fd_key, odds_key, extra)
+                    bball_key = extra.strip()
+                    st.success(t("keys.saved", lang))
+                    st.rerun()
             c1, c2 = st.columns(2)
             if c1.button(t("keys.change", lang), key="keys_change_btn"):
                 st.session_state["keys_edit_mode"] = True
@@ -344,16 +360,27 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
                 st.session_state["keys_edit_mode"] = True
                 st.rerun()
         else:
+            # Explicit save button — do NOT auto-save when FD+Odds are filled,
+            # otherwise Streamlit reruns and locks out the optional NBA key.
             fd_key = st.text_input(t("keys.football", lang), type="password", key="fd_key_input")
             odds_key = st.text_input(t("keys.odds", lang), type="password", key="odds_key_input")
             bball_key = st.text_input(t("keys.basketball", lang), type="password", key="bball_key_input")
             st.caption(t("keys.hint", lang))
-            if fd_key and odds_key:
+            can_save = bool(fd_key and odds_key)
+            save_col, use_col = st.columns(2)
+            if save_col.button(
+                t("keys.save", lang),
+                key="keys_save_btn",
+                disabled=not can_save,
+                help=t("keys.save_help", lang),
+            ):
                 save_api_keys(fd_key, odds_key, bball_key)
                 st.session_state["keys_edit_mode"] = False
                 st.success(t("keys.saved", lang))
                 st.rerun()
-            elif stored is not None and st.button(t("keys.use_saved", lang), key="keys_use_saved"):
+            if not can_save:
+                st.caption(t("keys.save_need_football_odds", lang))
+            if stored is not None and use_col.button(t("keys.use_saved", lang), key="keys_use_saved"):
                 st.session_state["keys_edit_mode"] = False
                 st.rerun()
 

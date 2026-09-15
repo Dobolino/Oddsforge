@@ -34,6 +34,20 @@ def test_dashboard_modules_import() -> None:
         assert importlib.import_module(module) is not None
 
 
+def test_api_keys_require_explicit_save_button() -> None:
+    """Football+Odds filled must not auto-save (that locked out the NBA key field)."""
+    from quantbot.dashboard import app_path
+
+    source = app_path().read_text(encoding="utf-8")
+    assert "keys_save_btn" in source
+    assert 't("keys.save"' in source or "t('keys.save'" in source
+    # Old behaviour saved inside the keys expander as soon as both fields were filled.
+    assert "save_api_keys(fd_key, odds_key, bball_key)" in source
+    keys_block = source.split('t("keys.title"')[1].split('t("cache.title"')[0]
+    assert "if fd_key and odds_key:" not in keys_block
+    assert "keys_save_btn" in keys_block
+
+
 def test_app_path_points_to_app() -> None:
     from quantbot.dashboard import app_path
 

@@ -21,6 +21,15 @@ def test_translation_lookup() -> None:
     assert t("col.match", "en") == "Match"
 
 
+def test_api_keys_save_button_strings() -> None:
+    """Sidebar keys need an explicit Save so NBA can be entered after football keys."""
+    assert "speichern" in t("keys.save", "de").lower()
+    assert "save" in t("keys.save", "en").lower()
+    assert "nba" in t("keys.save_basketball", "de").lower()
+    assert t("keys.save_need_football_odds", "de")
+    assert "optional" in t("keys.hint", "de").lower() or "BallDontLie" in t("keys.hint", "de")
+
+
 def test_translation_falls_back_to_german() -> None:
     # Unknown language falls back to German, unknown key returns the key.
     assert t("col.match", "fr") == "Spiel"

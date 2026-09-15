@@ -388,8 +388,21 @@ _STRINGS: dict[str, dict[str, str]] = {
     },
 
     "keys.hint": {
-        "de": "Leer lassen für Demodaten. Mit beiden Schlüsseln laufen echte Spiele. Schlüssel werden nur lokal auf diesem PC gespeichert.",
-        "en": "Leave empty for demo data. With both keys real matches are used. Keys are stored only on this PC.",
+        "de": "Football-Data + Odds API für Live-Fußball. BallDontLie/NBA optional. Speichern erst klicken, wenn alle gewünschten Schlüssel eingetragen sind. Leer = Demodaten.",
+        "en": "Football-Data + Odds API for live football. BallDontLie/NBA optional. Click Save only after all desired keys are entered. Empty = demo data.",
+    },
+    "keys.save": {"de": "Schlüssel speichern", "en": "Save keys"},
+    "keys.save_help": {
+        "de": "Speichert Football-Data, Odds API und optional BallDontLie lokal auf diesem PC.",
+        "en": "Saves Football-Data, Odds API and optional BallDontLie locally on this PC.",
+    },
+    "keys.save_need_football_odds": {
+        "de": "Zum Speichern Football-Data und Odds API ausfüllen (NBA optional).",
+        "en": "Enter Football-Data and Odds API to save (NBA optional).",
+    },
+    "keys.save_basketball": {
+        "de": "NBA-Schlüssel speichern",
+        "en": "Save NBA key",
     },
     "keys.loaded": {
         "de": "Gespeicherte Schlüssel geladen (nicht im Klartext angezeigt).",
