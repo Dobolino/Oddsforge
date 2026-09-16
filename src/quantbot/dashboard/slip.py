@@ -132,7 +132,9 @@ def _value_legs(reports: list[SignalReport], lang: str) -> list[SlipLeg]:
     legs: list[SlipLeg] = []
     for report in reports:
         leg = _leg_from_report(report, lang, role="core")
-        if leg is not None:
+        # Keep big-underdog legs out of a slip entirely: an odds > 8.0 pick
+        # (<12.5% implied) does not belong on a high-model-P accumulator.
+        if leg is not None and leg.odds <= _MAX_PLAUSIBLE_LEG_ODDS:
             legs.append(leg)
     return legs
 
@@ -230,7 +232,7 @@ def build_smart_cross_sport_slip(
         if edge <= min_edge or quality <= min_data_quality:
             continue
         leg = _leg_from_report(report, lang, role="core")
-        if leg is not None:
+        if leg is not None and leg.odds <= _MAX_PLAUSIBLE_LEG_ODDS:
             eligible.append((report, leg))
 
     if not eligible:

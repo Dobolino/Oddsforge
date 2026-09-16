@@ -95,6 +95,22 @@ def _synthetic_report(
     return SignalReport(match=match, signal=signal, analysis=analysis)
 
 
+def test_safe_slip_excludes_big_underdog_leg() -> None:
+    favorite = _synthetic_report(
+        match_id="fav", league=League.LA_LIGA, sport=Sport.FOOTBALL,
+        edge=0.05, quality=80.0, odds=1.8, model_prob=0.6,
+    )
+    underdog = _synthetic_report(
+        match_id="dog", league=League.LA_LIGA, sport=Sport.FOOTBALL,
+        edge=0.10, quality=80.0, odds=10.0, model_prob=0.2,
+    )
+    slip = build_safe_slip([favorite, underdog], lang="de", max_legs=3)
+    assert slip is not None
+    ids = {leg.match_id for leg in slip.legs}
+    assert "fav" in ids
+    assert "dog" not in ids  # odds 10.0 filtered out before building
+
+
 def test_sport_filter_limits_leagues() -> None:
     basketball = resolve_sport("basketball")
     choices = league_choices(basketball)
