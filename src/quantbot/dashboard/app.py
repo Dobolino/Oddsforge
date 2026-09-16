@@ -1050,7 +1050,7 @@ def _slip_page(
         pref = "safe"
     style_index = style_options.index(pref)
 
-    def _controls() -> tuple[str, float, object]:
+    def _controls() -> tuple[str, float, object, str]:
         style_local = st.radio(
             t("slip.style", lang),
             style_options,
@@ -1066,10 +1066,12 @@ def _slip_page(
             "balanced": t("slip.orient_balanced", lang),
             "contra": t("slip.orient_contra", lang),
         }
+        # Streamlit ignores ``value=`` once the widget key exists — pin default.
+        if st.session_state.get("slip_orient") not in {"safe", "balanced", "contra"}:
+            st.session_state["slip_orient"] = "safe"
         orient_local = st.select_slider(
             t("slip.orient", lang),
             options=["safe", "balanced", "contra"],
-            value="safe",
             format_func=lambda k: orient_labels[k],
             key="slip_orient",
             help=t("slip.orient_safe_default", lang),
@@ -1084,11 +1086,15 @@ def _slip_page(
             key="slip_stake_input",
         )
         max_available = max(1, min(8, available or 1))
+        # Safe orientation: short kombis only (long slips explode combined odds).
+        max_cap = min(4, max_available) if orient_local == "safe" else max_available
+        if int(st.session_state.get("slip_max_legs", max_cap)) > max_cap:
+            st.session_state["slip_max_legs"] = max_cap
         max_legs_local = st.slider(
             t("slip.max_legs", lang),
             min_value=1,
-            max_value=max_available,
-            value=min(default_legs, max_available),
+            max_value=max_cap,
+            value=min(default_legs, max_cap),
             help=t("slip.legs_risk", lang),
             key="slip_max_legs",
         )
@@ -1108,14 +1114,15 @@ def _slip_page(
             slip_local = build_boosted_slip(
                 reports, lang=lang, core_legs=core_legs, boost_legs=boost_legs, bias=orient_local
             )
-        return style_local, float(stake_local), slip_local
+        return style_local, float(stake_local), slip_local, orient_local
 
     smart_ids = st.session_state.pop("slip_smart_override", None)
+    orient_used = st.session_state.get("slip_orient", "safe")
 
     if beginner:
         # Ticket first; knobs live in an expander so the slip stays the hero.
         with st.expander(t("slip.adjust", lang), expanded=False):
-            _style, stake, slip = _controls()
+            _style, stake, slip, orient_used = _controls()
             if slip is not None and slip.legs:
                 st.caption(t("slip.edit_legs", lang))
                 selected_ids = []
@@ -1135,7 +1142,7 @@ def _slip_page(
             if slip is not None:
                 slip = slip_with_legs(slip, smart_ids)
         else:
-            _style, stake, slip = _controls()
+            _style, stake, slip, orient_used = _controls()
         if slip is not None and slip.legs:
             st.subheader(t("slip.edit_legs", lang))
             selected_ids = []
@@ -1152,6 +1159,16 @@ def _slip_page(
 
     st.subheader(t("slip.ticket_title", lang))
     st.caption(t("slip.range_note", lang).format(start=start_d.isoformat(), end=end_d.isoformat()))
+    orient_labels_view = {
+        "safe": t("slip.orient_safe", lang),
+        "balanced": t("slip.orient_balanced", lang),
+        "contra": t("slip.orient_contra", lang),
+    }
+    st.caption(
+        t("slip.active_orient", lang).format(
+            orient=orient_labels_view.get(str(orient_used), str(orient_used))
+        )
+    )
     # Builders already trim to plausible; leftover flag is rare (manual edits).
     if not slip.is_plausible:
         st.error(t("slip.implausible", lang))

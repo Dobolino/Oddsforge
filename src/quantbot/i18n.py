@@ -513,16 +513,18 @@ _STRINGS: dict[str, dict[str, str]] = {
     "slip.orient_balanced": {"de": "Ausgewogen", "en": "Balanced"},
     "slip.orient_contra": {"de": "Gegen den Markt", "en": "Against the market"},
     "slip.orient_hint": {
-        "de": "Sicher bleibt standardmässig beim Markt-Favoriten und kürzt überzogene Kombis. "
-              "Gegen den Markt bevorzugt Tipps mit dem grössten Vorteil, oft "
-              "unwahrscheinlichere Seiten mit höherer Quote und mehr Risiko.",
-        "en": "Safe stays with the market favorite by default and trims overconfident combos. "
-              "Against the market prefers the biggest edge, often less likely sides with "
-              "higher odds and more risk.",
+        "de": "Sicher = nur Mit-Markt-Favoriten, kurze Quoten (≤2.60), kein Über/Unter, "
+              "Kombi-Quote max. ca. 8. Gegen den Markt = bewusste Risiko-Ausrichtung.",
+        "en": "Safe = with-market favorites only, short odds (≤2.60), no over/under, "
+              "combined odds capped near 8. Against the market = deliberate risk.",
     },
     "slip.orient_safe_default": {
         "de": "Standard: Mit dem Markt. Gegen den Markt erst bewusst wählen.",
         "en": "Default: with the market. Choose against the market deliberately.",
+    },
+    "slip.active_orient": {
+        "de": "Aktive Ausrichtung: {orient}",
+        "en": "Active orientation: {orient}",
     },
     "slip.style_safe": {"de": "Hohe Modell-P", "en": "High model-P"},
     "slip.style_boosted": {

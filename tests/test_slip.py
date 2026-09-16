@@ -313,6 +313,74 @@ def test_safe_bias_prefers_with_market_legs() -> None:
     assert slip is not None
     assert all(leg.stance == "with" for leg in slip.legs)
     assert "against1" not in {leg.match_id for leg in slip.legs}
+    assert slip.is_plausible
+    assert slip.combined_odds <= 8.0
+    assert all(leg.odds <= 2.60 for leg in slip.legs)
+    assert all(not isinstance(leg.outcome, TotalsSide) for leg in slip.legs)
+
+
+def test_safe_bias_drops_long_odds_and_totals() -> None:
+    from quantbot.analysis.confidence import ConfidenceLevel
+    from quantbot.analysis.engine import AnalysisResult
+    from quantbot.schemas import Match, Team, ValueMetrics, ValueSignal
+    from quantbot.schemas.enums import MatchStatus, SignalType
+
+    def _home(mid: str, odds: float, model_prob: float, fair: float) -> SignalReport:
+        kickoff = datetime(2024, 12, 20, 20, 0, tzinfo=timezone.utc)
+        match = Match(
+            match_id=mid,
+            league=League.PREMIER_LEAGUE,
+            season="2024-2025",
+            kickoff=kickoff,
+            prediction_timestamp=kickoff.replace(hour=18),
+            home_team=Team(team_id=f"{mid}_h", name=f"Home {mid}"),
+            away_team=Team(team_id=f"{mid}_a", name=f"Away {mid}"),
+            status=MatchStatus.SCHEDULED,
+        )
+        metrics = (
+            ValueMetrics(
+                outcome=MatchOutcome.HOME,
+                model_prob=model_prob,
+                fair_market_prob=fair,
+                decimal_odds=odds,
+                edge=model_prob - fair,
+                expected_value=model_prob * odds - 1.0,
+            ),
+        )
+        signal = ValueSignal(
+            match_id=mid,
+            timestamp=kickoff.replace(hour=18),
+            signal=SignalType.VALUE_HOME,
+            chosen_outcome=MatchOutcome.HOME,
+            edge=model_prob - fair,
+            expected_value=model_prob * odds - 1.0,
+            decimal_odds=odds,
+            model_confidence=70.0,
+            data_quality=80.0,
+            stake_fraction=0.01,
+            rationale="x",
+            rationale_de="x",
+            metrics=metrics,
+        )
+        analysis = AnalysisResult(
+            match_id=mid,
+            metrics=metrics,
+            best_ev=metrics[0],
+            data_quality=80.0,
+            model_confidence=70.0,
+            confidence_level=ConfidenceLevel.MEDIUM,
+            ensemble_agreement=1.0,
+            home_matches=10,
+            away_matches=10,
+        )
+        return SignalReport(match=match, signal=signal, analysis=analysis)
+
+    long_price = _home("long", 4.33, 0.30, 0.22)  # against-ish / too long for safe
+    # Force stance "with" via single metric (chosen = top fair).
+    ok = _home("ok", 1.70, 0.60, 0.55)
+    slip = build_safe_slip([long_price, ok], lang="de", max_legs=3, bias="safe")
+    assert slip is not None
+    assert {leg.match_id for leg in slip.legs} == {"ok"}
 
 
 def test_market_stance_matches_metrics() -> None:

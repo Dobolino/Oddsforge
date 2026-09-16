@@ -163,10 +163,11 @@ def test_safe_slip_accepts_mixed_sports() -> None:
             quality=75,
             odds=1.85,
             model_prob=0.6,
-            outcome=TotalsSide.UNDER,
+            outcome=MatchOutcome.HOME,
         ),
     ]
-    slip = build_safe_slip(reports, lang="en", max_legs=2)
+    # Use balanced so totals/1X2 preference of "safe" does not drop a sport.
+    slip = build_safe_slip(reports, lang="en", max_legs=2, bias="balanced")
     assert slip is not None
     assert len(slip.legs) == 2
     sports = {leg.sport for leg in slip.legs}

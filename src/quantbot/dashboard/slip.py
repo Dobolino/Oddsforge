@@ -30,6 +30,10 @@ _MAX_PLAUSIBLE_LEG_ODDS = 8.0      # a big-underdog leg (<12.5%) does not belong
 # Over/Under early in the season is especially noisy — keep totals off slips
 # until both teams have a modest sample.
 _MIN_GAMES_FOR_TOTALS_SLIP = 6
+# "Sicher" orientation: favorites with the market, short prices only.
+_MAX_SAFE_LEG_ODDS = 2.60
+_MAX_SAFE_COMBINED_ODDS = 8.0
+_MAX_SAFE_LEGS = 4
 
 
 @dataclass(frozen=True)
@@ -164,17 +168,32 @@ def _value_legs(reports: list[SignalReport], lang: str, *, bias: str = "safe") -
         if leg is not None and leg.odds <= _MAX_PLAUSIBLE_LEG_ODDS:
             legs.append(leg)
     if bias == "safe":
-        # Default orientation: stay with the market favorite when possible.
-        with_market = [leg for leg in legs if leg.stance != "against"]
+        # Strict "Sicher": with the market, short prices, prefer 1X2 over totals.
+        filtered = [
+            leg
+            for leg in legs
+            if leg.stance == "with"
+            and leg.odds <= _MAX_SAFE_LEG_ODDS
+            and not isinstance(leg.outcome, TotalsSide)
+        ]
+        if filtered:
+            return filtered
+        # Fallback if no 1X2-with-market: still never take against-market on safe.
+        with_market = [
+            leg
+            for leg in legs
+            if leg.stance != "against" and leg.odds <= _MAX_SAFE_LEG_ODDS
+        ]
         if with_market:
-            legs = with_market
+            return with_market
+        return [leg for leg in legs if leg.stance != "against"]
     return legs
 
 
 def _leg_sort_key(bias: str):
     """Ranking for slip legs by orientation.
 
-    - ``"safe"``: with-market first, then favorites (highest model probability).
+    - ``"safe"``: with-market favorites first (highest model probability).
     - ``"balanced"``: blend of probability and edge.
     - ``"contra"``: biggest disagreement with the market first (largest edge),
       i.e. contrarian value on less likely sides.
@@ -197,6 +216,7 @@ def _select_plausible_legs(
     *,
     max_legs: int,
     style: str,
+    max_combined_odds: float | None = None,
 ) -> BettingSlip | None:
     """Greedily keep legs that leave the accumulator inside plausibility bounds."""
 
@@ -205,8 +225,11 @@ def _select_plausible_legs(
         if len(chosen) >= max(1, max_legs):
             break
         trial = BettingSlip(legs=tuple(chosen + [leg]), style=style)
-        if trial.is_plausible:
-            chosen.append(leg)
+        if not trial.is_plausible:
+            continue
+        if max_combined_odds is not None and trial.combined_odds > max_combined_odds:
+            continue
+        chosen.append(leg)
     if not chosen:
         return None
     return BettingSlip(legs=tuple(chosen), style=style)
@@ -246,7 +269,14 @@ def build_safe_slip(
     if not legs:
         return None
     legs.sort(key=_leg_sort_key(bias))
-    return _select_plausible_legs(legs, max_legs=max_legs, style="safe")
+    cap = min(max(1, max_legs), _MAX_SAFE_LEGS if bias == "safe" else max_legs)
+    combined_cap = _MAX_SAFE_COMBINED_ODDS if bias == "safe" else None
+    return _select_plausible_legs(
+        legs,
+        max_legs=cap,
+        style="safe",
+        max_combined_odds=combined_cap,
+    )
 
 
 def build_boosted_slip(
