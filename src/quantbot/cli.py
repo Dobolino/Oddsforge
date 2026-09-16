@@ -65,26 +65,24 @@ def _fmt_ev(value: float | None) -> str:
 
 
 def _build_provider(live: bool, league: League):  # type: ignore[no-untyped-def]
-    """Return a data provider. Live needs both API keys in the environment."""
+    """Return a data provider using the same credentials as the dashboard."""
 
     if not live:
         return None  # orchestrator falls back to the dummy provider
 
     from pathlib import Path
 
-    from quantbot.config import get_settings
     from quantbot.data.providers import build_live_provider
+    from quantbot.local_credentials import resolve_api_keys
 
-    settings = get_settings()
-    fd = settings.football_data_api_key
-    odds = settings.the_odds_api_key
-    if fd is None or odds is None:
+    keys = resolve_api_keys()
+    if not keys.football or not keys.odds:
         console.print(f"[red]{t('live_keys_missing', _lang(None))}[/red]")
         raise typer.Exit(code=1)
 
     return build_live_provider(
-        football_api_key=fd.get_secret_value(),
-        the_odds_api_key=odds.get_secret_value(),
+        football_api_key=keys.football,
+        the_odds_api_key=keys.odds,
         leagues=[league],
         cache_dir=Path.home() / ".quantbot" / "cache",
     )

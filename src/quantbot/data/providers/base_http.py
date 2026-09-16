@@ -54,7 +54,7 @@ class FileCache:
         except (json.JSONDecodeError, OSError):
             return None
         if self._time_fn() - float(payload.get("ts", 0.0)) > self.ttl_seconds:
-            logger.debug("Cache expired for %s", key)
+            logger.debug("Cache expired for %s", path.name)
             return None
         return payload.get("data")
 

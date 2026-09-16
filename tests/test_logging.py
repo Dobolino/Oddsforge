@@ -141,3 +141,28 @@ def test_get_logger_emits_without_error(capsys: pytest.CaptureFixture[str]) -> N
     # No exception raised; JSON line written to stderr.
     captured = capsys.readouterr()
     assert "structured message" in captured.err or "structured message" in captured.out
+
+
+@pytest.mark.parametrize("json_mode", [False, True])
+def test_httpx_query_keys_are_redacted(json_mode, capsys):
+    import httpx
+
+    configure_logging(Settings(log_json=json_mode), force=True)
+    with httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(200))) as client:
+        client.get("https://example.test/odds", params={"apiKey": "fake-sensitive-key"})
+    captured = capsys.readouterr()
+    output = captured.err + captured.out
+    assert "fake-sensitive-key" not in output
+    assert "apiKey=" in output
+
+
+def test_expired_cache_does_not_log_key(tmp_path, caplog):
+    from quantbot.data.providers.base_http import FileCache
+
+    cache = FileCache(tmp_path, ttl_seconds=1, time_fn=lambda: 0)
+    cache.set("/odds?[('apiKey', 'fake-sensitive-key')]", [])
+    cache._time_fn = lambda: 2
+    with caplog.at_level(logging.DEBUG):
+        assert cache.get("/odds?[('apiKey', 'fake-sensitive-key')]") is None
+    assert "Cache expired" in caplog.text
+    assert "fake-sensitive-key" not in caplog.text

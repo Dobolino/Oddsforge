@@ -104,3 +104,21 @@ Realdaten aktivieren: API-Keys in `.env` eintragen (siehe `.env.example`), dann 
 ## Konfiguration
 
 Kopiere `.env.example` nach `.env`. Alle Variablen tragen das Präfix `QUANTBOT_`.
+
+### API-Schlüssel einmal einrichten
+
+Dashboard und CLI verwenden dieselben Schlüssel. Für jeden Anbieter gilt:
+Umgebungsvariable vor `.env`, danach die im Dashboard gespeicherte Datei
+`~/.quantbot/credentials.env`. Leere Konfigurationswerte fallen auf gespeicherte
+Schlüssel zurück. Die lokale Datei wird bei Änderungen erneut gelesen.
+
+Im Dashboard beide Schlüssel eingeben und **Schlüssel speichern** drücken.
+Unbestätigte Änderungen werden nicht verwendet. **Änderungen verwerfen** behält
+die bisherigen Schlüssel. Beim Speichern oder Löschen wird der Dashboard-Datencache
+geleert. Löschen entfernt nur die lokale Schlüsseldatei, keine Umgebungsvariablen
+oder `.env`-Einträge. Der Hinweis im Dashboard zeigt entsprechende Vorgaben an.
+
+Die Schlüsseldatei enthält Klartext auf dem Rechner, auf dem QuantBot läuft;
+bei API-Abrufen werden Schlüssel per HTTPS an Football-Data.org bzw. The Odds API
+gesendet. **HINTERLEGT · UNGEPRÜFT** ist kein Verbindungstest. Basketball nutzt
+weiterhin Demodaten, auch wenn eine ältere Schlüsseldatei einen NBA-Key enthält.
