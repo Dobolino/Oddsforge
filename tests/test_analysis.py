@@ -227,6 +227,31 @@ def test_analysis_engine_produces_result() -> None:
     assert result.metric_for(MatchOutcome.HOME).edge == pytest.approx(0.05)
 
 
+def test_market_shrinkage_reduces_edge_when_data_thin() -> None:
+    # Model is very bullish on HOME; market is neutral.
+    pred = _prediction("m1", 0.80, 0.12, 0.08)
+    market = _market("m1", 0.50, 0.27, 0.23)
+    odds = {MatchOutcome.HOME: 2.1, MatchOutcome.DRAW: 3.6, MatchOutcome.AWAY: 4.2}
+    thin = DataQualitySignals(home_matches=2, away_matches=2, n_bookmakers=1, injuries_known=False)
+
+    plain = AnalysisEngine().analyze(pred, market, odds, thin)
+    shrunk = AnalysisEngine(market_shrinkage=True).analyze(pred, market, odds, thin)
+
+    plain_edge = plain.metric_for(MatchOutcome.HOME).edge
+    shrunk_edge = shrunk.metric_for(MatchOutcome.HOME).edge
+    assert shrunk_edge < plain_edge  # pulled toward the market
+    assert shrunk_edge > 0.0  # but not erased entirely
+
+
+def test_market_shrinkage_off_by_default() -> None:
+    pred = _prediction("m1", 0.80, 0.12, 0.08)
+    market = _market("m1", 0.50, 0.27, 0.23)
+    odds = {MatchOutcome.HOME: 2.1, MatchOutcome.DRAW: 3.6, MatchOutcome.AWAY: 4.2}
+    signals = DataQualitySignals(home_matches=2, away_matches=2, n_bookmakers=1, injuries_known=False)
+    result = AnalysisEngine().analyze(pred, market, odds, signals)
+    assert result.metric_for(MatchOutcome.HOME).model_prob == pytest.approx(0.80)
+
+
 def test_analysis_engine_confidence_drops_with_disagreement() -> None:
     pred = _prediction("m1", 0.5, 0.3, 0.2)
     market = _market("m1", 0.5, 0.3, 0.2)

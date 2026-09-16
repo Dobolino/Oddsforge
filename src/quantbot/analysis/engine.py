@@ -63,9 +63,32 @@ class AnalysisEngine:
         self,
         value_calculator: ValueCalculator | None = None,
         confidence_evaluator: ConfidenceEvaluator | None = None,
+        market_shrinkage: bool = False,
     ) -> None:
         self._value = value_calculator or ValueCalculator()
         self._confidence = confidence_evaluator or ConfidenceEvaluator()
+        # When True, model probabilities are pulled toward the fair market
+        # before computing value: thin data (low quality) trusts the market
+        # more, which tames overconfident edges from sparse fits.
+        self._market_shrinkage = market_shrinkage
+
+    @staticmethod
+    def _shrink_to_market(
+        prediction: Prediction, market: MarketData, data_quality: float
+    ) -> Prediction:
+        """Blend model 1X2 probabilities toward the fair market by data quality."""
+
+        w = min(max(data_quality / 100.0, 0.0), 1.0)  # model weight
+        fair = market.fair_probabilities()
+        ph = w * prediction.prob_home + (1.0 - w) * fair[MatchOutcome.HOME]
+        pd = w * prediction.prob_draw + (1.0 - w) * fair[MatchOutcome.DRAW]
+        pa = w * prediction.prob_away + (1.0 - w) * fair[MatchOutcome.AWAY]
+        total = ph + pd + pa
+        if total <= 0:
+            return prediction
+        return prediction.model_copy(
+            update={"prob_home": ph / total, "prob_draw": pd / total, "prob_away": pa / total}
+        )
 
     def analyze(
         self,
@@ -75,9 +98,6 @@ class AnalysisEngine:
         quality_signals: DataQualitySignals | None = None,
         sub_predictions: Sequence[Prediction] | None = None,
     ) -> AnalysisResult:
-        metrics = self._value.metrics(prediction, market, decimal_odds)
-        best_ev = self._value.best_by_ev(metrics)
-
         agreement = ensemble_agreement(sub_predictions) if sub_predictions else 1.0
         # Neutral default quality when no signals are supplied.
         data_quality = (
@@ -85,6 +105,12 @@ class AnalysisEngine:
             if quality_signals is not None
             else 60.0
         )
+
+        if self._market_shrinkage:
+            prediction = self._shrink_to_market(prediction, market, data_quality)
+
+        metrics = self._value.metrics(prediction, market, decimal_odds)
+        best_ev = self._value.best_by_ev(metrics)
         confidence, level = self._confidence.model_confidence(
             agreement, data_quality, base_confidence=prediction.confidence
         )

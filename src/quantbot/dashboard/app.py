@@ -386,9 +386,14 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
             )
         )
 
+    from quantbot.analysis.engine import AnalysisEngine
+
     orchestrator = QuantBotOrchestrator(
         provider=provider,
         model=DixonColesModel(min_matches=5),
+        # Pull model probabilities toward the fair market when data is thin, so
+        # sparse-fit overconfidence does not turn into false value.
+        analysis_engine=AnalysisEngine(market_shrinkage=True),
         # No tip when a team has fewer than this many finished matches; a goals
         # model on a handful of games per team is overconfident. Demo data is a
         # full synthetic season, so only live early-season runs hit this.
