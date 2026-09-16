@@ -4,10 +4,46 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from quantbot.dashboard.slip import build_boosted_slip, build_safe_slip
+from quantbot.dashboard.slip import (
+    BettingSlip,
+    SlipLeg,
+    build_boosted_slip,
+    build_safe_slip,
+    format_ticket,
+)
 from quantbot.dashboard.ux import pages_for, UXMode
 from quantbot.orchestrator import QuantBotOrchestrator, SignalReport
-from quantbot.schemas import League
+from quantbot.schemas import League, MatchOutcome
+
+
+def _leg(odds: float, model_prob: float) -> SlipLeg:
+    return SlipLeg(
+        match_id="m",
+        match="A vs B",
+        tip="Tipp: Heimsieg",
+        outcome=MatchOutcome.HOME,
+        odds=odds,
+        model_prob=model_prob,
+        edge=model_prob - 1.0 / odds,
+        role="core",
+    )
+
+
+def test_slip_flags_overconfident_chance_as_implausible() -> None:
+    # Five legs each at ~1.7 with a 95% model prob -> ~79% combined on 14x odds.
+    slip = BettingSlip(legs=tuple(_leg(1.7, 0.95) for _ in range(5)), style="safe")
+    assert slip.combined_prob > 0.7
+    assert not slip.is_plausible
+    text = format_ticket(slip, lang="de")
+    assert "unrealistisch" in text
+    assert "78" not in text and "79" not in text  # no rosy percentage shown
+
+
+def test_realistic_slip_stays_plausible() -> None:
+    # Legs priced near their model probability -> small edge, believable combo.
+    slip = BettingSlip(legs=(_leg(1.7, 0.60), _leg(2.0, 0.52)), style="safe")
+    assert slip.is_plausible
+    assert f"{slip.combined_prob * 100:.1f}" in format_ticket(slip, lang="de")
 
 
 def test_slip_page_hidden_for_beginner() -> None:

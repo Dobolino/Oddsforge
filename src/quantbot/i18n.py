@@ -534,6 +534,14 @@ _STRINGS: dict[str, dict[str, str]] = {
     "slip.combined_odds": {"de": "Kombi-Quote", "en": "Combined odds"},
     "slip.combined_prob": {"de": "Geschätzte Trefferchance", "en": "Estimated hit chance"},
     "slip.combined_ev": {"de": "Erwartete Rendite (Kombi)", "en": "Expected return (slip)"},
+    "slip.implausible": {
+        "de": "Die geschätzte Chance ist unrealistisch hoch. Das kommt fast immer von zu "
+              "wenig Daten oder unkalibrierten Wahrscheinlichkeiten, oft früh in der Saison. "
+              "Nimm diesen Schein nicht ernst.",
+        "en": "The estimated chance is unrealistically high. This almost always comes from "
+              "too little data or uncalibrated probabilities, often early in the season. "
+              "Do not trust this slip.",
+    },
     "slip.legs": {"de": "Tipps im Schein", "en": "Legs on the slip"},
     "slip.role": {"de": "Rolle", "en": "Role"},
     "slip.role_core": {"de": "Kern", "en": "Core"},

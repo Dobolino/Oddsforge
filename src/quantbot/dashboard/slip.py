@@ -15,6 +15,13 @@ from quantbot.dashboard.ux import plain_signal_label, tip_badge_html, tip_kind_f
 from quantbot.orchestrator import SignalReport
 from quantbot.schemas import MatchOutcome, TotalsSide
 
+# A real accumulator's fair chance is about 1 / combined_odds. When the model
+# claims a far higher chance, its probabilities are overconfident or
+# uncalibrated (typically early-season sparse data). Above these bounds the
+# displayed chance is not trustworthy and is flagged, not shown as fact.
+_MAX_PLAUSIBLE_COMBINED_EV = 0.5   # +50% expected value on a combo is impossible
+_MAX_PLAUSIBLE_LEG_EDGE = 0.25     # a single leg 25 pts above the market price
+
 
 @dataclass(frozen=True)
 class SlipLeg:
@@ -53,6 +60,28 @@ class BettingSlip:
     @property
     def expected_value(self) -> float:
         return self.combined_prob * self.combined_odds - 1.0
+
+    @property
+    def max_leg_edge(self) -> float:
+        """Largest gap between a leg's model probability and its market price."""
+
+        if not self.legs:
+            return 0.0
+        return max(leg.model_prob - (1.0 / leg.odds) for leg in self.legs if leg.odds > 0)
+
+    @property
+    def is_plausible(self) -> bool:
+        """False when the model's numbers imply an impossible edge.
+
+        Guards against showing an overconfident chance (e.g. 79% on a combo
+        paying 16x) as if it were real. Such numbers come from uncalibrated or
+        sparse-data probabilities and must be flagged, not presented cleanly.
+        """
+
+        return (
+            self.expected_value <= _MAX_PLAUSIBLE_COMBINED_EV
+            and self.max_leg_edge <= _MAX_PLAUSIBLE_LEG_EDGE
+        )
 
 
 def _leg_from_report(report: SignalReport, lang: str, role: str) -> SlipLeg | None:
@@ -279,16 +308,31 @@ def format_ticket(
             lines.append("║                                      ║")
     lines.append("╠══════════════════════════════════════╣")
     payout = stake * slip.combined_odds
+    plausible = slip.is_plausible
     if de:
         lines.append(f"║  Einsatz:           {stake:>8.2f} €       ║")
         lines.append(f"║  Gesamtquote:       {slip.combined_odds:>8.2f}         ║")
         lines.append(f"║  Möglicher Gewinn:  {payout:>8.2f} €       ║")
-        lines.append(f"║  Geschätzte Chance: {slip.combined_prob * 100:>7.1f} %        ║")
+        if plausible:
+            lines.append(f"║  Geschätzte Chance: {slip.combined_prob * 100:>7.1f} %        ║")
+        else:
+            lines.append(f"║  Geschätzte Chance:   unrealistisch     ║")
     else:
         lines.append(f"║  Stake:             {stake:>8.2f}          ║")
         lines.append(f"║  Combined odds:     {slip.combined_odds:>8.2f}         ║")
         lines.append(f"║  Potential return:  {payout:>8.2f}          ║")
-        lines.append(f"║  Estimated chance:  {slip.combined_prob * 100:>7.1f} %        ║")
+        if plausible:
+            lines.append(f"║  Estimated chance:  {slip.combined_prob * 100:>7.1f} %        ║")
+        else:
+            lines.append(f"║  Estimated chance:    not realistic     ║")
+    if not plausible:
+        lines.append("╠══════════════════════════════════════╣")
+        if de:
+            lines.append("║  ⚠ Modellwerte zu hoch, meist zu     ║")
+            lines.append("║    wenig Daten. Nicht verlässlich.   ║")
+        else:
+            lines.append("║  ⚠ Model values too high, usually    ║")
+            lines.append("║    too little data. Not reliable.    ║")
     lines.append("╠══════════════════════════════════════╣")
     note = (
         "  Nur Vorschlag. QuantBot wettet nicht.  "
@@ -362,6 +406,23 @@ def ticket_html(
         else "Suggestion only — QuantBot places nothing."
     )
     currency = "€" if de else ""
+    if slip.is_plausible:
+        chance_row = (
+            f'<div style="display:flex;justify-content:space-between;margin:0.25rem 0;"><span>{chance_lbl}</span>'
+            f"<b>{slip.combined_prob * 100:.1f} %</b></div>"
+        )
+    else:
+        warn = (
+            "Modellwerte unrealistisch — meist zu wenig Daten. Nicht verlässlich."
+            if de
+            else "Model values unrealistic — usually too little data. Not reliable."
+        )
+        chance_row = (
+            f'<div style="display:flex;justify-content:space-between;margin:0.25rem 0;"><span>{chance_lbl}</span>'
+            f'<b style="color:#b00020;">{"unrealistisch" if de else "not realistic"}</b></div>'
+            f'<div style="margin-top:0.4rem;padding:0.4rem 0.5rem;background:#fce8e6;color:#b00020;'
+            f'border-radius:4px;font-size:0.8rem;">⚠ {warn}</div>'
+        )
     return (
         '<div style="max-width:520px;margin:0.5rem 0 1rem 0;padding:1.25rem 1.4rem;'
         "background:linear-gradient(180deg,#fffef8 0%,#f7f1e1 100%);"
@@ -377,8 +438,7 @@ def ticket_html(
         f"<b>{slip.combined_odds:.2f}</b></div>"
         f'<div style="display:flex;justify-content:space-between;margin:0.25rem 0;font-size:1.15rem;">'
         f"<span>{win_lbl}</span><b>{payout:.2f} {currency}</b></div>"
-        f'<div style="display:flex;justify-content:space-between;margin:0.25rem 0;"><span>{chance_lbl}</span>'
-        f"<b>{slip.combined_prob * 100:.1f} %</b></div>"
+        f"{chance_row}"
         "</div>"
         f'<div style="margin-top:0.9rem;text-align:center;font-size:0.8rem;opacity:0.8;">{sub}</div>'
         "</div>"

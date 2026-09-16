@@ -1076,6 +1076,8 @@ def _slip_page(
 
     st.subheader(t("slip.ticket_title", lang))
     st.caption(t("slip.range_note", lang).format(start=start_d.isoformat(), end=end_d.isoformat()))
+    if not slip.is_plausible:
+        st.error(t("slip.implausible", lang))
     st.html(ticket_html(slip, lang=lang, stake=stake))
     with st.expander(t("slip.copy_title", lang), expanded=beginner):
         st.code(format_ticket(slip, lang=lang, stake=stake), language=None)
@@ -1083,8 +1085,10 @@ def _slip_page(
     if not beginner:
         m1, m2, m3 = st.columns(3)
         m1.metric(t("slip.combined_odds", lang), f"{slip.combined_odds:.2f}")
-        m2.metric(t("slip.combined_prob", lang), f"{slip.combined_prob * 100:.1f}%")
-        m3.metric(t("slip.combined_ev", lang), f"{slip.expected_value * 100:.1f}%")
+        prob_display = f"{slip.combined_prob * 100:.1f}%" if slip.is_plausible else "—"
+        ev_display = f"{slip.expected_value * 100:.1f}%" if slip.is_plausible else "—"
+        m2.metric(t("slip.combined_prob", lang), prob_display)
+        m3.metric(t("slip.combined_ev", lang), ev_display)
         if len(slip.legs) > 1:
             st.warning(t("slip.disclaimer", lang))
         else:
