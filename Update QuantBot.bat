@@ -18,8 +18,14 @@ if errorlevel 1 goto ZIP
 if not exist ".git" goto ZIP
 
 echo [1/3] Git: lade main von GitHub...
+rem Turn off git's automatic housekeeping. On OneDrive/Dropbox folders the
+rem prune step cannot delete locked files in .git\objects and shows a
+rem "Deletion of directory ... failed. Should I try again? (y/n)" prompt.
+rem Disabling gc makes the update non-interactive and reliable.
+git config gc.auto 0 >nul 2>nul
+git config maintenance.auto false >nul 2>nul
 git remote -v
-git fetch origin main
+git -c gc.auto=0 fetch origin main
 if errorlevel 1 (
   echo Git-Fetch fehlgeschlagen. Versuche ZIP-Download...
   goto ZIP
@@ -69,7 +75,8 @@ where git >nul 2>nul
 if errorlevel 1 goto VERIFY
 if not exist ".git" goto VERIFY
 echo [1b] Git-Zeiger nach ZIP auf main setzen...
-git fetch origin main >nul 2>nul
+git config gc.auto 0 >nul 2>nul
+git -c gc.auto=0 fetch origin main >nul 2>nul
 git checkout -B main origin/main >nul 2>nul
 git reset --hard origin/main >nul 2>nul
 
