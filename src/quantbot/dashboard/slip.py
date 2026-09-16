@@ -504,12 +504,14 @@ def ticket_html(
             else ""
         )
         stance_txt = _stance_text(leg.stance, de)
-        stance_chip = ""
+        stance_line = ""
         if stance_txt:
             s_color = "#1a7f37" if leg.stance == "with" else "#c47a00"
-            stance_chip = (
-                f'<span style="margin-left:0.4rem;font-size:0.75rem;color:{s_color};">'
-                f"· {escape(stance_txt)}</span>"
+            # Own row so "Mit Markt" / "Gegen Markt" never wraps mid-phrase
+            # next to the long value badge.
+            stance_line = (
+                f'<div style="margin-top:3px;font-size:0.8rem;color:{s_color};">'
+                f"{escape(stance_txt)}</div>"
             )
         rows.append(
             "<tr>"
@@ -517,7 +519,8 @@ def ticket_html(
             f'<td style="padding:10px 8px;border-bottom:1px dashed #ccc;">'
             f'<div style="font-weight:700;">{match_name}</div>'
             f"{meta_line}"
-            f'<div style="margin-top:4px;">→ {tip_badge} {badge}{stance_chip}</div>'
+            f'<div style="margin-top:4px;">→ {tip_badge} {badge}</div>'
+            f"{stance_line}"
             "</td>"
             f'<td style="padding:10px 8px;border-bottom:1px dashed #ccc;text-align:right;'
             f'font-size:1.15rem;font-weight:700;">{leg.odds:.2f}</td>'

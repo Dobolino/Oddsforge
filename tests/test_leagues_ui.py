@@ -65,6 +65,7 @@ def test_ticket_html_renders_compact_markup() -> None:
                 role="core",
                 league="Premier League",
                 kickoff_date="2026-09-20",
+                stance="with",
             ),
         ),
         style="safe",
@@ -74,7 +75,12 @@ def test_ticket_html_renders_compact_markup() -> None:
     assert "Brighton &amp; Hove" in html  # escaped ampersand
     assert "```" not in html
     assert "\n            <tr>" not in html
-
+    # Stance sits on its own line under the tip badge (no mid-phrase wrap).
+    assert "Mit Markt" in html
+    assert html.index("→") < html.index("Mit Markt")
+    assert "</div><div" in html[html.index("→") : html.index("Mit Markt") + 20] or (
+        html.index("Mit Markt") > html.index("</div>", html.index("→"))
+    )
 
 def test_tip_badge_colors_home_away_draw() -> None:
     from quantbot.dashboard.ux import tip_badge_html, tip_kind_from_label
