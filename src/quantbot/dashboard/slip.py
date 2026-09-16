@@ -11,7 +11,12 @@ from dataclasses import dataclass
 from html import escape
 from math import prod
 
-from quantbot.dashboard.ux import plain_signal_label, tip_badge_html, tip_kind_from_label
+from quantbot.dashboard.ux import (
+    market_stance,
+    plain_signal_label,
+    tip_badge_html,
+    tip_kind_from_label,
+)
 from quantbot.orchestrator import SignalReport
 from quantbot.schemas import MatchOutcome, TotalsSide
 
@@ -37,6 +42,7 @@ class SlipLeg:
     league: str = ""
     kickoff_date: str = ""  # YYYY-MM-DD for multi-day slips
     sport: str = ""  # football | basketball
+    stance: str = ""  # "with" | "against" market favorite, "" if unknown
 
 
 @dataclass(frozen=True)
@@ -109,6 +115,7 @@ def _leg_from_report(report: SignalReport, lang: str, role: str) -> SlipLeg | No
         league=match.league.value.replace("_", " ").title(),
         kickoff_date=match.kickoff.date().isoformat(),
         sport=(match.sport.value if getattr(match, "sport", None) is not None else ""),
+        stance=market_stance(signal) or "",
     )
 
 
@@ -125,7 +132,18 @@ def _copy_leg(leg: SlipLeg, *, role: str) -> SlipLeg:
         league=leg.league,
         kickoff_date=leg.kickoff_date,
         sport=leg.sport,
+        stance=leg.stance,
     )
+
+
+def _stance_text(stance: str, de: bool) -> str:
+    """Plain-text market-stance label for a slip leg (no emoji, box-safe)."""
+
+    if stance == "with":
+        return "Mit Markt" if de else "With market"
+    if stance == "against":
+        return "Gegen Markt" if de else "Against market"
+    return ""
 
 
 def _value_legs(reports: list[SignalReport], lang: str) -> list[SlipLeg]:
@@ -326,6 +344,9 @@ def format_ticket(
         if meta:
             lines.append(f"║     {meta[:34]:<34}║")
         lines.append(f"║     → {tip_short[:20]:<20}  {leg.odds:>5.2f}{role:<8}║")
+        stance_txt = _stance_text(leg.stance, de)
+        if stance_txt:
+            lines.append(f"║       {stance_txt[:32]:<32}║")
         if i < len(slip.legs):
             lines.append("║                                      ║")
     lines.append("╠══════════════════════════════════════╣")
@@ -405,13 +426,21 @@ def ticket_html(
             if meta
             else ""
         )
+        stance_txt = _stance_text(leg.stance, de)
+        stance_chip = ""
+        if stance_txt:
+            s_color = "#1a7f37" if leg.stance == "with" else "#c47a00"
+            stance_chip = (
+                f'<span style="margin-left:0.4rem;font-size:0.75rem;color:{s_color};">'
+                f"· {escape(stance_txt)}</span>"
+            )
         rows.append(
             "<tr>"
             f'<td style="padding:10px 8px;border-bottom:1px dashed #ccc;vertical-align:top;width:2rem;">{i}.</td>'
             f'<td style="padding:10px 8px;border-bottom:1px dashed #ccc;">'
             f'<div style="font-weight:700;">{match_name}</div>'
             f"{meta_line}"
-            f'<div style="margin-top:4px;">→ {tip_badge} {badge}</div>'
+            f'<div style="margin-top:4px;">→ {tip_badge} {badge}{stance_chip}</div>'
             "</td>"
             f'<td style="padding:10px 8px;border-bottom:1px dashed #ccc;text-align:right;'
             f'font-size:1.15rem;font-weight:700;">{leg.odds:.2f}</td>'
