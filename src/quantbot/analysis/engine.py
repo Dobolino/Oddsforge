@@ -48,6 +48,8 @@ class AnalysisResult:
     model_confidence: float
     confidence_level: ConfidenceLevel
     ensemble_agreement: float
+    home_matches: int = 0
+    away_matches: int = 0
 
     def metric_for(self, outcome: MatchOutcome) -> ValueMetrics:
         for m in self.metrics:
@@ -123,6 +125,8 @@ class AnalysisEngine:
             model_confidence=confidence,
             confidence_level=level,
             ensemble_agreement=agreement,
+            home_matches=quality_signals.home_matches if quality_signals else 0,
+            away_matches=quality_signals.away_matches if quality_signals else 0,
         )
 
     def analyze_with_odds(

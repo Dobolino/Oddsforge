@@ -32,6 +32,7 @@ SIGNAL_COLUMNS = [
     "Stake %",
     "Confidence",
     "Data quality",
+    "Spiele",
     "Reason",
 ]
 
@@ -87,6 +88,10 @@ def signals_dataframe(
                 "Stake %": f"{s.stake_fraction * 100.0:.2f}",
                 "Confidence": f"◆ {s.model_confidence:.0f}",
                 "Data quality": f"{s.data_quality:.0f}",
+                "Spiele": (
+                    f"{getattr(report.analysis, 'home_matches', 0)}"
+                    f"/{getattr(report.analysis, 'away_matches', 0)}"
+                ),
                 "Reason": why,
             }
         )
@@ -172,6 +177,10 @@ def colored_signals_table_html(
                 tone_color_for_confidence(s.model_confidence),
             ),
             "Data quality": escape(f"{s.data_quality:.0f}"),
+            "Spiele": escape(
+                f"{getattr(report.analysis, 'home_matches', 0)}"
+                f"/{getattr(report.analysis, 'away_matches', 0)}"
+            ),
             "Reason": escape(why),
         }
         tds = "".join(

@@ -45,8 +45,10 @@ PAGES_BY_MODE: dict[UXMode, tuple[str, ...]] = {
 # Signal table columns by depth (keys match tables.signals_dataframe output).
 # Internal keys stay English; display labels are localized in the table builder.
 SIGNAL_COLUMNS_BY_MODE: dict[UXMode, tuple[str, ...]] = {
-    UXMode.BEGINNER: ("Match", "Tipp", "Begründung"),
-    UXMode.ADVANCED: ("Match", "Signal", "Model P", "Odds", "Edge", "EV", "Stake %", "Reason"),
+    UXMode.BEGINNER: ("Match", "Tipp", "Spiele", "Begründung"),
+    UXMode.ADVANCED: (
+        "Match", "Signal", "Model P", "Odds", "Edge", "EV", "Stake %", "Spiele", "Reason",
+    ),
     UXMode.EXPERT: (
         "Match",
         "Signal",
@@ -57,6 +59,7 @@ SIGNAL_COLUMNS_BY_MODE: dict[UXMode, tuple[str, ...]] = {
         "Stake %",
         "Confidence",
         "Data quality",
+        "Spiele",
         "Reason",
     ),
 }
@@ -73,6 +76,7 @@ _COLUMN_LABELS: dict[str, dict[str, str]] = {
     "Stake %": {"de": "Einsatz %", "en": "Stake %"},
     "Confidence": {"de": "Prognosequalität", "en": "Forecast quality"},
     "Data quality": {"de": "Datenqualität", "en": "Data quality"},
+    "Spiele": {"de": "Spiele (H/A)", "en": "Games (H/A)"},
     "Reason": {"de": "Begründung", "en": "Reason"},
 }
 

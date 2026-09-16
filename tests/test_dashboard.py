@@ -129,7 +129,7 @@ def test_signals_dataframe_columns() -> None:
     assert len(df) == len(reports)
 
     beginner = tables.signals_dataframe(reports, mode=UXMode.BEGINNER, lang="de")
-    assert list(beginner.columns) == ["Spiel", "Tipp", "Begründung"]
+    assert list(beginner.columns) == ["Spiel", "Tipp", "Spiele (H/A)", "Begründung"]
     assert len(beginner) == len(reports)
 
     en = tables.signals_dataframe(reports, mode=UXMode.ADVANCED, lang="en")
