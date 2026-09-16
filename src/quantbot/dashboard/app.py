@@ -386,11 +386,16 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
             )
         )
 
+    from quantbot.analysis.calibration import PlattScaler
     from quantbot.analysis.engine import AnalysisEngine
 
     orchestrator = QuantBotOrchestrator(
         provider=provider,
         model=DixonColesModel(min_matches=5),
+        # Calibrate 1X2 probabilities against out-of-sample history (disables
+        # itself gracefully when there is too little data); Platt is robust for
+        # small samples.
+        calibrator=PlattScaler(),
         # Pull model probabilities toward the fair market when data is thin, so
         # sparse-fit overconfidence does not turn into false value.
         analysis_engine=AnalysisEngine(market_shrinkage=True),

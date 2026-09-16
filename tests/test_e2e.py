@@ -79,6 +79,25 @@ def test_min_team_matches_default_off() -> None:
     )
 
 
+def test_orchestrator_predict_with_calibrator() -> None:
+    """The calibrated live-style pipeline runs and stays a valid distribution."""
+
+    from quantbot.analysis.calibration import PlattScaler
+    from quantbot.analysis.engine import AnalysisEngine
+
+    orchestrator = QuantBotOrchestrator(
+        calibrator=PlattScaler(),
+        analysis_engine=AnalysisEngine(market_shrinkage=True),
+    )
+    reports = orchestrator.predict(League.PREMIER_LEAGUE, SEASON)
+    assert reports
+    for report in reports:
+        total = sum(
+            report.analysis.metric_for(o).model_prob for o in MatchOutcome
+        )
+        assert abs(total - 1.0) < 1e-6
+
+
 def test_orchestrator_backtest_end_to_end() -> None:
     orchestrator = QuantBotOrchestrator(
         model=EloModel(),

@@ -316,7 +316,7 @@ def format_ticket(
         if plausible:
             lines.append(f"║  Geschätzte Chance: {slip.combined_prob * 100:>7.1f} %        ║")
         else:
-            lines.append(f"║  Geschätzte Chance:   unrealistisch     ║")
+            lines.append("║  Geschätzte Chance:   unrealistisch     ║")
     else:
         lines.append(f"║  Stake:             {stake:>8.2f}          ║")
         lines.append(f"║  Combined odds:     {slip.combined_odds:>8.2f}         ║")
@@ -324,7 +324,7 @@ def format_ticket(
         if plausible:
             lines.append(f"║  Estimated chance:  {slip.combined_prob * 100:>7.1f} %        ║")
         else:
-            lines.append(f"║  Estimated chance:    not realistic     ║")
+            lines.append("║  Estimated chance:    not realistic     ║")
     if not plausible:
         lines.append("╠══════════════════════════════════════╣")
         if de:
