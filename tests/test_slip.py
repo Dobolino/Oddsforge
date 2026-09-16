@@ -39,6 +39,13 @@ def test_slip_flags_overconfident_chance_as_implausible() -> None:
     assert "78" not in text and "79" not in text  # no rosy percentage shown
 
 
+def test_big_underdog_leg_flags_slip() -> None:
+    # A leg at 10.0 (a big underdog) makes the slip implausible even if the
+    # combined chance looks modest.
+    slip = BettingSlip(legs=(_leg(2.34, 0.45), _leg(10.0, 0.11)), style="safe")
+    assert not slip.is_plausible
+
+
 def test_realistic_slip_stays_plausible() -> None:
     # Legs priced near their model probability -> small edge, believable combo.
     slip = BettingSlip(legs=(_leg(1.7, 0.60), _leg(2.0, 0.52)), style="safe")

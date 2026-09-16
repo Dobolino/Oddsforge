@@ -21,6 +21,7 @@ from quantbot.schemas import MatchOutcome, TotalsSide
 # displayed chance is not trustworthy and is flagged, not shown as fact.
 _MAX_PLAUSIBLE_COMBINED_EV = 0.5   # +50% expected value on a combo is impossible
 _MAX_PLAUSIBLE_LEG_EDGE = 0.25     # a single leg 25 pts above the market price
+_MAX_PLAUSIBLE_LEG_ODDS = 8.0      # a big-underdog leg (<12.5%) does not belong in a slip
 
 
 @dataclass(frozen=True)
@@ -81,6 +82,7 @@ class BettingSlip:
         return (
             self.expected_value <= _MAX_PLAUSIBLE_COMBINED_EV
             and self.max_leg_edge <= _MAX_PLAUSIBLE_LEG_EDGE
+            and all(leg.odds <= _MAX_PLAUSIBLE_LEG_ODDS for leg in self.legs)
         )
 
 
