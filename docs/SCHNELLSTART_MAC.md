@@ -93,7 +93,7 @@ Oder ohne Browser: `quantbot predict` und `quantbot backtest`.
 
 ## Echte Spiele der laufenden Saison
 
-Dafür brauchst du zwei kostenlose Schlüssel (Football-Data.org und The Odds API). Am einfachsten trägst du sie im Dashboard unter API-Schlüssel ein — sie bleiben nur auf deinem Mac.
+Dafür brauchst du zwei Schlüssel (Football-Data.org und The Odds API). Trage sie im Dashboard unter API-Schlüssel ein und klicke auf **Schlüssel speichern**. Die Schlüssel werden unverschlüsselt in `~/.quantbot/credentials.env` auf dem Rechner gespeichert, auf dem QuantBot läuft, und bei API-Abrufen per HTTPS an den jeweiligen Anbieter übertragen. Dashboard und CLI verwenden dieselbe Datei; Umgebungsvariablen und `.env` haben Vorrang. **HINTERLEGT · UNGEPRÜFT** bestätigt nur das Vorhandensein eines Schlüssels. Basketball verwendet weiterhin Demodaten und benötigt keinen Schlüssel.
 
 Alternativ `.env.example` nach `.env` kopieren und die Keys eintragen (siehe README).
 
