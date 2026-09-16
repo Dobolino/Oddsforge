@@ -24,10 +24,10 @@ from quantbot.decision.rules import NoBetRules
 from quantbot.decision.sizing import KellySizer
 from quantbot.logging import get_logger
 from quantbot.markets.odds import MarketEngine
-from quantbot.models.base import BaseModel
+from quantbot.models.base import BaseModel, NotFittedError
 from quantbot.models.calibrated import CalibratedModel
 from quantbot.models.elo import EloModel
-from quantbot.schemas import InjuryStatus, League, Match, ValueSignal
+from quantbot.schemas import InjuryStatus, League, Match, SignalType, ValueSignal
 
 logger = get_logger(__name__)
 
@@ -62,7 +62,12 @@ class QuantBotOrchestrator:
         decision_engine: DecisionEngine | None = None,
         initial_bankroll: float = 1000.0,
         calibrator: BaseCalibrator | None = None,
+        min_team_matches: int = 0,
     ) -> None:
+        # Below this many finished matches for either team, issue no tip: a
+        # goals model fit on a handful of games per team is overconfident
+        # (extreme probabilities), so early-season data is not trustworthy.
+        self.min_team_matches = max(0, int(min_team_matches))
         self.provider = provider or DummyDataProvider()
         base_model = model or EloModel()
         # Optionally wrap the model so calibrated probabilities reach the
@@ -141,7 +146,12 @@ class QuantBotOrchestrator:
         universe = self.universe(league, season)
         use_basketball = sport_for_league(league) is Sport.BASKETBALL
         model = BasketballModel() if use_basketball else self.model
-        model.fit_until(universe, as_of)
+        try:
+            model.fit_until(universe, as_of)
+        except (ValueError, NotFittedError) as exc:
+            # Not enough finished matches to fit at all (very early season).
+            logger.warning("Model not fitted for %s %s: %s", league.value, season, exc)
+            return []
         counts = self._team_counts(universe, as_of)
 
         reports: list[SignalReport] = []
@@ -164,6 +174,16 @@ class QuantBotOrchestrator:
             analysis = self.analysis_engine.analyze(
                 prediction, market, entry.decimal_odds(), quality
             )
+            if min(quality.home_matches, quality.away_matches) < self.min_team_matches:
+                # Too little history for this pairing: no reliable tip.
+                reports.append(
+                    SignalReport(
+                        match=match,
+                        signal=self._insufficient_data_signal(market, analysis),
+                        analysis=analysis,
+                    )
+                )
+                continue
             signal = self.decision_engine.decide(analysis, market)
             if use_basketball and isinstance(model, BasketballModel):
                 signal = self._maybe_prefer_nba_totals(
@@ -195,6 +215,24 @@ class QuantBotOrchestrator:
             n_bets,
         )
         return reports
+
+    def _insufficient_data_signal(
+        self, market, analysis: AnalysisResult
+    ) -> ValueSignal:
+        """A NO_BET signal used when a team has too little match history."""
+
+        return ValueSignal(
+            match_id=analysis.match_id,
+            timestamp=market.timestamp,
+            signal=SignalType.NO_BET,
+            model_confidence=analysis.model_confidence,
+            data_quality=analysis.data_quality,
+            stake_fraction=0.0,
+            rationale="insufficient team match history",
+            rationale_de="Zu wenig Spiele pro Team für einen verlässlichen Tipp.",
+            rationale_en="Too few matches per team for a reliable tip.",
+            metrics=analysis.metrics,
+        )
 
     def _maybe_prefer_totals(
         self,

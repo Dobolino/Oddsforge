@@ -389,6 +389,10 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     orchestrator = QuantBotOrchestrator(
         provider=provider,
         model=DixonColesModel(min_matches=5),
+        # No tip when a team has fewer than this many finished matches; a goals
+        # model on a handful of games per team is overconfident. Demo data is a
+        # full synthetic season, so only live early-season runs hit this.
+        min_team_matches=6,
     )
     mode = "live" if live else "demo"
     C = _install_cache()

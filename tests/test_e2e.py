@@ -57,6 +57,28 @@ def test_orchestrator_predict_reports() -> None:
         assert 0.0 <= report.signal.stake_fraction <= 1.0
 
 
+def test_min_team_matches_blocks_low_data_tips() -> None:
+    """With a high per-team threshold, no tips are issued; a clear reason shows."""
+
+    orchestrator = QuantBotOrchestrator(min_team_matches=1000)
+    reports = orchestrator.predict(League.PREMIER_LEAGUE, SEASON)
+    assert reports  # matches still listed
+    for report in reports:
+        assert report.signal.signal is SignalType.NO_BET
+        assert report.signal.rationale_de
+        assert "pro team" in report.signal.rationale_de.lower()
+
+
+def test_min_team_matches_default_off() -> None:
+    """Default threshold (0) never triggers the low-data no-bet path."""
+
+    default = QuantBotOrchestrator().predict(League.PREMIER_LEAGUE, SEASON)
+    assert default
+    assert not any(
+        "pro team" in (r.signal.rationale_de or "").lower() for r in default
+    )
+
+
 def test_orchestrator_backtest_end_to_end() -> None:
     orchestrator = QuantBotOrchestrator(
         model=EloModel(),
