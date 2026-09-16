@@ -193,6 +193,7 @@ class QuantBotOrchestrator:
                     data_quality=analysis.data_quality,
                     model_confidence=analysis.model_confidence,
                     signal_ml=signal,
+                    quality=quality,
                 )
             else:
                 signal = self._maybe_prefer_totals(
@@ -202,6 +203,7 @@ class QuantBotOrchestrator:
                     data_quality=analysis.data_quality,
                     model_confidence=analysis.model_confidence,
                     signal_1x2=signal,
+                    quality=quality,
                 )
             reports.append(SignalReport(match=match, signal=signal, analysis=analysis))
 
@@ -243,6 +245,7 @@ class QuantBotOrchestrator:
         data_quality: float,
         model_confidence: float,
         signal_1x2: ValueSignal,
+        quality: DataQualitySignals | None = None,
     ) -> ValueSignal:
         """If a totals tip clears the same rules with better EV, prefer it."""
 
@@ -265,6 +268,9 @@ class QuantBotOrchestrator:
             )
         except ValueError:
             return signal_1x2
+        # Same market-shrinkage discipline as 1X2: without it every goals
+        # market looks like value on thin early-season data.
+        totals_metrics = self.analysis_engine.shrink_totals_metrics(totals_metrics, quality)
         totals_signal = self.decision_engine.decide_totals(
             match_id=match.match_id,
             market=totals_market,
@@ -289,6 +295,7 @@ class QuantBotOrchestrator:
         data_quality: float,
         model_confidence: float,
         signal_ml: ValueSignal,
+        quality: DataQualitySignals | None = None,
     ) -> ValueSignal:
         """Prefer NBA totals when EV beats the moneyline tip."""
 
@@ -324,6 +331,7 @@ class QuantBotOrchestrator:
                 expected_value=ev_fn(p_under, totals_entry.under),
             ),
         )
+        metrics = self.analysis_engine.shrink_totals_metrics(metrics, quality)
         totals_signal = self.decision_engine.decide_totals(
             match_id=match.match_id,
             market=totals_market,

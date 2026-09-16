@@ -243,6 +243,22 @@ def test_market_shrinkage_reduces_edge_when_data_thin() -> None:
     assert shrunk_edge > 0.0  # but not erased entirely
 
 
+def test_totals_shrinkage_reduces_edge_when_thin() -> None:
+    from quantbot.schemas import TotalsSide, ValueMetrics
+
+    over = ValueMetrics(
+        outcome=TotalsSide.OVER, model_prob=0.80, fair_market_prob=0.55,
+        decimal_odds=1.7, edge=0.25, expected_value=0.80 * 1.7 - 1.0,
+    )
+    thin = DataQualitySignals(home_matches=2, away_matches=2, n_bookmakers=3, injuries_known=False)
+    plain = AnalysisEngine().shrink_totals_metrics((over,), thin)
+    shrunk = AnalysisEngine(market_shrinkage=True).shrink_totals_metrics((over,), thin)
+    assert plain[0].edge == pytest.approx(0.25)  # disabled: unchanged
+    assert 0.0 < shrunk[0].edge < 0.25  # pulled toward market, not erased
+    # metrics stay internally consistent (validator would reject otherwise)
+    assert shrunk[0].expected_value == pytest.approx(shrunk[0].model_prob * 1.7 - 1.0)
+
+
 def test_market_shrinkage_off_by_default() -> None:
     pred = _prediction("m1", 0.80, 0.12, 0.08)
     market = _market("m1", 0.50, 0.27, 0.23)

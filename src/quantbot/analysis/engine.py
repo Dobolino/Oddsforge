@@ -74,13 +74,29 @@ class AnalysisEngine:
         # more, which tames overconfident edges from sparse fits.
         self._market_shrinkage = market_shrinkage
 
+    def _model_weight(
+        self, quality_signals: DataQualitySignals | None, data_quality: float
+    ) -> float:
+        """How far to trust the model vs. the market, in [0, 1].
+
+        Driven by games played per team (the real signal for a goals model),
+        not the overall data-quality score — that stays high early season
+        because bookmaker coverage is always full. Few games -> trust the
+        market more.
+        """
+
+        if quality_signals is not None:
+            depth = min(quality_signals.home_matches, quality_signals.away_matches)
+            target = max(1, self._confidence.target_matches)
+            return min(max(depth / target, 0.0), 1.0)
+        return min(max(data_quality / 100.0, 0.0), 1.0)
+
     @staticmethod
     def _shrink_to_market(
-        prediction: Prediction, market: MarketData, data_quality: float
+        prediction: Prediction, market: MarketData, w: float
     ) -> Prediction:
-        """Blend model 1X2 probabilities toward the fair market by data quality."""
+        """Blend model 1X2 probabilities toward the fair market with weight ``w``."""
 
-        w = min(max(data_quality / 100.0, 0.0), 1.0)  # model weight
         fair = market.fair_probabilities()
         ph = w * prediction.prob_home + (1.0 - w) * fair[MatchOutcome.HOME]
         pd = w * prediction.prob_draw + (1.0 - w) * fair[MatchOutcome.DRAW]
@@ -91,6 +107,40 @@ class AnalysisEngine:
         return prediction.model_copy(
             update={"prob_home": ph / total, "prob_draw": pd / total, "prob_away": pa / total}
         )
+
+    def shrink_totals_metrics(
+        self,
+        metrics: Sequence[ValueMetrics],
+        quality_signals: DataQualitySignals | None,
+    ) -> tuple[ValueMetrics, ...]:
+        """Pull Over/Under model probabilities toward the market when data is thin.
+
+        The goals market is derived from the same sparse-data model as 1X2, so
+        it needs the same discipline; without it every match looks like value.
+        Returns the metrics unchanged when shrinkage is disabled.
+        """
+
+        if not self._market_shrinkage:
+            return tuple(metrics)
+        data_quality = (
+            self._confidence.data_quality(quality_signals)
+            if quality_signals is not None
+            else 60.0
+        )
+        w = self._model_weight(quality_signals, data_quality)
+        out: list[ValueMetrics] = []
+        for m in metrics:
+            shrunk = w * m.model_prob + (1.0 - w) * m.fair_market_prob
+            out.append(
+                m.model_copy(
+                    update={
+                        "model_prob": shrunk,
+                        "edge": shrunk - m.fair_market_prob,
+                        "expected_value": shrunk * m.decimal_odds - 1.0,
+                    }
+                )
+            )
+        return tuple(out)
 
     def analyze(
         self,
@@ -109,7 +159,8 @@ class AnalysisEngine:
         )
 
         if self._market_shrinkage:
-            prediction = self._shrink_to_market(prediction, market, data_quality)
+            w = self._model_weight(quality_signals, data_quality)
+            prediction = self._shrink_to_market(prediction, market, w)
 
         metrics = self._value.metrics(prediction, market, decimal_odds)
         best_ev = self._value.best_by_ev(metrics)
