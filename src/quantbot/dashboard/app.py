@@ -742,32 +742,37 @@ def _pick_window(
     """
 
     start_default, end_default = _default_window_bounds(orchestrator, leagues, season, live)
-    key = _window_key(leagues, season, live)
-    if key not in st.session_state:
-        st.session_state[key] = (start_default, end_default)
+    # Persist under our OWN key (not the date_input's widget key). Streamlit
+    # drops a widget's state when the widget is not rendered on a run — e.g.
+    # while switching UX modes — which reset the date. A plain session_state
+    # entry survives that, so the chosen range stays put across mode switches.
+    store = _window_key(leagues, season, live)
+    if store not in st.session_state:
+        st.session_state[store] = (start_default, end_default)
 
     ui = st.sidebar if where == "sidebar" else st
     if where == "sidebar":
         ui.markdown(f"**{t('ctrl.window_sidebar', lang)}**")
 
     presets = ui.columns(3)
-    if presets[0].button(t("ctrl.range_today", lang), width="stretch", key=f"{key}::today"):
-        st.session_state[key] = (start_default, start_default)
+    if presets[0].button(t("ctrl.range_today", lang), width="stretch", key=f"{store}::today"):
+        st.session_state[store] = (start_default, start_default)
         st.rerun()
-    if presets[1].button(t("ctrl.range_3d", lang), width="stretch", key=f"{key}::3d"):
-        st.session_state[key] = (start_default, start_default + timedelta(days=2))
+    if presets[1].button(t("ctrl.range_3d", lang), width="stretch", key=f"{store}::3d"):
+        st.session_state[store] = (start_default, start_default + timedelta(days=2))
         st.rerun()
-    if presets[2].button(t("ctrl.range_7d", lang), width="stretch", key=f"{key}::7d"):
-        st.session_state[key] = (start_default, start_default + timedelta(days=6))
+    if presets[2].button(t("ctrl.range_7d", lang), width="stretch", key=f"{store}::7d"):
+        st.session_state[store] = (start_default, start_default + timedelta(days=6))
         st.rerun()
 
-    raw = ui.date_input(t("ctrl.date_range", lang), key=key)
+    raw = ui.date_input(t("ctrl.date_range", lang), value=st.session_state[store])
     if isinstance(raw, (tuple, list)) and len(raw) == 2:
         start_d, end_d = raw[0], raw[1]
     else:
         start_d = end_d = raw if isinstance(raw, date) else start_default
     if end_d < start_d:
         start_d, end_d = end_d, start_d
+    st.session_state[store] = (start_d, end_d)
     ui.caption(t("ctrl.date_range_hint", lang))
     as_of = _as_of_for_window(start_d, end_d, live=live)
     return as_of, start_d, end_d
