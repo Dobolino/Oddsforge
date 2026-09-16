@@ -83,9 +83,9 @@ Der einfachste Weg ist direkt im Dashboard, ohne Dateien zu bearbeiten:
 1. Starte das Dashboard: `quantbot dashboard`
 2. Klicke links auf den Bereich "API-Schlüssel (für echte Daten)".
 3. Füge deine zwei Schlüssel in die zwei Felder ein.
-4. Sobald beide ausgefüllt sind, schaltet die Seite auf echte Daten um. Links steht dann "Modus: echte Daten". Sind die Felder leer, läuft die Demo.
+4. Klicke auf **Schlüssel speichern**. Erst dann werden die Eingaben übernommen. Ohne hinterlegte Schlüssel läuft die Demo. **HINTERLEGT · UNGEPRÜFT** bedeutet, dass ein Schlüssel vorhanden ist, nicht dass der Anbieter ihn bereits akzeptiert hat.
 
-Die Schlüssel bleiben nur auf deinem PC. Sie werden nicht verschickt.
+Die Schlüssel werden unverschlüsselt in `~/.quantbot/credentials.env` auf dem Rechner gespeichert, auf dem QuantBot läuft. Bei API-Abrufen werden sie per HTTPS an den jeweiligen Datenanbieter übertragen. Dashboard und CLI nutzen dieselben Schlüssel; Umgebungsvariablen und `.env` haben Vorrang vor der gespeicherten Datei. Basketball verwendet weiterhin Demodaten und benötigt keinen Schlüssel.
 
 Alternativer Weg über eine Datei (falls du lieber die Textbefehle nutzt):
 
@@ -101,7 +101,7 @@ QUANTBOT_THE_ODDS_API_KEY=dein_odds_api_key
 
 ### Schritt 3: Mit echten Daten starten
 
-Im Dashboard passiert das automatisch, sobald die Schlüssel eingetragen sind. Für die Textbefehle:
+Im Dashboard passiert das nach dem Speichern der Schlüssel. Für die Textbefehle:
 
 ```
 cd C:\Oddsforge

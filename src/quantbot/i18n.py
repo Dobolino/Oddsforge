@@ -344,6 +344,11 @@ _STRINGS: dict[str, dict[str, str]] = {
     "track.miss": {"de": "Daneben", "en": "Miss"},
     "track.pending": {"de": "offen", "en": "pending"},
     # API keys
+    "keys.save": {"de": "Schlüssel speichern", "en": "Save keys"},
+    "keys.cancel": {"de": "Änderungen verwerfen", "en": "Discard changes"},
+    "keys.invalid": {"de": "Bitte beide Schlüssel ohne Leerzeichen oder Zeilenumbrüche eingeben.", "en": "Enter both keys without whitespace or line breaks."},
+    "keys.write_failed": {"de": "Die lokale Schlüsseldatei konnte nicht geändert werden. Bitte Dateirechte prüfen.", "en": "Could not update the local credentials file. Check file permissions."},
+    "keys.external": {"de": "Schlüssel aus der Umgebung oder .env haben Vorrang. Lokales Speichern oder Löschen ändert diese Vorgaben nicht.", "en": "Keys from the environment or .env take priority. Saving or deleting local keys does not change these overrides."},
     "keys.title": {"de": "API-Schlüssel (für echte Daten)", "en": "API keys (for real data)"},
     "keys.football": {"de": "Football-Data.org Schlüssel", "en": "Football-Data.org key"},
     "keys.odds": {"de": "The Odds API Schlüssel", "en": "The Odds API key"},
@@ -356,22 +361,16 @@ _STRINGS: dict[str, dict[str, str]] = {
         "en": "Filters the league list. Tip slips can mix sports.",
     },
     "page.settings": {"de": "Einstellungen", "en": "Settings"},
-    "settings.intro": {
-        "de": "API-Schlüssel und Verbindungsstatus. Schlüssel werden nur lokal gespeichert.",
-        "en": "API keys and connection status. Keys are stored only on this machine.",
-    },
-    "settings.validate": {"de": "Verbindungsstatus", "en": "Connection status"},
+    "settings.intro": {"de": "API-Schlüssel für externe Datenanbieter. Die Anzeige bestätigt keine erfolgreiche Verbindung.", "en": "API keys for external data providers. Presence does not confirm a successful connection."},
+    "settings.validate": {"de": "Hinterlegte Schlüssel", "en": "Configured keys"},
     "settings.keys_sidebar_hint": {
         "de": "Schlüssel kannst du in der Seitenleiste unter API-Schlüssel speichern oder ändern.",
         "en": "Save or change keys in the sidebar under API keys.",
     },
     "keys.basketball": {"de": "BallDontLie / NBA Schlüssel (optional)", "en": "BallDontLie / NBA key (optional)"},
     "keys.basketball_missing": {"de": "BallDontLie / NBA: nicht hinterlegt (Demo-NBA aktiv)", "en": "BallDontLie / NBA: not set (demo NBA active)"},
-    "keys.basketball_optional": {
-        "de": "Optional — ohne Schlüssel nutzt QuantBot NBA-Demodaten.",
-        "en": "Optional — without a key QuantBot uses NBA demo data.",
-    },
-    "status.active": {"de": "AKTIV", "en": "ACTIVE"},
+    "keys.basketball_optional": {"de": "NBA: Demodaten — noch keine Live-Anbindung, kein Schlüssel erforderlich.", "en": "NBA: demo data — live integration is not available yet; no key required."},
+    "status.active": {"de": "HINTERLEGT · UNGEPRÜFT", "en": "CONFIGURED · UNVERIFIED"},
     "status.missing": {"de": "FEHLT", "en": "MISSING"},
     "slip.smart_cross_sport": {"de": "⚡ Smart Cross-Sport Selection", "en": "⚡ Smart Cross-Sport Selection"},
     "slip.cross_sport_note": {
@@ -387,18 +386,12 @@ _STRINGS: dict[str, dict[str, str]] = {
         "en": "Smart selection applied: {n} legs.",
     },
 
-    "keys.hint": {
-        "de": "Leer lassen für Demodaten. Mit beiden Schlüsseln laufen echte Spiele. Schlüssel werden nur lokal auf diesem PC gespeichert.",
-        "en": "Leave empty for demo data. With both keys real matches are used. Keys are stored only on this PC.",
-    },
+    "keys.hint": {"de": "Beide Schlüssel eintragen und speichern. Speicherung unverschlüsselt auf diesem Rechner; Übertragung per HTTPS an die Datenanbieter.", "en": "Enter both keys and save. Stored unencrypted on this machine; sent via HTTPS to the data providers."},
     "keys.loaded": {
         "de": "Gespeicherte Schlüssel geladen (nicht im Klartext angezeigt).",
         "en": "Saved keys loaded (not shown in plain text).",
     },
-    "keys.active": {
-        "de": "Gespeicherte Schlüssel aktiv. Diese werden gerade verwendet.",
-        "en": "Saved keys active. These are in use right now.",
-    },
+    "keys.active": {"de": "Schlüssel hinterlegt. Ihre Gültigkeit wird erst bei einem API-Abruf geprüft.", "en": "Keys configured. Their validity is checked only when an API request is made."},
     "keys.autoload": {
         "de": "Werden bei jedem Start automatisch geladen. Nur die letzten vier Zeichen sind sichtbar.",
         "en": "Loaded automatically on every start. Only the last four characters are shown.",
@@ -679,10 +672,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "de": "Die Demodaten decken premier_league und bundesliga ab. Für andere Ligen --live mit API-Keys nutzen.",
         "en": "The demo data covers premier_league and bundesliga. For other leagues use --live with API keys.",
     },
-    "live_keys_missing": {
-        "de": "Der Live-Modus braucht QUANTBOT_FOOTBALL_DATA_API_KEY und QUANTBOT_THE_ODDS_API_KEY in der Umgebung oder .env.",
-        "en": "Live mode needs QUANTBOT_FOOTBALL_DATA_API_KEY and QUANTBOT_THE_ODDS_API_KEY in your environment or .env file.",
-    },
+    "live_keys_missing": {"de": "API-Schlüssel fehlen. Im Dashboard speichern oder QUANTBOT_FOOTBALL_DATA_API_KEY und QUANTBOT_THE_ODDS_API_KEY in .env setzen.", "en": "API keys missing. Save them in the dashboard or set QUANTBOT_FOOTBALL_DATA_API_KEY and QUANTBOT_THE_ODDS_API_KEY in .env."},
 }
 
 

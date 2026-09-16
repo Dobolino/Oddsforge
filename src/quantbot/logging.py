@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -16,6 +17,17 @@ from rich.logging import RichHandler
 from quantbot.config import Settings, get_settings
 
 _CONFIGURED = False
+
+
+class SecretRedactionFilter(logging.Filter):
+    """Mask API credentials in URL messages, including third-party HTTP logs."""
+
+    _query_secret = re.compile(r"([?&](?:apikey|api_key|token|key)=)[^&\s\"'<>]+", re.I)
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.msg = self._query_secret.sub(r"\1***", record.getMessage())
+        record.args = ()
+        return True
 
 
 class JsonFormatter(logging.Formatter):
@@ -65,6 +77,7 @@ def configure_logging(settings: Settings | None = None, *, force: bool = False) 
         handler = RichHandler(rich_tracebacks=True, show_path=False, markup=False)
         handler.setFormatter(logging.Formatter("%(message)s", datefmt="[%X]"))
 
+    handler.addFilter(SecretRedactionFilter())
     root.addHandler(handler)
     _CONFIGURED = True
 

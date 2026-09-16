@@ -7,7 +7,10 @@ the git tree) or an explicit path passed in tests. Values are never logged.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
+
+if TYPE_CHECKING:
+    from quantbot.config import Settings
 
 _FOOTBALL_KEY = "QUANTBOT_FOOTBALL_DATA_API_KEY"
 _ODDS_KEY = "QUANTBOT_THE_ODDS_API_KEY"
@@ -40,6 +43,8 @@ def save_api_keys(
     football = football_key.strip()
     odds = odds_key.strip()
     basketball = basketball_key.strip()
+    if any(any(char.isspace() for char in key) for key in (football, odds, basketball)):
+        raise ValueError("API keys must not contain whitespace")
     if not football or not odds:
         raise ValueError("football and odds API keys are required")
 
@@ -110,3 +115,25 @@ def mask_key(key: str) -> str:
     if len(key) <= 4:
         return "••••"
     return "••••" + key[-4:]
+
+
+def resolve_api_keys(
+    settings: Settings | None = None, *, path: Path | None = None
+) -> StoredApiKeys:
+    """Shared CLI/dashboard keys: environment/.env first, local file as fallback.
+
+    Read the local file on every call so dashboard edits take effect immediately.
+    Empty configuration values do not override saved keys.
+    """
+    if settings is None:
+        from quantbot.config import get_settings
+
+        settings = get_settings()
+    stored = load_api_keys(path=path) or StoredApiKeys("", "")
+    football = settings.football_data_api_key
+    odds = settings.the_odds_api_key
+    return StoredApiKeys(
+        (football.get_secret_value().strip() if football else "") or stored.football,
+        (odds.get_secret_value().strip() if odds else "") or stored.odds,
+        stored.basketball,
+    )

@@ -197,7 +197,7 @@ def _api_status_badges(lang: str, *, fd_key: str, odds_key: str, bball_key: str,
     """Compact header badges with masked key tails and active/missing dots."""
 
     def _badge(label: str, key: str, active: bool) -> str:
-        dot = "🟢" if active else "🔴"
+        dot = "•"
         status = t("status.active", lang) if active else t("status.missing", lang)
         tail = _mask_key(key) if key else "••••"
         return f"{dot} {label}: {tail} [{status}]"
@@ -205,7 +205,7 @@ def _api_status_badges(lang: str, *, fd_key: str, odds_key: str, bball_key: str,
     bits = [
         _badge("Football-Data", fd_key, bool(fd_key)),
         _badge("The Odds API", odds_key, bool(odds_key)),
-        _badge("BallDontLie / NBA", bball_key, bool(bball_key)),
+        t("keys.basketball_optional", lang),
     ]
     mode = t("mode.live", lang) if live else t("mode.demo", lang)
     st.caption(" · ".join(bits) + f"  |  {mode}")
@@ -312,50 +312,9 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     selected_leagues = resolve_leagues(league_choice, selected_sport)
     multi_league = league_choice == ALL_LEAGUES
 
-    # API keys: load from local file when present; never show plaintext.
-    from quantbot.local_credentials import clear_api_keys, load_api_keys, save_api_keys
+    from quantbot.dashboard.credentials import credential_controls
 
-    stored = load_api_keys()
-    if "keys_edit_mode" not in st.session_state:
-        st.session_state["keys_edit_mode"] = stored is None
-
-    fd_key = ""
-    odds_key = ""
-    bball_key = ""
-    with st.sidebar.expander(t("keys.title", lang), expanded=False):
-        if stored is not None and not st.session_state["keys_edit_mode"]:
-            fd_key, odds_key = stored.football, stored.odds
-            bball_key = stored.basketball
-            st.success(t("keys.active", lang))
-            st.caption(f"Football-Data: {_mask_key(fd_key)}")
-            st.caption(f"The Odds API: {_mask_key(odds_key)}")
-            st.caption(
-                f"BallDontLie / NBA: {_mask_key(bball_key)}"
-                if bball_key
-                else t("keys.basketball_missing", lang)
-            )
-            st.caption(t("keys.autoload", lang))
-            c1, c2 = st.columns(2)
-            if c1.button(t("keys.change", lang), key="keys_change_btn"):
-                st.session_state["keys_edit_mode"] = True
-                st.rerun()
-            if c2.button(t("keys.clear", lang), key="keys_clear_btn"):
-                clear_api_keys()
-                st.session_state["keys_edit_mode"] = True
-                st.rerun()
-        else:
-            fd_key = st.text_input(t("keys.football", lang), type="password", key="fd_key_input")
-            odds_key = st.text_input(t("keys.odds", lang), type="password", key="odds_key_input")
-            bball_key = st.text_input(t("keys.basketball", lang), type="password", key="bball_key_input")
-            st.caption(t("keys.hint", lang))
-            if fd_key and odds_key:
-                save_api_keys(fd_key, odds_key, bball_key)
-                st.session_state["keys_edit_mode"] = False
-                st.success(t("keys.saved", lang))
-                st.rerun()
-            elif stored is not None and st.button(t("keys.use_saved", lang), key="keys_use_saved"):
-                st.session_state["keys_edit_mode"] = False
-                st.rerun()
+    fd_key, odds_key, bball_key = credential_controls(lang)
 
     with st.sidebar.expander(t("cache.title", lang), expanded=False):
         if st.session_state.pop("cache_cleared", False):
@@ -397,8 +356,8 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
                 provider = live_provider
             else:
                 provider = basketball_provider
-            live = True
-            st.sidebar.success(t("mode.live", lang))
+            live = live_provider is not None
+            st.sidebar.info(t("mode.live" if live else "mode.demo", lang))
             last = getattr(provider, "finished_last_updated", None)
             if last is not None:
                 when = last.astimezone().strftime("%Y-%m-%d %H:%M")
@@ -940,15 +899,14 @@ def _settings_page(lang, *, fd_key: str, odds_key: str, bball_key: str, live: bo
     with c1:
         st.markdown(f"**Football-Data.org**")
         st.write(_mask_key(fd_key) if fd_key else t("status.missing", lang))
-        st.success(t("status.active", lang)) if fd_key else st.error(t("status.missing", lang))
+        st.info(t("status.active", lang)) if fd_key else st.error(t("status.missing", lang))
     with c2:
         st.markdown(f"**The Odds API**")
         st.write(_mask_key(odds_key) if odds_key else t("status.missing", lang))
-        st.success(t("status.active", lang)) if odds_key else st.error(t("status.missing", lang))
+        st.info(t("status.active", lang)) if odds_key else st.error(t("status.missing", lang))
     with c3:
         st.markdown(f"**BallDontLie / NBA**")
-        st.write(_mask_key(bball_key) if bball_key else t("status.missing", lang))
-        st.success(t("status.active", lang)) if bball_key else st.warning(t("keys.basketball_optional", lang))
+        st.info(t("keys.basketball_optional", lang))
 
     st.info(t("settings.keys_sidebar_hint", lang))
 
