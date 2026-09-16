@@ -91,6 +91,9 @@ def _synthetic_report(
         model_confidence=80.0,
         confidence_level=ConfidenceLevel.HIGH,
         ensemble_agreement=1.0,
+        # Totals need a modest sample before they may enter a tip slip.
+        home_matches=8 if isinstance(outcome, TotalsSide) else 10,
+        away_matches=8 if isinstance(outcome, TotalsSide) else 10,
     )
     return SignalReport(match=match, signal=signal, analysis=analysis)
 

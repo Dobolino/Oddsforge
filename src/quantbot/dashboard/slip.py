@@ -27,6 +27,9 @@ from quantbot.schemas import MatchOutcome, TotalsSide
 _MAX_PLAUSIBLE_COMBINED_EV = 0.5   # +50% expected value on a combo is impossible
 _MAX_PLAUSIBLE_LEG_EDGE = 0.25     # a single leg 25 pts above the market price
 _MAX_PLAUSIBLE_LEG_ODDS = 8.0      # a big-underdog leg (<12.5%) does not belong in a slip
+# Over/Under early in the season is especially noisy — keep totals off slips
+# until both teams have a modest sample.
+_MIN_GAMES_FOR_TOTALS_SLIP = 6
 
 
 @dataclass(frozen=True)
@@ -96,6 +99,12 @@ def _leg_from_report(report: SignalReport, lang: str, role: str) -> SlipLeg | No
     signal = report.signal
     if not signal.is_bet or signal.chosen_outcome is None or signal.decimal_odds is None:
         return None
+    # Early-season totals (O/U) are the usual source of "unrealistisch" slips.
+    if isinstance(signal.chosen_outcome, TotalsSide):
+        home_n = int(getattr(report.analysis, "home_matches", 0) or 0)
+        away_n = int(getattr(report.analysis, "away_matches", 0) or 0)
+        if min(home_n, away_n) < _MIN_GAMES_FOR_TOTALS_SLIP:
+            return None
     metric = next(
         (m for m in signal.metrics if m.outcome is signal.chosen_outcome),
         None,
@@ -146,7 +155,7 @@ def _stance_text(stance: str, de: bool) -> str:
     return ""
 
 
-def _value_legs(reports: list[SignalReport], lang: str) -> list[SlipLeg]:
+def _value_legs(reports: list[SignalReport], lang: str, *, bias: str = "safe") -> list[SlipLeg]:
     legs: list[SlipLeg] = []
     for report in reports:
         leg = _leg_from_report(report, lang, role="core")
@@ -154,13 +163,18 @@ def _value_legs(reports: list[SignalReport], lang: str) -> list[SlipLeg]:
         # (<12.5% implied) does not belong on a high-model-P accumulator.
         if leg is not None and leg.odds <= _MAX_PLAUSIBLE_LEG_ODDS:
             legs.append(leg)
+    if bias == "safe":
+        # Default orientation: stay with the market favorite when possible.
+        with_market = [leg for leg in legs if leg.stance != "against"]
+        if with_market:
+            legs = with_market
     return legs
 
 
 def _leg_sort_key(bias: str):
     """Ranking for slip legs by orientation.
 
-    - ``"safe"``: favorites first (highest model probability).
+    - ``"safe"``: with-market first, then favorites (highest model probability).
     - ``"balanced"``: blend of probability and edge.
     - ``"contra"``: biggest disagreement with the market first (largest edge),
       i.e. contrarian value on less likely sides.
@@ -170,7 +184,53 @@ def _leg_sort_key(bias: str):
         return lambda leg: (-leg.edge, -(leg.model_prob * leg.odds - 1.0))
     if bias == "balanced":
         return lambda leg: (-(0.5 * leg.model_prob + 0.5 * leg.edge), -leg.model_prob)
-    return lambda leg: (-leg.model_prob, -leg.edge)
+
+    def _safe_key(leg: SlipLeg) -> tuple[int, float, float]:
+        stance_rank = 0 if leg.stance == "with" else (1 if not leg.stance else 2)
+        return (stance_rank, -leg.model_prob, -leg.edge)
+
+    return _safe_key
+
+
+def _select_plausible_legs(
+    ordered: Sequence[SlipLeg],
+    *,
+    max_legs: int,
+    style: str,
+) -> BettingSlip | None:
+    """Greedily keep legs that leave the accumulator inside plausibility bounds."""
+
+    chosen: list[SlipLeg] = []
+    for leg in ordered:
+        if len(chosen) >= max(1, max_legs):
+            break
+        trial = BettingSlip(legs=tuple(chosen + [leg]), style=style)
+        if trial.is_plausible:
+            chosen.append(leg)
+    if not chosen:
+        return None
+    return BettingSlip(legs=tuple(chosen), style=style)
+
+
+def make_plausible_slip(slip: BettingSlip) -> BettingSlip | None:
+    """Drop the greediest overconfident legs until the slip is believable."""
+
+    if not slip.legs:
+        return None
+    if slip.is_plausible:
+        return slip
+    remaining = list(slip.legs)
+    while remaining:
+        candidate = BettingSlip(legs=tuple(remaining), style=slip.style)
+        if candidate.is_plausible:
+            return candidate
+        # Drop the leg farthest above its market price.
+        worst_i = max(
+            range(len(remaining)),
+            key=lambda i: remaining[i].model_prob - (1.0 / remaining[i].odds if remaining[i].odds else 0.0),
+        )
+        remaining.pop(worst_i)
+    return None
 
 
 def build_safe_slip(
@@ -182,12 +242,11 @@ def build_safe_slip(
 ) -> BettingSlip | None:
     """Slip built from value tips, ranked by the chosen orientation ``bias``."""
 
-    legs = _value_legs(reports, lang)
+    legs = _value_legs(reports, lang, bias=bias)
     if not legs:
         return None
     legs.sort(key=_leg_sort_key(bias))
-    chosen = tuple(legs[: max(1, max_legs)])
-    return BettingSlip(legs=chosen, style="safe")
+    return _select_plausible_legs(legs, max_legs=max_legs, style="safe")
 
 
 def build_boosted_slip(
@@ -201,23 +260,37 @@ def build_boosted_slip(
 ) -> BettingSlip | None:
     """Safer core tips plus higher-odds legs to lift the combined price."""
 
-    legs = _value_legs(reports, lang)
+    legs = _value_legs(reports, lang, bias=bias)
     if not legs:
         return None
 
     by_prob = sorted(legs, key=_leg_sort_key(bias))
     core_n = max(1, min(core_legs, len(by_prob)))
-    core = [_copy_leg(leg, role="core") for leg in by_prob[:core_n]]
+    core_slip = _select_plausible_legs(
+        [_copy_leg(leg, role="core") for leg in by_prob[: max(core_n * 2, core_n)]],
+        max_legs=core_n,
+        style="boosted",
+    )
+    if core_slip is None:
+        return None
+    core = list(core_slip.legs)
     used = {leg.match_id for leg in core}
 
     boosters = [
         _copy_leg(leg, role="boost")
         for leg in sorted(by_prob, key=lambda leg: (-leg.odds, -leg.edge))
         if leg.match_id not in used and leg.odds >= min_boost_odds
-    ][: max(0, boost_legs)]
+    ]
+    # Add boosters only while the combo stays plausible.
+    chosen = list(core)
+    for booster in boosters:
+        if len([leg for leg in chosen if leg.role == "boost"]) >= max(0, boost_legs):
+            break
+        trial = BettingSlip(legs=tuple(chosen + [booster]), style="boosted")
+        if trial.is_plausible:
+            chosen.append(booster)
 
-    chosen = tuple(core + boosters)
-    return BettingSlip(legs=chosen, style="boosted")
+    return BettingSlip(legs=tuple(chosen), style="boosted")
 
 
 def slip_with_legs(slip: BettingSlip, match_ids: Sequence[str]) -> BettingSlip:
@@ -225,7 +298,9 @@ def slip_with_legs(slip: BettingSlip, match_ids: Sequence[str]) -> BettingSlip:
 
     wanted = set(match_ids)
     kept = tuple(leg for leg in slip.legs if leg.match_id in wanted)
-    return BettingSlip(legs=kept, style=slip.style)
+    trimmed = BettingSlip(legs=kept, style=slip.style)
+    # Manual edits can reintroduce overconfidence — re-trim if needed.
+    return make_plausible_slip(trimmed) or trimmed
 
 
 def default_leg_count(*, beginner: bool, span_days: int, available: int) -> int:
@@ -256,6 +331,7 @@ def build_smart_cross_sport_slip(
     Requires edge > ``min_edge`` (default 2%) and data quality > ``min_data_quality``.
     When ``prefer_mixed`` is True and both sports have eligible legs, include at
     least one leg from each sport when ``max_legs`` >= 2.
+    Prefers with-market legs and drops totals with thin team history.
     """
 
     eligible: list[tuple[SignalReport, SlipLeg]] = []
@@ -274,6 +350,11 @@ def build_smart_cross_sport_slip(
     if not eligible:
         return None
 
+    # Prefer with-market when available (same default as safe slips).
+    with_market = [(r, leg) for r, leg in eligible if leg.stance != "against"]
+    if with_market:
+        eligible = with_market
+
     def sort_key(item: tuple[SignalReport, SlipLeg]) -> tuple[float, float]:
         report, leg = item
         ev = float(report.signal.expected_value or 0.0)
@@ -282,7 +363,7 @@ def build_smart_cross_sport_slip(
     eligible.sort(key=sort_key)
     max_legs = max(1, max_legs)
 
-    chosen: list[SlipLeg] = []
+    ordered: list[SlipLeg] = []
     if prefer_mixed and max_legs >= 2:
         by_sport: dict[str, list[SlipLeg]] = {}
         for report, leg in eligible:
@@ -294,20 +375,16 @@ def build_smart_cross_sport_slip(
             by_sport.setdefault(sport, []).append(leg)
         if len(by_sport) >= 2:
             for sport in sorted(by_sport.keys()):
-                if len(chosen) >= max_legs:
-                    break
-                chosen.append(by_sport[sport][0])
-            used = {leg.match_id for leg in chosen}
+                ordered.append(by_sport[sport][0])
+            used = {leg.match_id for leg in ordered}
             for _, leg in eligible:
-                if len(chosen) >= max_legs:
-                    break
                 if leg.match_id not in used:
-                    chosen.append(leg)
+                    ordered.append(leg)
                     used.add(leg.match_id)
-            return BettingSlip(legs=tuple(chosen[:max_legs]), style="smart")
+            return _select_plausible_legs(ordered, max_legs=max_legs, style="smart")
 
-    chosen = [leg for _, leg in eligible[:max_legs]]
-    return BettingSlip(legs=tuple(chosen), style="smart")
+    ordered = [leg for _, leg in eligible]
+    return _select_plausible_legs(ordered, max_legs=max_legs, style="smart")
 
 
 def format_ticket(

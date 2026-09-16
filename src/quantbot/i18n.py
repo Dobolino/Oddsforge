@@ -202,6 +202,15 @@ _STRINGS: dict[str, dict[str, str]] = {
         "en": "Colors: 🟢 home win · 🟡 draw · 🔵 away win",
     },
     "sig.range_summary": {"de": "Zeitraum {start}–{end}: {n} Spiele, {k} klare Tipps.", "en": "Window {start}–{end}: {n} matches, {k} clear tips."},
+    "sig.value_rate": {
+        "de": "Value-Anteil: {k} von {n} Spielen ({pct}%). Bei sehr hohem Anteil oft zu wenig Daten — vorsichtig bleiben.",
+        "en": "Value share: {k} of {n} matches ({pct}%). A very high share often means thin data — stay cautious.",
+    },
+    "sig.value_share": {"de": "Value-Anteil", "en": "Value share"},
+    "sig.top_n_note": {
+        "de": "Hauptliste: Top {n} nach Edge (von {total} Value-Tipps). Rest unter „Alle Spiele“.",
+        "en": "Main list: top {n} by edge (of {total} value tips). Rest under “All matches”.",
+    },
     "sig.all_leagues_intro": {"de": "Tipps nach Liga unterteilt. Der Tippschein kann alle Ligen im Zeitraum mischen.", "en": "Tips grouped by league. The tip slip can mix all leagues in the date window."},
     "page.insights": {"de": "Modell-Einblicke", "en": "Model insights"},
     "page.backtest": {"de": "Backtest", "en": "Backtest"},
@@ -504,12 +513,16 @@ _STRINGS: dict[str, dict[str, str]] = {
     "slip.orient_balanced": {"de": "Ausgewogen", "en": "Balanced"},
     "slip.orient_contra": {"de": "Gegen den Markt", "en": "Against the market"},
     "slip.orient_hint": {
-        "de": "Sicher bevorzugt Favoriten mit hoher Modell-Wahrscheinlichkeit. "
+        "de": "Sicher bleibt standardmässig beim Markt-Favoriten und kürzt überzogene Kombis. "
               "Gegen den Markt bevorzugt Tipps mit dem grössten Vorteil, oft "
               "unwahrscheinlichere Seiten mit höherer Quote und mehr Risiko.",
-        "en": "Safe prefers favorites with high model probability. Against the "
-              "market prefers the biggest edge, often less likely sides with "
+        "en": "Safe stays with the market favorite by default and trims overconfident combos. "
+              "Against the market prefers the biggest edge, often less likely sides with "
               "higher odds and more risk.",
+    },
+    "slip.orient_safe_default": {
+        "de": "Standard: Mit dem Markt. Gegen den Markt erst bewusst wählen.",
+        "en": "Default: with the market. Choose against the market deliberately.",
     },
     "slip.style_safe": {"de": "Hohe Modell-P", "en": "High model-P"},
     "slip.style_boosted": {
@@ -553,6 +566,10 @@ _STRINGS: dict[str, dict[str, str]] = {
         "en": "The estimated chance is unrealistically high. This almost always comes from "
               "too little data or uncalibrated probabilities, often early in the season. "
               "Do not trust this slip.",
+    },
+    "slip.trimmed_note": {
+        "de": "Schein wurde gekürzt, damit die Kombi-Chance glaubwürdig bleibt.",
+        "en": "Slip was shortened so the combined chance stays believable.",
     },
     "slip.legs": {"de": "Tipps im Schein", "en": "Legs on the slip"},
     "slip.role": {"de": "Rolle", "en": "Role"},

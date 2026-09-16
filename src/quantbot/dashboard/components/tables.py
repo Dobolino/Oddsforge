@@ -239,6 +239,7 @@ def beginner_tip_cards(
     from quantbot.analysis.value import format_edge_band_pp, format_model_prob
 
     bets = [r for r in reports if r.signal.is_bet]
+    bets.sort(key=lambda r: (-float(r.signal.edge or 0.0), r.match.kickoff))
     others = [r for r in reports if not r.signal.is_bet]
     ordered = bets + others
     cards: list[dict[str, str]] = []
