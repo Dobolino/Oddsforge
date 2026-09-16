@@ -192,3 +192,19 @@ def test_fit_until_empty_history_still_predicts() -> None:
 def test_fit_until_requires_aware_as_of() -> None:
     with pytest.raises(ValueError, match="timezone-aware"):
         EloModel().fit_until(_all_finished(), datetime(2025, 1, 1))
+
+
+def test_dixon_coles_score_matrix_never_nan(monkeypatch) -> None:
+    """Degenerate (non-finite / extreme) team params must not yield NaN probs."""
+    import numpy as np
+
+    model = DixonColesModel(max_goals=8)
+    model._is_fitted = True  # bypass fitting for this unit check
+    model._home_adv = 0.0
+    model._rho = 0.0
+    monkeypatch.setattr(model, "attack", lambda _tid: float("inf"))
+    monkeypatch.setattr(model, "defense", lambda _tid: float("nan"))
+
+    grid = model.score_matrix("a", "b")
+    assert np.isfinite(grid).all()
+    assert abs(float(grid.sum()) - 1.0) < 1e-9

@@ -28,6 +28,11 @@ from quantbot.schemas import Match, Prediction, ScoreMatrix
 
 logger = get_logger(__name__)
 
+# Sane bounds for expected goals per team. Keeps the Poisson grid finite even
+# when a sparse-data fit returns extreme or non-finite team parameters.
+_LAM_MIN = 0.02
+_LAM_MAX = 12.0
+
 
 def _dixon_coles_tau(
     x: np.ndarray, y: np.ndarray, lam_home: float, lam_away: float, rho: float
@@ -260,8 +265,18 @@ class DixonColesModel(BaseModel):
     # --- Predict ---
 
     def _lambdas(self, home_id: str, away_id: str) -> tuple[float, float]:
-        lam_home = math.exp(self.attack(home_id) + self.defense(away_id) + self._home_adv)
-        lam_away = math.exp(self.attack(away_id) + self.defense(home_id))
+        # Clamp the expected goals to a sane, finite range. A degenerate fit
+        # (sparse early-season data) can return non-finite or extreme
+        # attack/defense values; without this the Poisson grid overflows to
+        # NaN and the whole prediction — and calibration — breaks.
+        def _f(x: float) -> float:
+            return x if math.isfinite(x) else 0.0
+
+        lo, hi = math.log(_LAM_MIN), math.log(_LAM_MAX)
+        e_home = _f(self.attack(home_id)) + _f(self.defense(away_id)) + _f(self._home_adv)
+        e_away = _f(self.attack(away_id)) + _f(self.defense(home_id))
+        lam_home = math.exp(min(max(e_home, lo), hi))
+        lam_away = math.exp(min(max(e_away, lo), hi))
         return lam_home, lam_away
 
     def score_matrix(self, home_id: str, away_id: str) -> np.ndarray:
@@ -279,7 +294,15 @@ class DixonColesModel(BaseModel):
         grid = grid * _dixon_coles_tau(x, y, lam_home, lam_away, self._rho)
 
         grid = np.clip(grid, 0.0, None)
-        grid /= grid.sum()
+        total = grid.sum()
+        if not np.isfinite(total) or total <= 0.0:
+            # Degenerate grid: fall back to the independent Poisson product,
+            # and to a uniform grid only if that is still unusable.
+            grid = np.outer(p_home, p_away)
+            total = grid.sum()
+            if not np.isfinite(total) or total <= 0.0:
+                return np.full((size, size), 1.0 / (size * size))
+        grid /= total
         return grid
 
     def predict(self, match: Match) -> ModelPrediction:

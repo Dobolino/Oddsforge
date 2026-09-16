@@ -235,12 +235,15 @@ class CachingMatchProvider:
         if self.cache.last_updated is not None:
             since = self.cache.last_updated.astimezone(timezone.utc).date()
             date_from = (since - timedelta(days=3)).isoformat()
+            # Football-Data rejects (400) date filters combined with ``season``.
+            # Use dateFrom + dateTo (a valid pair) and drop the season instead.
+            date_to = (datetime.now(timezone.utc).date() + timedelta(days=1)).isoformat()
             try:
                 recent_finished = self._call_inner(
                     competition,
                     status="FINISHED",
                     date_from=date_from,
-                    season=season,
+                    date_to=date_to,
                     allow_unfiltered_fallback=False,
                 )
             except Exception as exc:  # noqa: BLE001 - free-tier filters often 400
