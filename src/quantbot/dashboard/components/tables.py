@@ -14,6 +14,8 @@ from quantbot.dashboard.ux import (
     UXMode,
     colored_text_html,
     column_label,
+    market_stance,
+    market_stance_label,
     plain_signal_label,
     reason_for_mode,
     tip_badge_html,
@@ -25,6 +27,7 @@ from quantbot.orchestrator import SignalReport
 SIGNAL_COLUMNS = [
     "Match",
     "Signal",
+    "Markt",
     "Model P",
     "Odds",
     "Edge",
@@ -75,6 +78,7 @@ def signals_dataframe(
             {
                 "Match": f"{m.home_team.name} vs {m.away_team.name}",
                 "Tipp": tip,
+                "Markt": market_stance_label(s, lang),
                 "Begründung": why,
                 "Signal": tip if mode is not UXMode.EXPERT else s.signal.value,
                 "Model P": format_model_prob(_chosen_model_prob(s)),
@@ -164,9 +168,16 @@ def colored_signals_table_html(
             ensemble_agreement=getattr(report.analysis, "ensemble_agreement", None),
         )
         ev_txt = format_ev_pct(s.expected_value)
+        stance = market_stance(s)
+        stance_cell = escape(market_stance_label(s, lang))
+        if stance is not None:
+            stance_cell = colored_text_html(
+                stance_cell, "#1a7f37" if stance == "with" else "#c47a00"
+            )
         cells: dict[str, str] = {
             "Match": escape(f"{m.home_team.name} vs {m.away_team.name}"),
             "Signal": tip_cell,
+            "Markt": stance_cell,
             "Model P": escape(format_model_prob(_chosen_model_prob(s))),
             "Odds": escape("—" if s.decimal_odds is None else f"{s.decimal_odds:.2f}"),
             "Edge": colored_text_html(edge_txt, tone_color_for_signed(s.edge)),

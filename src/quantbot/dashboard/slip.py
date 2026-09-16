@@ -139,18 +139,35 @@ def _value_legs(reports: list[SignalReport], lang: str) -> list[SlipLeg]:
     return legs
 
 
+def _leg_sort_key(bias: str):
+    """Ranking for slip legs by orientation.
+
+    - ``"safe"``: favorites first (highest model probability).
+    - ``"balanced"``: blend of probability and edge.
+    - ``"contra"``: biggest disagreement with the market first (largest edge),
+      i.e. contrarian value on less likely sides.
+    """
+
+    if bias == "contra":
+        return lambda leg: (-leg.edge, -(leg.model_prob * leg.odds - 1.0))
+    if bias == "balanced":
+        return lambda leg: (-(0.5 * leg.model_prob + 0.5 * leg.edge), -leg.model_prob)
+    return lambda leg: (-leg.model_prob, -leg.edge)
+
+
 def build_safe_slip(
     reports: list[SignalReport],
     *,
     lang: str = "de",
     max_legs: int = 3,
+    bias: str = "safe",
 ) -> BettingSlip | None:
-    """Highest win-chance slip: value tips sorted by model probability."""
+    """Slip built from value tips, ranked by the chosen orientation ``bias``."""
 
     legs = _value_legs(reports, lang)
     if not legs:
         return None
-    legs.sort(key=lambda leg: (-leg.model_prob, -leg.edge))
+    legs.sort(key=_leg_sort_key(bias))
     chosen = tuple(legs[: max(1, max_legs)])
     return BettingSlip(legs=chosen, style="safe")
 
@@ -162,6 +179,7 @@ def build_boosted_slip(
     core_legs: int = 2,
     boost_legs: int = 2,
     min_boost_odds: float = 2.2,
+    bias: str = "safe",
 ) -> BettingSlip | None:
     """Safer core tips plus higher-odds legs to lift the combined price."""
 
@@ -169,7 +187,7 @@ def build_boosted_slip(
     if not legs:
         return None
 
-    by_prob = sorted(legs, key=lambda leg: (-leg.model_prob, -leg.edge))
+    by_prob = sorted(legs, key=_leg_sort_key(bias))
     core_n = max(1, min(core_legs, len(by_prob)))
     core = [_copy_leg(leg, role="core") for leg in by_prob[:core_n]]
     used = {leg.match_id for leg in core}

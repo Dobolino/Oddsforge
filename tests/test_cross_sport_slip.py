@@ -111,6 +111,22 @@ def test_safe_slip_excludes_big_underdog_leg() -> None:
     assert "dog" not in ids  # odds 10.0 filtered out before building
 
 
+def test_slip_bias_changes_leg_priority() -> None:
+    favorite = _synthetic_report(
+        match_id="fav", league=League.LA_LIGA, sport=Sport.FOOTBALL,
+        edge=0.03, quality=80.0, odds=1.6, model_prob=0.65,
+    )
+    underdog = _synthetic_report(
+        match_id="dog", league=League.LA_LIGA, sport=Sport.FOOTBALL,
+        edge=0.15, quality=80.0, odds=3.0, model_prob=0.40,
+    )
+    safe = build_safe_slip([favorite, underdog], lang="de", max_legs=1, bias="safe")
+    contra = build_safe_slip([favorite, underdog], lang="de", max_legs=1, bias="contra")
+    assert safe is not None and contra is not None
+    assert safe.legs[0].match_id == "fav"     # highest model probability
+    assert contra.legs[0].match_id == "dog"   # biggest edge vs market
+
+
 def test_sport_filter_limits_leagues() -> None:
     basketball = resolve_sport("basketball")
     choices = league_choices(basketball)

@@ -499,6 +499,18 @@ _STRINGS: dict[str, dict[str, str]] = {
               "and date range. QuantBot places nothing — copy only.",
     },
     "slip.style": {"de": "Schein-Art", "en": "Slip style"},
+    "slip.orient": {"de": "Ausrichtung", "en": "Orientation"},
+    "slip.orient_safe": {"de": "Sicher", "en": "Safe"},
+    "slip.orient_balanced": {"de": "Ausgewogen", "en": "Balanced"},
+    "slip.orient_contra": {"de": "Gegen den Markt", "en": "Against the market"},
+    "slip.orient_hint": {
+        "de": "Sicher bevorzugt Favoriten mit hoher Modell-Wahrscheinlichkeit. "
+              "Gegen den Markt bevorzugt Tipps mit dem grössten Vorteil, oft "
+              "unwahrscheinlichere Seiten mit höherer Quote und mehr Risiko.",
+        "en": "Safe prefers favorites with high model probability. Against the "
+              "market prefers the biggest edge, often less likely sides with "
+              "higher odds and more risk.",
+    },
     "slip.style_safe": {"de": "Hohe Modell-P", "en": "High model-P"},
     "slip.style_boosted": {
         "de": "Auswahl + höhere Quoten",

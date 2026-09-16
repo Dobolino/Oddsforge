@@ -39,6 +39,22 @@ def test_slip_flags_overconfident_chance_as_implausible() -> None:
     assert "78" not in text and "79" not in text  # no rosy percentage shown
 
 
+def test_market_stance_matches_metrics() -> None:
+    from quantbot.dashboard.ux import market_stance
+
+    reports = QuantBotOrchestrator().predict(League.PREMIER_LEAGUE, "2024-2025")
+    for r in reports:
+        s = r.signal
+        stance = market_stance(s)
+        if not s.is_bet:
+            assert stance is None
+            continue
+        assert stance in {"with", "against"}
+        chosen = next(m for m in s.metrics if m.outcome is s.chosen_outcome)
+        top = max(m.fair_market_prob for m in s.metrics)
+        assert stance == ("with" if chosen.fair_market_prob >= top - 1e-9 else "against")
+
+
 def test_big_underdog_leg_flags_slip() -> None:
     # A leg at 10.0 (a big underdog) makes the slip implausible even if the
     # combined chance looks modest.

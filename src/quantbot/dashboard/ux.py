@@ -45,13 +45,14 @@ PAGES_BY_MODE: dict[UXMode, tuple[str, ...]] = {
 # Signal table columns by depth (keys match tables.signals_dataframe output).
 # Internal keys stay English; display labels are localized in the table builder.
 SIGNAL_COLUMNS_BY_MODE: dict[UXMode, tuple[str, ...]] = {
-    UXMode.BEGINNER: ("Match", "Tipp", "Spiele", "Begründung"),
+    UXMode.BEGINNER: ("Match", "Tipp", "Markt", "Spiele", "Begründung"),
     UXMode.ADVANCED: (
-        "Match", "Signal", "Model P", "Odds", "Edge", "EV", "Stake %", "Spiele", "Reason",
+        "Match", "Signal", "Markt", "Model P", "Odds", "Edge", "EV", "Stake %", "Spiele", "Reason",
     ),
     UXMode.EXPERT: (
         "Match",
         "Signal",
+        "Markt",
         "Model P",
         "Odds",
         "Edge",
@@ -77,6 +78,7 @@ _COLUMN_LABELS: dict[str, dict[str, str]] = {
     "Confidence": {"de": "Prognosequalität", "en": "Forecast quality"},
     "Data quality": {"de": "Datenqualität", "en": "Data quality"},
     "Spiele": {"de": "Spiele (H/A)", "en": "Games (H/A)"},
+    "Markt": {"de": "Markt", "en": "Market"},
     "Reason": {"de": "Begründung", "en": "Reason"},
 }
 
@@ -86,6 +88,43 @@ def column_label(key: str, lang: str = "de") -> str:
     if lang.startswith("de"):
         return entry.get("de", key)
     return entry.get("en", key)
+
+
+_STANCE_LABELS: dict[str, dict[str, str]] = {
+    "with": {"de": "Mit Markt", "en": "With market"},
+    "against": {"de": "Gegen Markt", "en": "Against market"},
+}
+
+
+def market_stance(signal: ValueSignal) -> str | None:
+    """Is the tipped side the market favorite, or a pick against the market?
+
+    Returns ``"with"`` when the chosen outcome has the highest fair market
+    probability of the market's options (betting the favorite), ``"against"``
+    when the model backs a less likely side (a contrarian value pick), or
+    ``None`` for a no-bet.
+    """
+
+    if not signal.is_bet or signal.chosen_outcome is None or not signal.metrics:
+        return None
+    chosen = next(
+        (m for m in signal.metrics if m.outcome is signal.chosen_outcome), None
+    )
+    if chosen is None:
+        return None
+    top_fp = max(m.fair_market_prob for m in signal.metrics)
+    return "with" if chosen.fair_market_prob >= top_fp - 1e-9 else "against"
+
+
+def market_stance_label(signal: ValueSignal, lang: str = "de") -> str:
+    """Human label for the market stance (with emoji cue), or ``—`` for no-bet."""
+
+    stance = market_stance(signal)
+    if stance is None:
+        return "—"
+    cue = "🟢" if stance == "with" else "🟠"
+    entry = _STANCE_LABELS[stance]
+    return f"{cue} {entry.get(lang) or entry['de']}"
 
 _SIGNAL_PLAIN: dict[SignalType, dict[str, str]] = {
     # Claude review: avoid “Empfehlung”; prefer neutral value language.

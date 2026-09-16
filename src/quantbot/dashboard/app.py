@@ -1017,6 +1017,19 @@ def _slip_page(
             key="slip_style_radio",
         )
         st.caption(t(f"slip.style_{style_local}_hint", lang))
+        orient_labels = {
+            "safe": t("slip.orient_safe", lang),
+            "balanced": t("slip.orient_balanced", lang),
+            "contra": t("slip.orient_contra", lang),
+        }
+        orient_local = st.select_slider(
+            t("slip.orient", lang),
+            options=["safe", "balanced", "contra"],
+            value="safe",
+            format_func=lambda k: orient_labels[k],
+            key="slip_orient",
+        )
+        st.caption(t("slip.orient_hint", lang))
         stake_local = st.number_input(
             t("slip.stake", lang),
             min_value=1.0,
@@ -1037,7 +1050,9 @@ def _slip_page(
         st.caption(t("slip.legs_risk", lang))
 
         if style_local == "safe":
-            slip_local = build_safe_slip(reports, lang=lang, max_legs=max_legs_local)
+            slip_local = build_safe_slip(
+                reports, lang=lang, max_legs=max_legs_local, bias=orient_local
+            )
         else:
             core_legs = max(1, (max_legs_local + 1) // 2) if beginner else max(1, min(2, max_legs_local))
             boost_legs = max(0, max_legs_local - core_legs)
@@ -1046,7 +1061,7 @@ def _slip_page(
                 core_legs = c1.slider(t("slip.core_legs", lang), min_value=1, max_value=5, value=core_legs)
                 boost_legs = c2.slider(t("slip.boost_legs", lang), min_value=0, max_value=4, value=boost_legs)
             slip_local = build_boosted_slip(
-                reports, lang=lang, core_legs=core_legs, boost_legs=boost_legs
+                reports, lang=lang, core_legs=core_legs, boost_legs=boost_legs, bias=orient_local
             )
         return style_local, float(stake_local), slip_local
 
