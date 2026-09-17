@@ -1,12 +1,10 @@
 """Leak-free feature extraction for matches (Layer 1 input).
 
-Every feature for a target match is computed only from matches finished
+Every feature for a target match is computed only from results published
 strictly before that match's ``prediction_timestamp``. Two entry points:
 
 * :meth:`FeatureExtractor.extract` -- features for one match given a history.
-* :meth:`FeatureExtractor.build_training_set` -- an efficient chronological
-  walk that snapshots pre-match state as features, so training data is
-  leak-free by construction.
+* :meth:`FeatureExtractor.build_training_set` -- per-match as-of snapshots.
 
 Labels use the shared outcome order: home=0, draw=1, away=2.
 """
@@ -15,6 +13,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from quantbot.logging import get_logger
@@ -105,12 +104,14 @@ class FeatureExtractor:
 
     # --- Single-match extraction ---
 
-    def extract(self, match: Match, history: Sequence[Match]) -> dict[str, float]:
+    def extract(
+        self, match: Match, history: Sequence[Match], *, as_of: datetime | None = None
+    ) -> dict[str, float]:
         """Return the feature vector for ``match`` using only prior matches."""
 
-        as_of = match.prediction_timestamp
+        as_of = min(as_of, match.prediction_timestamp) if as_of is not None else match.prediction_timestamp
         past = sorted(
-            (m for m in history if m.is_finished and m.kickoff < as_of),
+            (m for m in history if m.result_known_before(as_of)),
             key=lambda m: m.kickoff,
         )
 
@@ -124,12 +125,12 @@ class FeatureExtractor:
 
         return self._assemble(match, elo, records)
 
-    # --- Bulk training-set construction (chronological, leak-free) ---
+    # --- Bulk training-set construction (as-of safe) ---
 
     def build_training_set(
         self, matches: Sequence[Match]
     ) -> tuple[list[dict[str, float]], list[int]]:
-        """Return (feature dicts, labels) built from a chronological walk.
+        """Return (feature dicts, labels) built at each prediction timestamp.
 
         Each match's features reflect only the state before it was played.
         Matches without enough history still produce a row (zero-filled),
@@ -140,18 +141,8 @@ class FeatureExtractor:
             (m for m in matches if m.is_finished and m.result is not None),
             key=lambda m: m.kickoff,
         )
-        elo = self._make_elo()
-        records: dict[str, _TeamRecord] = {}
-        features: list[dict[str, float]] = []
-        labels: list[int] = []
-
-        for m in finished:
-            features.append(self._assemble(m, elo, records))
-            assert m.result is not None
-            labels.append(OUTCOME_TO_LABEL[m.result.outcome])
-            # Update state AFTER snapshotting features.
-            elo._update(m)  # noqa: SLF001 - intentional incremental update
-            self._absorb(records, m)
+        features = [self.extract(m, finished) for m in finished]
+        labels = [OUTCOME_TO_LABEL[m.result.outcome] for m in finished if m.result is not None]
 
         logger.debug("Built training set: %d samples from %d matches", len(features), len(finished))
         return features, labels

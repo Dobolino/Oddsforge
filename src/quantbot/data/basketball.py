@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import datetime
 from functools import lru_cache
 
 from quantbot.data.base import BaseDataProvider
@@ -50,13 +51,19 @@ class BasketballDataProvider(BaseDataProvider):
             return ()
         return tuple(build_nba_totals([match], seed=self._seed).get(match_id, []))
 
-    def get_spreads(self, match_id: str) -> list[SpreadOdds]:
-        """Raw spread quotes (not as_of-masked — callers must filter)."""
+    def get_spreads(self, match_id: str, as_of: datetime) -> list[SpreadOdds]:
+        """Spread quotes observed on or before ``as_of``."""
+
+        if as_of.tzinfo is None:
+            raise ValueError("as_of must be timezone-aware")
 
         match = next((m for m in self._universe() if m.match_id == match_id), None)
         if match is None:
             return []
-        return list(build_nba_spreads([match], seed=self._seed).get(match_id, []))
+        return sorted(
+            (o for o in build_nba_spreads([match], seed=self._seed).get(match_id, []) if o.timestamp <= as_of),
+            key=lambda o: o.timestamp,
+        )
 
     def available_seasons(self, league: League | None = None) -> list[str]:
         seasons = {

@@ -47,6 +47,7 @@ def _match(
         away_team=Team(team_id=away, name=away),
         status=MatchStatus.FINISHED,
         result=MatchResult(home_goals=hg, away_goals=ag, home_xg=hxg, away_xg=axg),
+        result_available_at=kickoff + timedelta(hours=2),
     )
 
 

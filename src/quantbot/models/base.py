@@ -72,7 +72,7 @@ class BaseModel(ABC):
             raise NotFittedError(f"{self.name} model is not fitted")
 
     def fit_until(self, matches: Sequence[Match], as_of: datetime) -> None:
-        """Fit using only matches finished strictly before ``as_of``.
+        """Fit using only results published strictly before ``as_of``.
 
         A leak-free convenience wrapper for walk-forward evaluation: pass the
         full history and the target match's ``prediction_timestamp``.
@@ -80,5 +80,5 @@ class BaseModel(ABC):
 
         if as_of.tzinfo is None:
             raise ValueError("as_of must be timezone-aware")
-        train = [m for m in matches if m.is_finished and m.kickoff < as_of]
+        train = [m for m in matches if m.result_known_before(as_of)]
         self.fit(train)

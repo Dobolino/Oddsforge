@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from quantbot.markets.margin import booksum, remove_margin
-from quantbot.schemas import MarginMethod, MatchOutcome, MarketData, Odds
+from quantbot.schemas import MarginMethod, MarketData, MatchOutcome, Odds
 
 # Positional outcome order used throughout the engine.
 _ORDER: tuple[MatchOutcome, ...] = (MatchOutcome.HOME, MatchOutcome.DRAW, MatchOutcome.AWAY)
@@ -24,7 +24,15 @@ class MarketEngine:
     """
 
     def __init__(self, method: MarginMethod = MarginMethod.SHIN) -> None:
+        if method is MarginMethod.POWER:
+            raise ValueError("Power margin removal is reserved for two-way markets")
         self.method = method
+
+    def _method(self, override: MarginMethod | None) -> MarginMethod:
+        used = override or self.method
+        if used is MarginMethod.POWER:
+            raise ValueError("Power margin removal is reserved for two-way markets")
+        return used
 
     # --- Single bookmaker ---
 
@@ -35,13 +43,13 @@ class MarketEngine:
     def fair_probabilities(
         self, odds: Odds, method: MarginMethod | None = None
     ) -> dict[MatchOutcome, float]:
-        used = method or self.method
+        used = self._method(method)
         vec = [odds.home, odds.draw, odds.away]
         fair = remove_margin(vec, used.value)
         return dict(zip(_ORDER, fair, strict=True))
 
     def to_market_data(self, odds: Odds, method: MarginMethod | None = None) -> MarketData:
-        used = method or self.method
+        used = self._method(method)
         vec = [odds.home, odds.draw, odds.away]
         fair = remove_margin(vec, used.value)
         overround = max(0.0, booksum(vec) - 1.0)
@@ -88,7 +96,7 @@ class MarketEngine:
         """
 
         match_id = self._validate_group(odds_list)
-        used = method or self.method
+        used = self._method(method)
         best = self.best_odds(odds_list)
         vec = [best[o][0] for o in _ORDER]
         fair = remove_margin(vec, used.value)
@@ -116,9 +124,9 @@ class MarketEngine:
         """
 
         match_id = self._validate_group(odds_list)
-        used = method or self.method
+        used = self._method(method)
 
-        sums = {outcome: 0.0 for outcome in _ORDER}
+        sums = dict.fromkeys(_ORDER, 0.0)
         overrounds = 0.0
         for odds in odds_list:
             fair = self.fair_probabilities(odds, used)

@@ -12,7 +12,8 @@ from datetime import datetime
 from pydantic import Field, model_validator
 
 from quantbot.schemas.base import PROB_SUM_TOLERANCE, QuantBotModel
-from quantbot.schemas.enums import MatchOutcome
+from quantbot.schemas.enums import MatchOutcome, TotalsSide
+from quantbot.schemas.lines import require_half_line
 
 
 class ScoreMatrix(QuantBotModel):
@@ -57,7 +58,7 @@ class ScoreMatrix(QuantBotModel):
             MatchOutcome.AWAY: away,
         }
 
-    def totals_probabilities(self, line: float = 2.5) -> dict[str, float]:
+    def totals_probabilities(self, line: float = 2.5) -> dict[TotalsSide, float]:
         """Over/Under probabilities for a totals line (e.g. 2.5 goals).
 
         ``over`` is P(home_goals + away_goals > line), ``under`` is
@@ -65,7 +66,7 @@ class ScoreMatrix(QuantBotModel):
         over + under equals 1.0.
         """
 
-        from quantbot.schemas.enums import TotalsSide
+        require_half_line(line)
 
         over = under = 0.0
         for i, row in enumerate(self.matrix):

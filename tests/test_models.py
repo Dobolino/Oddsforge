@@ -41,6 +41,7 @@ def _match(home: str, away: str, kickoff: datetime, result: MatchResult | None =
         away_team=Team(team_id=away, name=away),
         status=MatchStatus.FINISHED if result else MatchStatus.SCHEDULED,
         result=result,
+        result_available_at=(kickoff + timedelta(hours=2)) if result else None,
     )
 
 

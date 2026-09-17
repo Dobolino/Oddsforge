@@ -868,13 +868,6 @@ def _signals_page(
                 top = bets[0]
                 st.markdown(f"### {top['match']}")
                 st.html(top["tip_html"])
-                st.caption(
-                    t("sig.beginner_metrics", lang).format(
-                        model=top["model_p"],
-                        edge=top["edge_pp"],
-                        quality=top["quality"],
-                    )
-                )
                 st.caption(t("sig.model_estimate_caption", lang))
                 st.write(top["why"])
                 if len(bets) > 1:
@@ -920,12 +913,21 @@ def _settings_page(lang, *, fd_key: str, odds_key: str, bball_key: str, live: bo
         st.markdown(f"**Football-Data.org**")
         st.write(_mask_key(fd_key) if fd_key else t("status.missing", lang))
         st.info(t("status.active", lang)) if fd_key else st.error(t("status.missing", lang))
+        if st.button(t("settings.test_connection", lang), key="test_fd", disabled=not fd_key):
+            from quantbot.dashboard.connection import test_connection
+            status = test_connection("football_data", fd_key)
+            (st.success if status == "active" else st.warning)(t(f"settings.connection_{status}", lang))
     with c2:
         st.markdown(f"**The Odds API**")
         st.write(_mask_key(odds_key) if odds_key else t("status.missing", lang))
         st.info(t("status.active", lang)) if odds_key else st.error(t("status.missing", lang))
+        if st.button(t("settings.test_connection", lang), key="test_odds", disabled=not odds_key):
+            from quantbot.dashboard.connection import test_connection
+            status = test_connection("the_odds_api", odds_key)
+            (st.success if status == "active" else st.warning)(t(f"settings.connection_{status}", lang))
     with c3:
         st.markdown(f"**BallDontLie / NBA**")
+        st.write(_mask_key(bball_key) if bball_key else t("status.missing", lang))
         st.info(t("keys.basketball_optional", lang))
 
     st.info(t("settings.keys_sidebar_hint", lang))
@@ -1030,12 +1032,20 @@ def _slip_page(
             key="slip_orient",
         )
         st.caption(t("slip.orient_hint", lang))
+        bankroll_local = st.number_input(
+            t("slip.bankroll", lang),
+            min_value=1.0,
+            value=1000.0,
+            step=100.0,
+            key="slip_bankroll_input",
+        )
+        max_stake = float(bankroll_local) * 0.05
         stake_local = st.number_input(
             t("slip.stake", lang),
-            min_value=1.0,
-            max_value=1000.0 if beginner else 10000.0,
-            value=10.0,
-            step=1.0,
+            min_value=0.0,
+            max_value=max_stake,
+            value=min(10.0, max_stake),
+            step=0.01,
             key="slip_stake_input",
         )
         max_available = max(1, min(8, available or 1))
@@ -1104,6 +1114,11 @@ def _slip_page(
     if slip is None or not slip.legs:
         st.info(t("slip.empty", lang))
         return
+
+    from quantbot.dashboard.slip import cap_example_stake
+
+    bankroll = max(0.0, float(st.session_state.get("slip_bankroll_input", 1000.0)))
+    stake = cap_example_stake(stake, bankroll)
 
     st.subheader(t("slip.ticket_title", lang))
     st.caption(t("slip.range_note", lang).format(start=start_d.isoformat(), end=end_d.isoformat()))

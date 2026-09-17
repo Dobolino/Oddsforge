@@ -6,13 +6,18 @@ for finished games) and returns standings tables as plain rows.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 import httpx
 
-from quantbot.data.providers.base_http import FileCache, RateLimiter, redact_secrets
+from quantbot.data.providers.base_http import (
+    FileCache,
+    RateLimiter,
+    get_with_rate_limit_retry,
+    redact_secrets,
+)
 from quantbot.logging import get_logger
 from quantbot.schemas import League, Match, MatchResult, MatchStatus, Team
 
@@ -45,7 +50,7 @@ _STATUS_MAP: dict[str, MatchStatus] = {
 def _parse_iso(value: str) -> datetime:
     parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+        parsed = parsed.replace(tzinfo=UTC)
     return parsed
 
 
@@ -86,7 +91,9 @@ class FootballDataProvider:
 
         self._limiter.acquire()
         logger.debug("Fetching %s from Football-Data", path)
-        response = self._client.get(path, params=params, headers={"X-Auth-Token": self.api_key})
+        response = get_with_rate_limit_retry(
+            self._client, path, params=params, headers={"X-Auth-Token": self.api_key}
+        )
         try:
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
@@ -154,6 +161,14 @@ class FootballDataProvider:
                 away_goals=int(full_time["away"]),
             )
 
+        # This is the provider's last publication time, not an inferred
+        # match duration. If absent, use the fetch time and fail closed for
+        # historical as-of requests.
+        updated_raw = raw.get("lastUpdated")
+        observed_at = _parse_iso(updated_raw) if updated_raw else datetime.now(UTC)
+        if observed_at <= kickoff:
+            observed_at = datetime.now(UTC)
+
         return Match(
             match_id=str(raw["id"]),
             league=league,
@@ -172,6 +187,8 @@ class FootballDataProvider:
             ),
             status=status,
             result=result,
+            result_available_at=observed_at if result is not None else None,
+            status_available_at=observed_at if status in (MatchStatus.POSTPONED, MatchStatus.CANCELLED) else None,
         )
 
     # --- Standings ---

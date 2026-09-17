@@ -94,7 +94,7 @@ class ValueSignal(QuantBotModel):
     decimal_odds: float | None = Field(default=None, gt=1.0)
     model_confidence: float = Field(ge=0.0, le=100.0)
     data_quality: float = Field(ge=0.0, le=100.0)
-    stake_fraction: float = Field(default=0.0, ge=0.0, le=1.0)
+    stake_fraction: float = Field(default=0.0, ge=0.0, le=0.05)
     rationale: str = Field(
         default="",
         description="Technical English decision reason (logs / expert mode).",

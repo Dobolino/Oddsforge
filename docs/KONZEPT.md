@@ -27,7 +27,7 @@ QuantBot ist ein Analyse- und Entscheidungswerkzeug für Fussballwetten und Pred
 
 ## Grundhaltung und Leitplanken
 
-1. Kein Data Leakage. Für jedes Spiel werden nur Daten benutzt, die vor dem Anpfiff bekannt waren. Nichts aus der Zukunft fliesst in eine Schätzung ein.
+1. Kein Data Leakage. Für jedes Spiel werden nur Daten benutzt, die vor dem Prognosezeitpunkt veröffentlicht oder beobachtet wurden. Ein Endergebnis wird erst ab `result_available_at` genutzt, nicht schon ab dem Anpfiff.
 2. Keine automatischen Wetten. Version 1 ist reine Entscheidungshilfe. Es gibt keine Order, kein Konto, keine Umgehung von AGB.
 3. Wahrscheinlichkeit statt Sieger raten. Das System sagt nicht einfach wer gewinnt, sondern kalibrierte Wahrscheinlichkeiten. Die Güte wird mit anerkannten Kennzahlen gemessen.
 4. Strikte Trennung. Das Vorhersagemodell liefert nur Wahrscheinlichkeiten. Eine separate Logik entscheidet über Value und Risiko.

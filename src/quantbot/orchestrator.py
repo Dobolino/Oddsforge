@@ -408,7 +408,7 @@ class QuantBotOrchestrator:
             cards.append(
                 build_match_card(
                     match, sub_preds, ens_pred, market, entry.decimal_odds(),
-                    signal, extractor.extract(match, universe), quality,
+                    signal, extractor.extract(match, universe, as_of=as_of), quality,
                 )
             )
         logger.info("Built %d match cards for %s %s", len(cards), league.value, season)
@@ -443,7 +443,7 @@ class QuantBotOrchestrator:
     def _team_counts(matches: Sequence[Match], as_of: datetime) -> dict[str, int]:
         counts: dict[str, int] = {}
         for m in matches:
-            if m.is_finished and m.kickoff < as_of:
+            if m.result_known_before(as_of):
                 counts[m.home_team.team_id] = counts.get(m.home_team.team_id, 0) + 1
                 counts[m.away_team.team_id] = counts.get(m.away_team.team_id, 0) + 1
         return counts

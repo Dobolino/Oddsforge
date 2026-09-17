@@ -13,7 +13,7 @@ from typing import Any
 
 import httpx
 
-from quantbot.data.providers.base_http import FileCache, RateLimiter, redact_secrets
+from quantbot.data.providers.base_http import FileCache, RateLimiter, get_with_rate_limit_retry, redact_secrets
 from quantbot.logging import get_logger
 from quantbot.markets.odds import MarketEngine
 from quantbot.schemas import MarketData, Odds
@@ -78,7 +78,7 @@ class TheOddsAPIProvider:
 
         self._limiter.acquire()
         logger.debug("Fetching %s from The Odds API", path)
-        response = self._client.get(path, params=params)
+        response = get_with_rate_limit_retry(self._client, path, params=params)
         try:
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
