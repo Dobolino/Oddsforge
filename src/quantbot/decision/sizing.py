@@ -11,6 +11,9 @@ Kelly fraction for a single bet at decimal odds ``o`` with model probability
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import isfinite
+
+HARD_STAKE_CAP = 0.05
 
 
 @dataclass(frozen=True)
@@ -38,8 +41,10 @@ class KellySizer:
     def full_kelly(self, prob: float, decimal_odds: float) -> float:
         """Full Kelly fraction. May be negative when there is no edge."""
 
-        if decimal_odds <= 1.0:
-            raise ValueError("decimal_odds must be > 1.0")
+        if not isfinite(prob) or not 0.0 <= prob <= 1.0:
+            raise ValueError("prob must be finite and in [0, 1]")
+        if not isfinite(decimal_odds) or decimal_odds <= 1.0:
+            raise ValueError("decimal_odds must be finite and > 1.0")
         return (prob * decimal_odds - 1.0) / (decimal_odds - 1.0)
 
     def stake_fraction(self, prob: float, decimal_odds: float) -> float:
@@ -48,7 +53,7 @@ class KellySizer:
         f = self.full_kelly(prob, decimal_odds) * self.kelly_fraction
         if f <= 0.0:
             return 0.0
-        f = min(f, self.max_fraction)
+        f = min(f, self.max_fraction, HARD_STAKE_CAP)
         if f < self.min_fraction:
             return 0.0
         return f
@@ -56,6 +61,6 @@ class KellySizer:
     def stake_amount(self, prob: float, decimal_odds: float, bankroll: float) -> float:
         """Theoretical stake in currency units for a given bankroll."""
 
-        if bankroll < 0.0:
-            raise ValueError("bankroll must be non-negative")
+        if not isfinite(bankroll) or bankroll < 0.0:
+            raise ValueError("bankroll must be finite and non-negative")
         return self.stake_fraction(prob, decimal_odds) * bankroll

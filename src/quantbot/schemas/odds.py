@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from quantbot.schemas.base import QuantBotModel
 from quantbot.schemas.enums import MatchOutcome, TotalsSide
+from quantbot.schemas.lines import require_half_line
 
 
 class Odds(QuantBotModel):
@@ -70,6 +71,11 @@ class TotalsOdds(QuantBotModel):
     over: float = Field(gt=1.0)
     under: float = Field(gt=1.0)
     is_closing: bool = False
+
+    @field_validator("line")
+    @classmethod
+    def _half_line(cls, line: float) -> float:
+        return require_half_line(line)
 
     @model_validator(mode="after")
     def _validate(self) -> TotalsOdds:

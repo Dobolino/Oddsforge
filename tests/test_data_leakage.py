@@ -53,7 +53,7 @@ class TestProviderAsOfFiltering:
             assert m.status is MatchStatus.SCHEDULED
             assert not m.is_finished
 
-    def test_result_visible_only_after_kickoff(self) -> None:
+    def test_result_visible_only_after_publication(self) -> None:
         provider = DummyDataProvider()
         all_matches = provider.get_matches(League.PREMIER_LEAGUE, SEASON, FAR_FUTURE)
         target = sorted(all_matches, key=lambda m: m.kickoff)[5]
@@ -63,10 +63,17 @@ class TestProviderAsOfFiltering:
         assert just_before is not None
         assert just_before.result is None
 
-        # At kickoff: result becomes visible.
+        # A final score must not become visible at kickoff.
         at_kickoff = provider.get_match(target.match_id, target.kickoff)
         assert at_kickoff is not None
-        assert at_kickoff.result is not None
+        assert at_kickoff.result is None
+        assert target.result_available_at is not None
+        just_before_result = provider.get_match(
+            target.match_id, target.result_available_at - timedelta(seconds=1)
+        )
+        assert just_before_result is not None and just_before_result.result is None
+        published = provider.get_match(target.match_id, target.result_available_at)
+        assert published is not None and published.result is not None
 
     def test_odds_never_from_the_future(self) -> None:
         provider = DummyDataProvider()
@@ -92,7 +99,9 @@ class TestProviderAsOfFiltering:
     def test_finished_and_upcoming_partition_is_clean(self) -> None:
         provider = DummyDataProvider()
         all_matches = provider.get_matches(League.PREMIER_LEAGUE, SEASON, FAR_FUTURE)
-        as_of = sorted(m.kickoff for m in all_matches)[len(all_matches) // 2]
+        middle = sorted(all_matches, key=lambda m: m.kickoff)[len(all_matches) // 2]
+        assert middle.result_available_at is not None
+        as_of = middle.result_available_at + timedelta(seconds=1)
         finished = provider.get_finished_matches(League.PREMIER_LEAGUE, SEASON, as_of)
         upcoming = provider.get_upcoming_matches(League.PREMIER_LEAGUE, SEASON, as_of)
         assert all(m.kickoff <= as_of for m in finished)

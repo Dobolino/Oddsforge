@@ -135,6 +135,8 @@ class DummyDataProvider(BaseDataProvider):
                         away_team=away,
                         status=MatchStatus.FINISHED,
                         result=result,
+                        result_available_at=kickoff + timedelta(hours=2),
+                        status_available_at=kickoff + timedelta(hours=2),
                     )
                 )
         matches.extend(build_nba_matches(seed=self._seed))

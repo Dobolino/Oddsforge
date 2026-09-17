@@ -12,6 +12,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import httpx
+
 from quantbot.logging import get_logger
 
 logger = get_logger(__name__)
@@ -19,6 +21,32 @@ logger = get_logger(__name__)
 
 class RateLimitError(RuntimeError):
     """Legacy error; the limiter now waits instead of raising by default."""
+
+
+def get_with_rate_limit_retry(
+    client: httpx.Client,
+    path: str,
+    *,
+    params: dict[str, str],
+    headers: dict[str, str] | None = None,
+    sleep_fn: Callable[[float], None] = time.sleep,
+) -> httpx.Response:
+    """Retry a 429 twice, respecting a bounded Retry-After delay."""
+
+    for attempt in range(3):
+        response = client.get(path, params=params, headers=headers)
+        if response.status_code != 429 or attempt == 2:
+            return response
+        raw_delay = response.headers.get("Retry-After", "")
+        try:
+            delay = float(raw_delay)
+        except ValueError:
+            delay = 0.2 * (2**attempt)
+        if not 0.0 <= delay <= 5.0:
+            delay = 5.0
+        logger.warning("Provider rate limited; retrying after %.2fs", delay)
+        sleep_fn(delay)
+    raise AssertionError("unreachable")
 
 
 class FileCache:

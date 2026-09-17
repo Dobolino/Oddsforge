@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from html import escape
-from math import prod
+from math import isfinite, prod
 
 from quantbot.dashboard.ux import (
     market_stance,
@@ -27,6 +27,14 @@ from quantbot.schemas import MatchOutcome, TotalsSide
 _MAX_PLAUSIBLE_COMBINED_EV = 0.5   # +50% expected value on a combo is impossible
 _MAX_PLAUSIBLE_LEG_EDGE = 0.25     # a single leg 25 pts above the market price
 _MAX_PLAUSIBLE_LEG_ODDS = 8.0      # a big-underdog leg (<12.5%) does not belong in a slip
+
+
+def cap_example_stake(stake: float, bankroll: float) -> float:
+    """Keep a simulated slip stake within five percent of example bankroll."""
+
+    if not isfinite(stake) or not isfinite(bankroll) or stake < 0 or bankroll < 0:
+        raise ValueError("stake and bankroll must be finite and non-negative")
+    return min(stake, 0.05 * bankroll)
 
 
 @dataclass(frozen=True)
@@ -321,7 +329,7 @@ def format_ticket(
     de = lang.startswith("de")
     lines: list[str] = []
     lines.append("╔══════════════════════════════════════╗")
-    title = "         TIPPSCHEIN (Vorschlag)         " if de else "       BETTING SLIP (suggestion)        "
+    title = ("KOMBI-SIMULATION" if de else "ACCUMULATOR SCENARIO").center(38)
     lines.append(f"║{title}║")
     kind = (
         "Kombi (hohe Modell-P)"
@@ -450,7 +458,7 @@ def ticket_html(
     odds_lbl = "Gesamtquote" if de else "Combined odds"
     win_lbl = "Möglicher Gewinn" if de else "Potential return"
     chance_lbl = "Geschätzte Chance" if de else "Estimated chance"
-    title = "TIPPSCHEIN" if de else "BETTING SLIP"
+    title = "KOMBI-SIMULATION" if de else "ACCUMULATOR SCENARIO"
     sub = (
         "Nur ein Vorschlag zum Abschreiben — QuantBot setzt nichts."
         if de

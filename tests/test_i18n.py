@@ -7,13 +7,17 @@ from typer.testing import CliRunner
 
 from quantbot.cli import app
 from quantbot.config import Settings
-from quantbot.i18n import GLOSSARY, LANGUAGES, t
+from quantbot.i18n import GLOSSARY, LANGUAGES, _STRINGS, t
 
 runner = CliRunner()
 
 
 def test_languages() -> None:
     assert LANGUAGES == ("de", "en")
+
+
+def test_all_ui_strings_have_both_languages() -> None:
+    assert all(entry.get("de") and entry.get("en") for entry in _STRINGS.values())
 
 
 def test_translation_lookup() -> None:

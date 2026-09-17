@@ -76,6 +76,10 @@ class FinishedMatchCache:
             except Exception:  # noqa: BLE001 - skip corrupt rows
                 continue
             if match.is_finished:
+                if match.result_available_at is None and self._last_updated is not None:
+                    # Old archive rows have no publication time. Their first
+                    # known safe cutoff is the archive write time.
+                    match = match.model_copy(update={"result_available_at": self._last_updated})
                 self._by_id[match.match_id] = match
 
     def save(self) -> None:

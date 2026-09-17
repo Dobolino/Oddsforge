@@ -82,6 +82,8 @@ def build_nba_matches(*, seed: int = 7) -> list[Match]:
                 away_team=away,
                 status=status,
                 result=result,
+                result_available_at=(kickoff + timedelta(hours=3)) if finished else None,
+                status_available_at=(kickoff + timedelta(hours=3)) if finished else None,
                 sport=Sport.BASKETBALL,
                 home_injury_status=InjuryStatus.AVAILABLE,
                 away_injury_status=InjuryStatus.AVAILABLE,

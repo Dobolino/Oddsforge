@@ -77,7 +77,7 @@ def test_as_of_between_partitions_finished_and_upcoming() -> None:
     all_matches = provider.get_matches(League.PREMIER_LEAGUE, SEASON, FAR_FUTURE)
     kickoffs = sorted(m.kickoff for m in all_matches)
     # Pick an instant after the earliest kickoff but before the latest.
-    as_of = kickoffs[len(kickoffs) // 2]
+    as_of = kickoffs[len(kickoffs) // 2] + timedelta(hours=2, seconds=1)
 
     finished = provider.get_finished_matches(League.PREMIER_LEAGUE, SEASON, as_of)
     upcoming = provider.get_upcoming_matches(League.PREMIER_LEAGUE, SEASON, as_of)

@@ -188,7 +188,8 @@ class DixonColesModel(BaseModel):
                 tau = np.where(h01, 1.0 + lam_home * rho, tau)
                 tau = np.where(h10, 1.0 + lam_away * rho, tau)
                 tau = np.where(h11, 1.0 - rho, tau)
-                tau = np.clip(tau, 1e-10, None)
+                if np.any(tau <= 0.0) or not np.all(np.isfinite(tau)):
+                    return 1e12
                 ll = ll + np.log(tau)
             # Time-decay weighting.
             return float(-np.sum(weights * ll))
@@ -291,9 +292,12 @@ class DixonColesModel(BaseModel):
 
         x = np.repeat(goals, size).reshape(size, size)
         y = np.tile(goals, size).reshape(size, size)
-        grid = grid * _dixon_coles_tau(x, y, lam_home, lam_away, self._rho)
+        tau = _dixon_coles_tau(x, y, lam_home, lam_away, self._rho)
+        if np.all(np.isfinite(tau)) and np.all(tau >= 0.0):
+            grid = grid * tau
+        else:
+            logger.warning("Invalid Dixon-Coles correction; using independent Poisson grid")
 
-        grid = np.clip(grid, 0.0, None)
         total = grid.sum()
         if not np.isfinite(total) or total <= 0.0:
             # Degenerate grid: fall back to the independent Poisson product,

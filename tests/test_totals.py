@@ -46,14 +46,14 @@ def test_totals_market_emits_value_tip_when_edge_exists() -> None:
     ts = datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc)
     matrix = _matrix_with_known_totals()
     model_probs = matrix.totals_probabilities(DEFAULT_TOTALS_LINE)
-    # Book prices under heavily — model likes over → clear edge on over.
+    # Model likes over more than the bookmaker, with a valid overround.
     totals = TotalsOdds(
         match_id="m1",
         bookmaker="test_book",
         timestamp=ts,
         line=DEFAULT_TOTALS_LINE,
-        over=2.80,
-        under=1.35,
+        over=1.50,
+        under=2.25,
     )
     market = TotalsMarketEngine(method=MarginMethod.MULTIPLICATIVE).to_market_data(totals)
     prediction = Prediction(

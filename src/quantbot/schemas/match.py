@@ -65,6 +65,8 @@ class Match(QuantBotModel):
             features must be temporally isolated to before this point.
         kickoff: Scheduled kickoff / tip-off time (timezone-aware).
         result: Final score, present only for finished matches.
+        result_available_at: When the final score was first published or observed.
+        status_available_at: When a non-scheduled status was observed.
         sport: Defaults from ``league`` when omitted.
     """
 
@@ -79,6 +81,8 @@ class Match(QuantBotModel):
     home_injury_status: InjuryStatus = InjuryStatus.UNKNOWN
     away_injury_status: InjuryStatus = InjuryStatus.UNKNOWN
     result: MatchResult | None = None
+    result_available_at: datetime | None = None
+    status_available_at: datetime | None = None
     sport: Sport | None = None
 
     @model_validator(mode="after")
@@ -96,8 +100,10 @@ class Match(QuantBotModel):
         for label, value in (
             ("kickoff", self.kickoff),
             ("prediction_timestamp", self.prediction_timestamp),
+            ("result_available_at", self.result_available_at),
+            ("status_available_at", self.status_available_at),
         ):
-            if value.tzinfo is None:
+            if value is not None and value.tzinfo is None:
                 raise ValueError(f"{label} must be timezone-aware")
 
         # Predictions are made before kickoff; a prediction stamped after
@@ -110,9 +116,20 @@ class Match(QuantBotModel):
 
         if self.result is not None and self.status is not MatchStatus.FINISHED:
             raise ValueError("result may only be set when status is FINISHED")
+        if self.result_available_at is not None and self.result_available_at < self.kickoff:
+            raise ValueError("result_available_at must not precede kickoff")
 
         return self
 
     @property
     def is_finished(self) -> bool:
         return self.status is MatchStatus.FINISHED and self.result is not None
+
+    def result_known_before(self, as_of: datetime) -> bool:
+        """Fail closed when a result has no trustworthy availability timestamp."""
+
+        return (
+            self.is_finished
+            and self.result_available_at is not None
+            and self.result_available_at < as_of
+        )

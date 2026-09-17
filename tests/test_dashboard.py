@@ -129,7 +129,7 @@ def test_signals_dataframe_columns() -> None:
     assert len(df) == len(reports)
 
     beginner = tables.signals_dataframe(reports, mode=UXMode.BEGINNER, lang="de")
-    assert list(beginner.columns) == ["Spiel", "Tipp", "Markt", "Spiele (H/A)", "Begründung"]
+    assert list(beginner.columns) == ["Spiel", "Modell-Signal", "Markt", "Spiele (H/A)", "Begründung"]
     assert len(beginner) == len(reports)
 
     en = tables.signals_dataframe(reports, mode=UXMode.ADVANCED, lang="en")
@@ -142,7 +142,7 @@ def test_signals_dataframe_columns() -> None:
     colored = tables.colored_signals_table_html(reports, mode=UXMode.ADVANCED, lang="de")
     assert "<table" in colored
     assert "background:#" in colored  # tip badge
-    assert "Edge (pp)" in colored or "Edge" in colored
+    assert "Mathematische Abweichung" in colored
     expert = tables.colored_signals_table_html(reports, mode=UXMode.EXPERT, lang="en")
     assert "Forecast quality" in expert
     assert "Data quality" in expert

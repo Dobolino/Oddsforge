@@ -54,15 +54,19 @@ class BaseDataProvider(ABC):
     def _mask_match(match: Match, as_of: datetime) -> Match:
         """Strip post-``as_of`` information from a match.
 
-        If kickoff is after ``as_of`` the match has not been played yet: the
-        result is removed and the status downgraded to SCHEDULED.
+        A final score remains hidden until its publication timestamp. A
+        postponed/cancelled status is visible only after its observation time.
         """
 
-        if match.kickoff > as_of:
-            return match.model_copy(
-                update={"status": MatchStatus.SCHEDULED, "result": None}
-            )
-        return match
+        if match.is_finished and match.result_available_at is not None and match.result_available_at <= as_of:
+            return match
+        if (
+            match.status in (MatchStatus.POSTPONED, MatchStatus.CANCELLED)
+            and match.status_available_at is not None
+            and match.status_available_at <= as_of
+        ):
+            return match.model_copy(update={"result": None})
+        return match.model_copy(update={"status": MatchStatus.SCHEDULED, "result": None})
 
     # --- Public, as-of-safe queries ---
 
@@ -101,7 +105,7 @@ class BaseDataProvider(ABC):
         return [
             m
             for m in self.get_matches(league, season, as_of)
-            if m.is_finished
+            if m.result_known_before(as_of)
         ]
 
     def get_upcoming_matches(
@@ -115,7 +119,7 @@ class BaseDataProvider(ABC):
         return [
             m
             for m in self.get_matches(league, season, as_of)
-            if m.kickoff > as_of
+            if m.kickoff > as_of and m.status is MatchStatus.SCHEDULED
         ]
 
     def get_odds(self, match_id: str, as_of: datetime) -> list[Odds]:

@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from quantbot.markets.margin import booksum, remove_margin
 from quantbot.schemas import MarginMethod, TotalsMarketData, TotalsOdds, TotalsSide
 from quantbot.schemas.enums import DEFAULT_TOTALS_LINE, TOTALS_ORDER
+from quantbot.schemas.lines import require_half_line
 
 
 class TotalsMarketEngine:
@@ -14,12 +15,16 @@ class TotalsMarketEngine:
 
     def __init__(self, method: MarginMethod = MarginMethod.POWER) -> None:
         # Power is more stable on asymmetric two-way totals than Shin (Gemini review).
+        if method is MarginMethod.SHIN:
+            raise ValueError("Shin margin removal is not supported for two-way totals")
         self.method = method
 
     def to_market_data(
         self, odds: TotalsOdds, method: MarginMethod | None = None
     ) -> TotalsMarketData:
         used = method or self.method
+        if used is MarginMethod.SHIN:
+            raise ValueError("Shin margin removal is not supported for two-way totals")
         vec = [odds.over, odds.under]
         fair = remove_margin(vec, used.value)
         overround = max(0.0, booksum(vec) - 1.0)
@@ -59,5 +64,6 @@ def tip_label_for(side: TotalsSide, line: float = DEFAULT_TOTALS_LINE) -> str:
 
 
 def actual_totals_label(total_goals: int, line: float = DEFAULT_TOTALS_LINE) -> str:
+    require_half_line(line)
     side = TotalsSide.OVER if total_goals > line else TotalsSide.UNDER
     return tip_label_for(side, line)

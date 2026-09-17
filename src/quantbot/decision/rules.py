@@ -11,6 +11,9 @@ Reason codes use a stable ``NO_BET_*`` / ``VALUE`` vocabulary for audit trails.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from math import isfinite
+
+_MAX_PLAUSIBLE_EV = 0.50
 
 
 @dataclass(frozen=True)
@@ -74,6 +77,16 @@ class NoBetRules:
             raise TypeError("metric must be a ValueMetrics instance")
 
         reasons: list[Reason] = []
+
+        if not isfinite(metric.expected_value) or metric.expected_value > _MAX_PLAUSIBLE_EV:
+            reasons.append(
+                Reason(
+                    code="NO_BET_UNREALISTIC_EV",
+                    de="Modellabweichung ungewöhnlich groß; Datenqualität prüfen.",
+                    en="Model deviation unusually large; check data quality.",
+                    technical=f"ev {metric.expected_value!r} exceeds quality threshold {_MAX_PLAUSIBLE_EV:.2f}",
+                )
+            )
 
         if metric.expected_value < self.min_ev:
             reasons.append(
