@@ -72,7 +72,7 @@ _COLUMN_LABELS: dict[str, dict[str, str]] = {
     "Signal": {"de": "Modell-Signal", "en": "Model signal"},
     "Model P": {"de": "Modell-P", "en": "Model P"},
     "Odds": {"de": "Quote", "en": "Odds"},
-    "Edge": {"de": "Mathematische Abweichung (pp)", "en": "Model-market gap (pp)"},
+    "Edge": {"de": "Statistische Abweichung (pp)", "en": "Model-market gap (pp)"},
     "EV": {"de": "Erwartete Rendite", "en": "Expected return"},
     "Stake %": {"de": "Einsatz %", "en": "Stake %"},
     "Confidence": {"de": "Prognosequalität", "en": "Forecast quality"},

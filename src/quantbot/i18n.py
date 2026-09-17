@@ -27,11 +27,11 @@ _STRINGS: dict[str, dict[str, str]] = {
     "ux.advanced": {"de": "Mehr Details", "en": "More detail"},
     "ux.expert": {"de": "Pro", "en": "Pro"},
     "ux.beginner_hint": {
-        "de": "Nur das Nötigste: ein Tipp, eine Begründung.",
+        "de": "Nur das Nötigste: ein Modell-Signal und eine Begründung.",
         "en": "Only the essentials: one tip, one reason.",
     },
     "ux.advanced_hint": {
-        "de": "Tipp plus Modell-P, Edge in Prozentpunkten und erwartete Rendite.",
+        "de": "Modell-Signal, Modell-P, statistische Abweichung und erwartete Rendite.",
         "en": "Tip plus model P, edge in percentage points and expected return.",
     },
     "ux.expert_hint": {
@@ -168,8 +168,8 @@ _STRINGS: dict[str, dict[str, str]] = {
         "en": "Model {model} · Market edge {edge} · Forecast quality {quality}",
     },
     "sig.all_matches": {"de": "Alle Spiele im Überblick", "en": "All matches at a glance"},
-    "sig.other_matches": {"de": "Weitere Tipps", "en": "More tips"},
-    "sig.tip_of_day": {"de": "Klarer Vorschlag", "en": "Clear suggestion"},
+    "sig.other_matches": {"de": "Weitere Modell-Signale", "en": "More model signals"},
+    "sig.tip_of_day": {"de": "Modell-Signal", "en": "Model signal"},
     "term.edge": {
         "de": "Edge = Vorteil in Prozentpunkten (Modell-P minus faire Markt-P). Nicht dasselbe wie relative %.",
         "en": "Edge = advantage in percentage points (model P minus fair market P). Not the same as relative %.",
@@ -339,7 +339,7 @@ _STRINGS: dict[str, dict[str, str]] = {
     "track.settled_bets": {"de": "Abgerechnete Tipps", "en": "Settled tips"},
     "track.correct": {"de": "Richtig", "en": "Correct"},
     "track.upcoming_label": {"de": "kommende Woche", "en": "upcoming"},
-    "track.tip": {"de": "Tipp", "en": "Tip"},
+    "track.tip": {"de": "Modell-Signal", "en": "Model signal"},
     "track.result": {"de": "Ergebnis", "en": "Result"},
     "track.hit": {"de": "Treffer", "en": "Hit"},
     "track.miss": {"de": "Daneben", "en": "Miss"},
@@ -500,8 +500,8 @@ _STRINGS: dict[str, dict[str, str]] = {
         "en": "In demo mode the default is mid-season so fixtures are visible.",
     },
     "slip.intro": {
-        "de": "Hier entsteht ein Tippschein wie beim Buchmacher: Spiel, Tipp, Quote, "
-              "über Liga und Datumsbereich. QuantBot setzt nichts — nur zum Abschreiben.",
+        "de": "Diese Simulation kombiniert Modell-Signale, Quoten und Spiele im gewählten Zeitraum. "
+              "Mehrere Ereignisse erhöhen das Risiko; QuantBot platziert keine Wetten.",
         "en": "Builds a tip slip like at a bookmaker: match, tip, odds, across league "
               "and date range. QuantBot places nothing — copy only.",
     },
@@ -554,12 +554,10 @@ _STRINGS: dict[str, dict[str, str]] = {
     "slip.combined_prob": {"de": "Geschätzte Trefferchance", "en": "Estimated hit chance"},
     "slip.combined_ev": {"de": "Erwartete Rendite (Kombi)", "en": "Expected return (slip)"},
     "slip.implausible": {
-        "de": "Die geschätzte Chance ist unrealistisch hoch. Das kommt fast immer von zu "
-              "wenig Daten oder unkalibrierten Wahrscheinlichkeiten, oft früh in der Saison. "
-              "Nimm diesen Schein nicht ernst.",
-        "en": "The estimated chance is unrealistically high. This almost always comes from "
-              "too little data or uncalibrated probabilities, often early in the season. "
-              "Do not trust this slip.",
+        "de": "Modellwerte zu hoch, meist zu wenig Daten. Nicht verlässlich. "
+              "Auch eine Einzelquote über 8,0 wird als riskant markiert.",
+        "en": "Model values too high, usually too little data. Not reliable. "
+              "A single price above 8.0 is also flagged as risky.",
     },
     "slip.legs": {"de": "Tipps im Schein", "en": "Legs on the slip"},
     "slip.role": {"de": "Rolle", "en": "Role"},

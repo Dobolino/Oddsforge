@@ -24,7 +24,7 @@ from quantbot.schemas import MatchOutcome, TotalsSide
 # claims a far higher chance, its probabilities are overconfident or
 # uncalibrated (typically early-season sparse data). Above these bounds the
 # displayed chance is not trustworthy and is flagged, not shown as fact.
-_MAX_PLAUSIBLE_COMBINED_EV = 0.5   # +50% expected value on a combo is impossible
+_MAX_PLAUSIBLE_COMBINED_RETURN_FACTOR = 2.5
 _MAX_PLAUSIBLE_LEG_EDGE = 0.25     # a single leg 25 pts above the market price
 _MAX_PLAUSIBLE_LEG_ODDS = 8.0      # a big-underdog leg (<12.5%) does not belong in a slip
 
@@ -94,10 +94,21 @@ class BettingSlip:
         """
 
         return (
-            self.expected_value <= _MAX_PLAUSIBLE_COMBINED_EV
+            all(isfinite(leg.odds) and leg.odds > 1.0 and isfinite(leg.model_prob)
+                and 0.0 <= leg.model_prob <= 1.0 for leg in self.legs)
+            and
+            isfinite(self.combined_prob)
+            and isfinite(self.combined_odds)
+            and self.combined_prob * self.combined_odds <= _MAX_PLAUSIBLE_COMBINED_RETURN_FACTOR
             and self.max_leg_edge <= _MAX_PLAUSIBLE_LEG_EDGE
             and all(leg.odds <= _MAX_PLAUSIBLE_LEG_ODDS for leg in self.legs)
         )
+
+    @property
+    def geschaetzte_chance(self) -> str:
+        """Display value; never expose implausible chances as a percentage."""
+
+        return f"{self.combined_prob * 100:.1f} %" if self.is_plausible else "unrealistisch"
 
 
 def _leg_from_report(report: SignalReport, lang: str, role: str) -> SlipLeg | None:
@@ -365,7 +376,7 @@ def format_ticket(
         lines.append(f"║  Gesamtquote:       {slip.combined_odds:>8.2f}         ║")
         lines.append(f"║  Möglicher Gewinn:  {payout:>8.2f} €       ║")
         if plausible:
-            lines.append(f"║  Geschätzte Chance: {slip.combined_prob * 100:>7.1f} %        ║")
+            lines.append(f"║  Geschätzte Chance: {slip.geschaetzte_chance:>9}        ║")
         else:
             lines.append("║  Geschätzte Chance:   unrealistisch     ║")
     else:
@@ -468,11 +479,11 @@ def ticket_html(
     if slip.is_plausible:
         chance_row = (
             f'<div style="display:flex;justify-content:space-between;margin:0.25rem 0;"><span>{chance_lbl}</span>'
-            f"<b>{slip.combined_prob * 100:.1f} %</b></div>"
+            f"<b>{slip.geschaetzte_chance if de else f'{slip.combined_prob * 100:.1f} %'}</b></div>"
         )
     else:
         warn = (
-            "Modellwerte unrealistisch — meist zu wenig Daten. Nicht verlässlich."
+            "Modellwerte zu hoch, meist zu wenig Daten. Nicht verlässlich."
             if de
             else "Model values unrealistic — usually too little data. Not reliable."
         )

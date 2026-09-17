@@ -169,7 +169,10 @@ class ValueCalculator:
         model = prediction.probabilities()
         fair = market.fair_probabilities()
         out: list[ValueMetrics] = []
-        for outcome in _ORDER:
+        from quantbot.schemas import MarketKind
+
+        order = (MatchOutcome.HOME, MatchOutcome.AWAY) if market.kind is MarketKind.MONEYLINE else _ORDER
+        for outcome in order:
             mp = model[outcome]
             fp = fair[outcome]
             od = decimal_odds[outcome]

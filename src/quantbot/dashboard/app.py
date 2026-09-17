@@ -1131,7 +1131,9 @@ def _slip_page(
     if not beginner:
         m1, m2, m3 = st.columns(3)
         m1.metric(t("slip.combined_odds", lang), f"{slip.combined_odds:.2f}")
-        prob_display = f"{slip.combined_prob * 100:.1f}%" if slip.is_plausible else "—"
+        prob_display = f"{slip.combined_prob * 100:.1f}%" if slip.is_plausible else (
+            "unrealistisch" if lang.startswith("de") else "not realistic"
+        )
         ev_display = f"{slip.expected_value * 100:.1f}%" if slip.is_plausible else "—"
         m2.metric(t("slip.combined_prob", lang), prob_display)
         m3.metric(t("slip.combined_ev", lang), ev_display)

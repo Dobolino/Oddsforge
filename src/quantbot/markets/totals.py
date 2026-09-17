@@ -14,17 +14,16 @@ class TotalsMarketEngine:
     """Two-way margin removal for Over/Under quotes."""
 
     def __init__(self, method: MarginMethod = MarginMethod.POWER) -> None:
-        # Power is more stable on asymmetric two-way totals than Shin (Gemini review).
-        if method is MarginMethod.SHIN:
-            raise ValueError("Shin margin removal is not supported for two-way totals")
+        if method is not MarginMethod.POWER:
+            raise ValueError("two-way totals require Power margin removal")
         self.method = method
 
     def to_market_data(
         self, odds: TotalsOdds, method: MarginMethod | None = None
     ) -> TotalsMarketData:
         used = method or self.method
-        if used is MarginMethod.SHIN:
-            raise ValueError("Shin margin removal is not supported for two-way totals")
+        if used is not MarginMethod.POWER:
+            raise ValueError("two-way totals require Power margin removal")
         vec = [odds.over, odds.under]
         fair = remove_margin(vec, used.value)
         overround = max(0.0, booksum(vec) - 1.0)

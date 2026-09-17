@@ -9,8 +9,17 @@ entry price beat the market's final price.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import isfinite
 
-from quantbot.schemas import MatchOutcome
+from quantbot.schemas import Market, MatchOutcome, SettlementStatus
+
+
+@dataclass(frozen=True)
+class MarketSettlement:
+    status: SettlementStatus
+    stake: float
+    payoff: float
+    pnl: float
 
 
 @dataclass(frozen=True)
@@ -45,6 +54,20 @@ class SettledBet:
 
 class ExecutionSimulator:
     """Settles bets and computes PnL and CLV."""
+
+    @staticmethod
+    def settle_market(
+        market: Market, selection: str, stake: float, home_score: int, away_score: int
+    ) -> MarketSettlement:
+        """Settle any market, refunding the full stake on a push."""
+
+        if not isfinite(stake) or stake < 0.0:
+            raise ValueError("stake must be finite and non-negative")
+        status = market.settle(selection, home_score, away_score)
+        payoff = market.payoff(selection, home_score, away_score)
+        return MarketSettlement(
+            status=status, stake=stake, payoff=payoff, pnl=stake * (payoff - 1.0)
+        )
 
     @staticmethod
     def profit(stake: float, decimal_odds: float, won: bool) -> float:
