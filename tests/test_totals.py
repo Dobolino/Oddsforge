@@ -55,7 +55,7 @@ def test_totals_market_emits_value_tip_when_edge_exists() -> None:
         over=1.50,
         under=2.25,
     )
-    market = TotalsMarketEngine(method=MarginMethod.MULTIPLICATIVE).to_market_data(totals)
+    market = TotalsMarketEngine(method=MarginMethod.POWER).to_market_data(totals)
     prediction = Prediction(
         match_id="m1",
         model_name="test",

@@ -11,15 +11,17 @@ from quantbot.schemas.enums import (
     InjuryStatus,
     League,
     MarginMethod,
-    Sport,
+    MarketKind,
     MatchOutcome,
     MatchStatus,
+    SettlementStatus,
     SignalType,
+    Sport,
     TotalsSide,
     leagues_for_sport,
     sport_for_league,
 )
-from quantbot.schemas.market import MarketData, TotalsMarketData
+from quantbot.schemas.market import Market, MarketData, MarketOutcome, TotalsMarketData
 from quantbot.schemas.match import Match, MatchResult, Team
 from quantbot.schemas.odds import MoneylineOdds, Odds, SpreadOdds, TotalsOdds
 from quantbot.schemas.prediction import Prediction, ScoreMatrix
@@ -36,6 +38,8 @@ __all__ = [
     "InjuryStatus",
     "League",
     "MarginMethod",
+    "MarketKind",
+    "SettlementStatus",
     "Sport",
     "MatchOutcome",
     "MatchStatus",
@@ -44,6 +48,8 @@ __all__ = [
     "leagues_for_sport",
     "sport_for_league",
     "MarketData",
+    "Market",
+    "MarketOutcome",
     "TotalsMarketData",
     "Match",
     "MatchResult",

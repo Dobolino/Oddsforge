@@ -7,7 +7,7 @@ from datetime import datetime
 from pydantic import Field, field_validator, model_validator
 
 from quantbot.schemas.base import QuantBotModel
-from quantbot.schemas.enums import MatchOutcome, TotalsSide
+from quantbot.schemas.enums import MarketKind, MatchOutcome, TotalsSide
 from quantbot.schemas.lines import require_half_line
 
 
@@ -24,6 +24,7 @@ class Odds(QuantBotModel):
     home: float = Field(gt=1.0)
     draw: float = Field(gt=1.0)
     away: float = Field(gt=1.0)
+    kind: MarketKind = MarketKind.ONE_X_TWO
     is_closing: bool = Field(
         default=False, description="True if this is the closing line before kickoff."
     )
@@ -32,13 +33,16 @@ class Odds(QuantBotModel):
     def _validate_timestamp(self) -> Odds:
         if self.timestamp.tzinfo is None:
             raise ValueError("timestamp must be timezone-aware")
+        if self.kind not in (MarketKind.ONE_X_TWO, MarketKind.MONEYLINE):
+            raise ValueError("Odds supports only 1X2 or moneyline compatibility quotes")
         return self
 
     @property
     def overround(self) -> float:
         """Bookmaker margin: sum of implied probabilities minus 1."""
 
-        return (1.0 / self.home) + (1.0 / self.draw) + (1.0 / self.away) - 1.0
+        draw = 0.0 if self.kind is MarketKind.MONEYLINE else 1.0 / self.draw
+        return (1.0 / self.home) + draw + (1.0 / self.away) - 1.0
 
     def implied_probabilities(self) -> dict[MatchOutcome, float]:
         """Raw implied probabilities (not normalized; still contain margin)."""
@@ -134,6 +138,7 @@ class MoneylineOdds(QuantBotModel):
             home=self.home,
             draw=draw_odds,
             away=self.away,
+            kind=MarketKind.MONEYLINE,
             is_closing=self.is_closing,
         )
 

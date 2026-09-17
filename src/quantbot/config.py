@@ -14,6 +14,8 @@ from pathlib import Path
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from quantbot.schemas.enums import MarginMethod
+
 
 class Environment(str, Enum):
     """Deployment environment."""
@@ -21,14 +23,6 @@ class Environment(str, Enum):
     DEVELOPMENT = "development"
     TEST = "test"
     PRODUCTION = "production"
-
-
-class MarginMethod(str, Enum):
-    """Method used to remove the bookmaker margin (overround)."""
-
-    SHIN = "shin"
-    POWER = "power"
-    MULTIPLICATIVE = "multiplicative"
 
 
 # Project directory anchors. ``config.py`` lives at src/quantbot/config.py,

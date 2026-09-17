@@ -8,11 +8,164 @@ Decision Engine.
 from __future__ import annotations
 
 from datetime import datetime
+from math import isfinite
 
 from pydantic import Field, model_validator
 
 from quantbot.schemas.base import PROB_SUM_TOLERANCE, QuantBotModel
-from quantbot.schemas.enums import MarginMethod, MatchOutcome, TotalsSide
+from quantbot.schemas.enums import (
+    MarginMethod,
+    MarketKind,
+    MatchOutcome,
+    SettlementStatus,
+    TotalsSide,
+)
+
+
+class MarketOutcome(QuantBotModel):
+    """One quoted selection, with its own handicap or totals line when needed."""
+
+    name: str = Field(min_length=1)
+    line: float | None = None
+    price: float = Field(gt=1.0)
+
+    @model_validator(mode="after")
+    def _finite(self) -> MarketOutcome:
+        if not isfinite(self.price) or (self.line is not None and not isfinite(self.line)):
+            raise ValueError("market price and line must be finite")
+        return self
+
+
+class Market(QuantBotModel):
+    """Sport-neutral bookmaker quote with explicit settlement rules.
+
+    Totals use the same positive line for both sides. Spread lines are from
+    each selected team's perspective and must be opposites.
+    """
+
+    match_id: str = Field(min_length=1)
+    bookmaker: str = Field(min_length=1)
+    timestamp: datetime
+    kind: MarketKind
+    outcomes: tuple[MarketOutcome, ...]
+    is_closing: bool = False
+
+    @classmethod
+    def from_quote(cls, quote: object) -> Market:
+        """Adapt existing provider quotes to the common market representation."""
+
+        from quantbot.schemas.odds import MoneylineOdds, Odds, SpreadOdds, TotalsOdds
+
+        if isinstance(quote, Odds):
+            if quote.kind is MarketKind.MONEYLINE:
+                kind = MarketKind.MONEYLINE
+                selections = (("home", None, quote.home), ("away", None, quote.away))
+            else:
+                kind = MarketKind.ONE_X_TWO
+                selections = (
+                    ("home", None, quote.home),
+                    ("draw", None, quote.draw),
+                    ("away", None, quote.away),
+                )
+        elif isinstance(quote, MoneylineOdds):
+            kind = MarketKind.MONEYLINE
+            selections = (("home", None, quote.home), ("away", None, quote.away))
+        elif isinstance(quote, TotalsOdds):
+            kind = MarketKind.TOTALS
+            selections = (("over", quote.line, quote.over), ("under", quote.line, quote.under))
+        elif isinstance(quote, SpreadOdds):
+            kind = MarketKind.SPREAD
+            selections = (("home", quote.line, quote.home), ("away", -quote.line, quote.away))
+        else:
+            raise TypeError(f"unsupported quote type: {type(quote).__name__}")
+        return cls(
+            match_id=quote.match_id,
+            bookmaker=quote.bookmaker,
+            timestamp=quote.timestamp,
+            kind=kind,
+            outcomes=tuple(
+                MarketOutcome(name=name, line=line, price=price) for name, line, price in selections
+            ),
+            is_closing=quote.is_closing,
+        )
+
+    @model_validator(mode="after")
+    def _validate_market(self) -> Market:
+        if self.timestamp.tzinfo is None:
+            raise ValueError("timestamp must be timezone-aware")
+        expected = {
+            MarketKind.ONE_X_TWO: {"home", "draw", "away"},
+            MarketKind.MONEYLINE: {"home", "away"},
+            MarketKind.TOTALS: {"over", "under"},
+            MarketKind.SPREAD: {"home", "away"},
+        }[self.kind]
+        by_name = {outcome.name: outcome for outcome in self.outcomes}
+        if len(by_name) != len(self.outcomes) or set(by_name) != expected:
+            raise ValueError(f"{self.kind.value} requires exactly {sorted(expected)}")
+        if self.kind in (MarketKind.ONE_X_TWO, MarketKind.MONEYLINE):
+            if any(outcome.line is not None for outcome in self.outcomes):
+                raise ValueError("result markets must not have a line")
+        elif self.kind is MarketKind.TOTALS:
+            over, under = by_name["over"], by_name["under"]
+            if over.line is None or over.line <= 0 or over.line != under.line:
+                raise ValueError("totals require one shared positive line")
+        else:
+            home, away = by_name["home"], by_name["away"]
+            if home.line is None or away.line is None or home.line != -away.line:
+                raise ValueError("spread handicap lines must be opposites")
+        return self
+
+    @property
+    def margin_method(self) -> MarginMethod:
+        return MarginMethod.SHIN if self.kind is MarketKind.ONE_X_TWO else MarginMethod.POWER
+
+    def fair_probabilities(self) -> dict[str, float]:
+        """Remove the margin with Shin for 1X2 and Power for every two-way market."""
+
+        from quantbot.markets.margin import remove_margin
+
+        fair = remove_margin([item.price for item in self.outcomes], self.margin_method.value)
+        return dict(zip((item.name for item in self.outcomes), fair, strict=True))
+
+    def settle(self, selection: str, home_score: int, away_score: int) -> SettlementStatus:
+        """Resolve a selection; exact integer-line ties return VOID."""
+
+        if home_score < 0 or away_score < 0:
+            raise ValueError("scores must be non-negative")
+        outcome = next((item for item in self.outcomes if item.name == selection), None)
+        if outcome is None:
+            raise ValueError(f"unknown selection: {selection!r}")
+        if self.kind is MarketKind.ONE_X_TWO:
+            actual = (
+                "home" if home_score > away_score else "away" if away_score > home_score else "draw"
+            )
+            return SettlementStatus.WON if selection == actual else SettlementStatus.LOST
+        if self.kind is MarketKind.MONEYLINE:
+            if home_score == away_score:
+                return SettlementStatus.VOID  # unfinished / no overtime result
+            actual = "home" if home_score > away_score else "away"
+            return SettlementStatus.WON if selection == actual else SettlementStatus.LOST
+        assert outcome.line is not None
+        if self.kind is MarketKind.TOTALS:
+            diff = home_score + away_score - outcome.line
+            if selection == "under":
+                diff = -diff
+        else:
+            diff = home_score - away_score if selection == "home" else away_score - home_score
+            diff += outcome.line
+        if abs(diff) < 1e-9:
+            return SettlementStatus.VOID
+        return SettlementStatus.WON if diff > 0 else SettlementStatus.LOST
+
+    def payoff(self, selection: str, home_score: int, away_score: int) -> float:
+        """Gross decimal return per unit stake: win=price, loss=0, void=1."""
+
+        status = self.settle(selection, home_score, away_score)
+        if status is SettlementStatus.VOID:
+            return 1.0
+        if status is SettlementStatus.LOST:
+            return 0.0
+        return next(item.price for item in self.outcomes if item.name == selection)
 
 
 class MarketData(QuantBotModel):
@@ -29,8 +182,9 @@ class MarketData(QuantBotModel):
     bookmaker: str = Field(min_length=1)
     timestamp: datetime
     method: MarginMethod
+    kind: MarketKind = MarketKind.ONE_X_TWO
     fair_home: float = Field(gt=0.0, lt=1.0)
-    fair_draw: float = Field(gt=0.0, lt=1.0)
+    fair_draw: float = Field(ge=0.0, lt=1.0)
     fair_away: float = Field(gt=0.0, lt=1.0)
     overround: float = Field(ge=0.0)
     liquidity: float | None = Field(default=None, ge=0.0)
@@ -40,6 +194,16 @@ class MarketData(QuantBotModel):
     def _validate(self) -> MarketData:
         if self.timestamp.tzinfo is None:
             raise ValueError("timestamp must be timezone-aware")
+        if self.kind is MarketKind.MONEYLINE:
+            if self.method is not MarginMethod.POWER or self.fair_draw != 0.0:
+                raise ValueError("moneyline requires Power and zero draw probability")
+        elif self.kind is MarketKind.ONE_X_TWO:
+            if self.fair_draw <= 0.0:
+                raise ValueError("1X2 requires a positive draw probability")
+            if self.method is MarginMethod.POWER:
+                raise ValueError("Power margin removal is reserved for two-way markets")
+        else:
+            raise ValueError("MarketData supports only 1X2 and moneyline")
         total = self.fair_home + self.fair_draw + self.fair_away
         if abs(total - 1.0) > PROB_SUM_TOLERANCE:
             raise ValueError(f"fair probabilities must sum to 1.0, got {total}")
@@ -55,11 +219,13 @@ class MarketData(QuantBotModel):
     def fair_odds(self) -> dict[MatchOutcome, float]:
         """Fair decimal odds implied by the margin-free probabilities."""
 
-        return {
+        prices = {
             MatchOutcome.HOME: 1.0 / self.fair_home,
-            MatchOutcome.DRAW: 1.0 / self.fair_draw,
             MatchOutcome.AWAY: 1.0 / self.fair_away,
         }
+        if self.kind is MarketKind.ONE_X_TWO:
+            prices[MatchOutcome.DRAW] = 1.0 / self.fair_draw
+        return prices
 
 
 class TotalsMarketData(QuantBotModel):
@@ -79,6 +245,8 @@ class TotalsMarketData(QuantBotModel):
     def _validate(self) -> TotalsMarketData:
         if self.timestamp.tzinfo is None:
             raise ValueError("timestamp must be timezone-aware")
+        if self.method is not MarginMethod.POWER:
+            raise ValueError("two-way totals require Power margin removal")
         total = self.fair_over + self.fair_under
         if abs(total - 1.0) > PROB_SUM_TOLERANCE:
             raise ValueError(f"fair totals probabilities must sum to 1.0, got {total}")

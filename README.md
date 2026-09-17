@@ -18,6 +18,19 @@ Pipeline: Probability zu Market Price zu Edge zu Expected Value zu Backtest zu D
 - Layer 3 Value & Calibration Engine. Berechnet Edge, EV, Brier Score und Kalibrierung.
 - Layer 4 Decision Engine. Erzeugt Signal und theoretischen Stake.
 
+## Märkte und Abrechnung
+
+`Market` und `MarketOutcome` bilden 1X2, Zweiweg-Moneyline, Totals und Spreads
+mit Auswahl, optionaler Linie und Dezimalquote ab. Für 1X2 entfernt Shin die
+Marge; für Zweiweg-Märkte wird die Power-Methode verwendet. Bei einem exakten
+Gleichstand mit einer ganzzahligen Totals- oder Spread-Linie meldet die
+Marktabrechnung `VOID` und erstattet den simulierten Einsatz vollständig.
+
+Die bestehende automatische Totals-Signalberechnung verwendet weiterhin nur
+Halblinien. Ganzzahlige Linien sind im allgemeinen Marktschema und in der
+Abrechnung darstellbar, werden aber erst nach einer push-bewussten EV- und
+Kelly-Berechnung als automatische Signale freigegeben.
+
 ## Projektstruktur
 
 ```

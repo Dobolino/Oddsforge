@@ -142,7 +142,7 @@ def test_signals_dataframe_columns() -> None:
     colored = tables.colored_signals_table_html(reports, mode=UXMode.ADVANCED, lang="de")
     assert "<table" in colored
     assert "background:#" in colored  # tip badge
-    assert "Mathematische Abweichung" in colored
+    assert "Statistische Abweichung" in colored
     expert = tables.colored_signals_table_html(reports, mode=UXMode.EXPERT, lang="en")
     assert "Forecast quality" in expert
     assert "Data quality" in expert

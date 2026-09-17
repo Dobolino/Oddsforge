@@ -31,6 +31,21 @@ class TotalsSide(str, Enum):
     UNDER = "under"
 
 
+class MarketKind(str, Enum):
+    """Settlement and pricing rules for a bookmaker market."""
+
+    ONE_X_TWO = "1x2"
+    MONEYLINE = "moneyline"
+    TOTALS = "totals"
+    SPREAD = "spread"
+
+
+class SettlementStatus(str, Enum):
+    WON = "won"
+    LOST = "lost"
+    VOID = "void"
+
+
 class League(str, Enum):
     """Supported competitions. Extend as new ones are added."""
 
