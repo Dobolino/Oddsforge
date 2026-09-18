@@ -54,17 +54,19 @@ ODDS_PAYLOAD = {
                         {
                             "id": 4,
                             "name": "Asian Handicap",
+                            # Real API-Football format: both sides carry the same
+                            # signed line from the home team's perspective.
                             "values": [
-                                {"value": "Home -0.5", "odd": "1.90"},
-                                {"value": "Away +0.5", "odd": "1.90"},
+                                {"value": "Home -0.5", "odd": "1.78"},
+                                {"value": "Away -0.5", "odd": "2.02"},
                                 {"value": "Home -1.5", "odd": "3.10"},
-                                {"value": "Away +1.5", "odd": "1.36"},
+                                {"value": "Away -1.5", "odd": "1.36"},
                                 # Quarter line: must be ignored (can push).
-                                {"value": "Home -0.75", "odd": "2.05"},
-                                {"value": "Away +0.75", "odd": "1.80"},
+                                {"value": "Home -0.75", "odd": "2.00"},
+                                {"value": "Away -0.75", "odd": "1.80"},
                                 # Whole line: must be ignored (can push).
-                                {"value": "Home -1.0", "odd": "2.50"},
-                                {"value": "Away +1.0", "odd": "1.55"},
+                                {"value": "Home -1", "odd": "2.35"},
+                                {"value": "Away -1", "odd": "1.58"},
                             ],
                         },
                         {
@@ -145,7 +147,7 @@ def test_summarize_markets_lists_raw_labels(tmp_path) -> None:
     assert summary.has_market("Goals Over/Under")
     bet365 = summary.bookmakers["Bet365"]
     ah = next(b for b in bet365 if b.bet_name == "Asian Handicap")
-    assert "Home -0.5 @ 1.90" in ah.sample_values
+    assert "Home -0.5 @ 1.78" in ah.sample_values
 
 
 def test_parse_asian_handicap_pairs_half_lines(tmp_path) -> None:
@@ -157,8 +159,8 @@ def test_parse_asian_handicap_pairs_half_lines(tmp_path) -> None:
     half = next(s for s in spreads if s.line == -0.5)
     assert half.match_id == "m1"
     assert half.bookmaker == "Bet365"
-    assert half.home == pytest.approx(1.90)
-    assert half.away == pytest.approx(1.90)
+    assert half.home == pytest.approx(1.78)
+    assert half.away == pytest.approx(2.02)
     assert half.timestamp == datetime(2026, 9, 18, 9, 0, tzinfo=UTC)
 
 

@@ -269,9 +269,11 @@ class ApiFootballProvider:
     ) -> list[SpreadOdds]:
         """Extract half-line Asian-handicap quotes as :class:`SpreadOdds`.
 
-        For each bookmaker, pairs a ``Home h`` price with the matching
-        ``Away -h`` price to form one spread quote whose ``line`` is the home
-        handicap. Only clean half-lines (no push) are kept.
+        API-Football labels both sides of one line with the same signed number
+        from the home team's view: ``"Home -0.5"`` and ``"Away -0.5"`` are the
+        two prices on the ``-0.5`` line. This pairs them into one spread quote
+        whose ``line`` is that home handicap. Only clean half-lines (no push)
+        are kept.
         """
 
         out: list[SpreadOdds] = []
@@ -286,7 +288,7 @@ class ApiFootballProvider:
                     continue
                 home_prices, away_prices = _split_sides(bet.get("values", []) or [])
                 for line, home_odd in home_prices.items():
-                    away_odd = away_prices.get(-line)
+                    away_odd = away_prices.get(line)  # same line, opposite side
                     if away_odd is None:
                         continue
                     out.append(
