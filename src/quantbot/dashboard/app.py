@@ -1228,14 +1228,18 @@ def _slip_page(
             max_cap = min(4, max_available) if orient_local == "safe" else max_available
         if int(st.session_state.get("slip_max_legs", max_cap)) > max_cap:
             st.session_state["slip_max_legs"] = max_cap
-        max_legs_local = st.slider(
-            t("slip.max_legs", lang),
-            min_value=1,
-            max_value=max_cap,
-            value=min(default_legs, max_cap),
-            help=t("slip.legs_risk", lang),
-            key="slip_max_legs",
-        )
+        if max_cap <= 1:
+            max_legs_local = 1
+            st.caption(t("slip.max_legs", lang) + ": 1")
+        else:
+            max_legs_local = st.slider(
+                t("slip.max_legs", lang),
+                min_value=1,
+                max_value=max_cap,
+                value=min(default_legs, max_cap),
+                help=t("slip.legs_risk", lang),
+                key="slip_max_legs",
+            )
         st.caption(t("slip.legs_risk", lang))
         st.caption(t("slip.limits_caption", lang).format(n=max_legs_local, cap=max_cap))
 
