@@ -1020,6 +1020,73 @@ def _settings_page(
 
     st.info(t("settings.keys_sidebar_hint", lang))
 
+    from quantbot.ollama_explain import OllamaSettings, ping_ollama
+    from quantbot.preferences import load_ollama_settings, save_ollama_settings
+
+    st.subheader(t("settings.ollama", lang))
+    st.caption(t("settings.ollama_intro", lang))
+    current = load_ollama_settings()
+    enabled = st.checkbox(
+        t("settings.ollama_enabled", lang),
+        value=current.enabled,
+        key="ollama_enabled_cb",
+    )
+    url = st.text_input(
+        t("settings.ollama_url", lang),
+        value=current.base_url,
+        key="ollama_url_input",
+    )
+    model = st.text_input(
+        t("settings.ollama_model", lang),
+        value=current.model,
+        key="ollama_model_input",
+    )
+    draft = OllamaSettings(
+        enabled=enabled,
+        base_url=url.strip() or current.base_url,
+        model=model.strip() or current.model,
+        timeout_s=current.timeout_s,
+    )
+    b1, b2 = st.columns(2)
+    if b1.button(t("settings.ollama_save", lang), key="ollama_save_btn"):
+        save_ollama_settings(draft)
+        st.success(t("settings.ollama_saved", lang))
+    if b2.button(t("settings.ollama_test", lang), key="ollama_test_btn"):
+        result = ping_ollama(draft)
+        if result.ok:
+            st.success(t("settings.ollama_ok", lang).format(models=result.text))
+        else:
+            st.error(t("settings.ollama_fail", lang).format(error=result.error))
+
+
+def _render_ollama_explain(lang: str, slip, stake: float) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
+    """Optional local LLM narration for an already-built tip slip."""
+
+    from quantbot.ollama_explain import explain_slip
+    from quantbot.preferences import load_ollama_settings
+
+    settings = load_ollama_settings()
+    st.caption(t("slip.ollama_hint", lang))
+    if not settings.enabled:
+        st.info(t("slip.ollama_disabled", lang))
+        return
+    if st.button(t("slip.ollama_explain", lang), key="slip_ollama_explain"):
+        with st.spinner("Ollama …"):
+            result = explain_slip(slip, settings=settings, lang=lang, stake=stake)
+        if result.ok:
+            st.session_state["slip_ollama_text"] = result.text
+            st.session_state.pop("slip_ollama_error", None)
+        else:
+            st.session_state["slip_ollama_error"] = result.error
+            st.session_state.pop("slip_ollama_text", None)
+    err = st.session_state.get("slip_ollama_error")
+    text = st.session_state.get("slip_ollama_text")
+    if err:
+        st.warning(err)
+    if text:
+        st.subheader(t("slip.ollama_title", lang))
+        st.write(text)
+
 
 def _slip_page(
     lang, ux_mode, C, orchestrator, mode, leagues, season, live, window=None
@@ -1236,6 +1303,7 @@ def _slip_page(
     elif len(slip.legs) < max(1, int(st.session_state.get("slip_max_legs", len(slip.legs)))):
         st.info(t("slip.trimmed_note", lang))
     st.html(ticket_html(slip, lang=lang, stake=stake))
+    _render_ollama_explain(lang, slip, stake)
     with st.expander(t("slip.copy_title", lang), expanded=beginner):
         st.code(format_ticket(slip, lang=lang, stake=stake), language=None)
 
