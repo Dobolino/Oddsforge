@@ -34,6 +34,12 @@ from quantbot.dashboard.leagues import (
     resolve_sport,
     sport_choices,
 )
+from quantbot.dashboard.paper import (
+    commit_slip,
+    open_bookings,
+    paper_ledger_for_mode,
+    preview_slip,
+)
 from quantbot.dashboard.slip import (
     build_boosted_slip,
     build_safe_slip,
@@ -45,6 +51,7 @@ from quantbot.dashboard.slip import (
 )
 from quantbot.dashboard.ux import UXMode, pages_for
 from quantbot.i18n import DEFAULT_LANGUAGE, GLOSSARY, LANGUAGES, t
+from quantbot.ledger import CapViolationError
 
 
 def _current_season() -> str:
@@ -247,7 +254,6 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
         unsafe_allow_html=True,
     )
     st.sidebar.title(f"QuantBot v{__version__}")
-    st.sidebar.caption(f"Stand: v{__version__} · Spieltag-Fenster · Tippschein-Hero")
 
     default_lang = get_settings().language if get_settings().language in LANGUAGES else DEFAULT_LANGUAGE
     lang = st.sidebar.radio(
@@ -278,6 +284,7 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     all_pages = {
         "signals": t("page.signals", lang),
         "slip": t("page.slip", lang),
+        "paper": t("page.paper", lang),
         "card": t("page.card", lang),
         "tracker": t("page.tracker", lang),
         "insights": t("page.insights", lang),
@@ -376,7 +383,11 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
             else:
                 provider = basketball_provider
             live = live_provider is not None
-            st.sidebar.info(t("mode.live" if live else "mode.demo", lang))
+            if live:
+                st.sidebar.info(t("mode.live", lang))
+            else:
+                st.sidebar.markdown(f"**[{t('safety.demo_badge', lang)}]**")
+                st.sidebar.info(t("mode.demo", lang))
             last = getattr(provider, "finished_last_updated", None)
             if last is not None:
                 when = last.astimezone().strftime("%Y-%m-%d %H:%M")
@@ -392,6 +403,7 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
             st.sidebar.warning(t("mode.live_failed", lang))
             provider = None
     else:
+        st.sidebar.markdown(f"**[{t('safety.demo_badge', lang)}]**")
         st.sidebar.info(t("mode.demo", lang))
 
     # Beginners also need season when live data is empty for the default year.
@@ -418,11 +430,8 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
         # Pull model probabilities toward the fair market when data is thin, so
         # sparse-fit overconfidence does not turn into false value.
         analysis_engine=AnalysisEngine(market_shrinkage=True),
-        # No tip when a team has fewer than this many finished matches. Kept low
-        # (3) because calibration + market shrinkage already temper thin-data
-        # probabilities; this only blocks the most extreme sparsity (1-2 games),
-        # so tips still appear a few matchdays into the season.
         min_team_matches=3,
+        live=live,
     )
     mode = "live" if live else "demo"
     C = _install_cache()
@@ -440,12 +449,17 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     if st.session_state.get("welcome_dismissed"):
         st.caption(t("safety.short", lang))
         if not live:
-            st.caption(t("safety.demo", lang))
+            st.caption(f"**[{t('safety.demo_badge', lang)}]** {t('safety.demo', lang)}")
     else:
         st.info(t("safety.banner", lang))
         if not live:
-            st.caption(t("safety.demo", lang))
+            st.caption(f"**[{t('safety.demo_badge', lang)}]** {t('safety.demo', lang)}")
         st.caption(t("safety.account_limits", lang))
+    help_cols = st.columns([4, 1])
+    help_cols[0].caption(t("help.footer", lang))
+    if help_cols[1].button(t("help.open_glossary", lang), key="help_open_glossary"):
+        st.session_state["pending_nav_page"] = "glossary"
+        st.rerun()
 
     _welcome_card(lang, ux_mode)
     # Odds name-matching reports are filled during predict/odds fetch — warn
@@ -454,10 +468,6 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     if page == "glossary":
         _glossary_page(lang)
         return
-
-    # Always show the matchday / date-range control on Tips, Tip slip, and
-    # Match card — including when no fixtures loaded yet. After the math-review
-    # merge the picker was hidden behind the empty-season early return, so users
 
     if page == "settings":
         _settings_page(
@@ -469,9 +479,13 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
             live=live,
         )
         return
-    # lost date + range selection whenever Football-Data returned no games.
-    # Match card previously had no date UI and defaulted to mid-season as_of,
-    # which hid current live fixtures.
+
+    # Paper ledger is mode-scoped and does not need fixtures/leagues.
+    if page == "paper":
+        _paper_page(lang, mode)
+        return
+
+    # Matchday / date-range on Tips, Tip slip, and Match card (incl. empty season).
     shared_window = None
     if page in ("signals", "slip", "card"):
         shared_window = _pick_window(
@@ -868,7 +882,8 @@ def _signals_page(
     else:
         st.caption(t("sig.intro", lang))
         if ux_mode is UXMode.ADVANCED:
-            st.caption(f"{t('term.edge', lang)} · {t('term.ev', lang)} · {t('term.stake', lang)}")
+            st.caption(f"{t('term.edge', lang)} · {t('term.ev', lang)} · {t('term.forecast_quality', lang)}")
+            st.caption(t("term.stake", lang))
 
     reports = _filter_by_kickoff(
         _predict_leagues(C, orchestrator, mode, leagues, season, _as_of_cache_key(as_of)),
@@ -1192,32 +1207,19 @@ def _slip_page(
             help=t("slip.orient_safe_default", lang),
         )
         st.caption(t("slip.orient_hint", lang))
-        high_risk = st.checkbox(
-            t("slip.high_risk", lang),
-            value=bool(st.session_state.get("slip_high_risk", False)),
-            key="slip_high_risk",
-            help=t("slip.high_risk_help", lang),
-        )
-        if high_risk:
-            st.markdown(
-                f'<p style="font-weight:800;font-size:1.05rem;color:#b00020;margin:0.2rem 0 0.6rem 0;">'
-                f'{t("slip.high_risk_warn", lang)}</p>',
-                unsafe_allow_html=True,
-            )
+        # Migrate away legacy high-risk preference — never bypasses policy caps.
+        st.session_state.pop("slip_high_risk", None)
         stake_local = st.number_input(
             t("slip.stake", lang),
             min_value=0.0,
-            max_value=10_000.0,
-            value=10.0,
-            step=0.01,
+            max_value=100.0,
+            value=1.0,
+            step=0.1,
             key="slip_stake_input",
         )
         max_available = max(1, min(8, available or 1))
-        # Safe orientation: short kombis only — unless high-risk override is on.
-        if high_risk:
-            max_cap = max_available
-        else:
-            max_cap = min(4, max_available) if orient_local == "safe" else max_available
+        # Safe orientation: short kombis only (long slips explode combined odds).
+        max_cap = min(4, max_available) if orient_local == "safe" else max_available
         if int(st.session_state.get("slip_max_legs", max_cap)) > max_cap:
             st.session_state["slip_max_legs"] = max_cap
         if max_cap <= 1:
@@ -1241,7 +1243,6 @@ def _slip_page(
                 lang=lang,
                 max_legs=max_legs_local,
                 bias=orient_local,
-                allow_high_risk=high_risk,
             )
         else:
             core_legs = max(1, (max_legs_local + 1) // 2) if beginner else max(1, min(2, max_legs_local))
@@ -1256,18 +1257,16 @@ def _slip_page(
                 core_legs=core_legs,
                 boost_legs=boost_legs,
                 bias=orient_local,
-                allow_high_risk=high_risk,
             )
-        return style_local, float(stake_local), slip_local, orient_local, high_risk
+        return style_local, float(stake_local), slip_local, orient_local
 
     smart_ids = st.session_state.pop("slip_smart_override", None)
     orient_used = st.session_state.get("slip_orient", "safe")
-    high_risk_used = bool(st.session_state.get("slip_high_risk", False))
 
     if beginner:
         # Ticket first; knobs live in an expander so the slip stays the hero.
         with st.expander(t("slip.adjust", lang), expanded=False):
-            _style, stake, slip, orient_used, high_risk_used = _controls()
+            _style, stake, slip, orient_used = _controls()
             if slip is not None and slip.legs:
                 st.caption(t("slip.edit_legs", lang))
                 selected_ids = []
@@ -1276,18 +1275,18 @@ def _slip_page(
                     label = f"{leg.match} — {tip_short} ({leg.odds:.2f})"
                     if st.checkbox(label, value=True, key=f"slip_leg::{leg.match_id}"):
                         selected_ids.append(leg.match_id)
-                slip = slip_with_legs(slip, selected_ids, allow_high_risk=high_risk_used)
+                slip = slip_with_legs(slip, selected_ids)
     else:
         if smart_ids:
             slip = build_smart_cross_sport_slip(
                 reports, lang=lang, max_legs=len(smart_ids), min_edge=0.02, min_data_quality=70.0
             )
-            stake = float(st.session_state.get("slip_stake_input", 10.0))
+            stake = float(st.session_state.get("slip_stake_input", 1.0))
             _style = "safe"
             if slip is not None:
-                slip = slip_with_legs(slip, smart_ids, allow_high_risk=high_risk_used)
+                slip = slip_with_legs(slip, smart_ids)
         else:
-            _style, stake, slip, orient_used, high_risk_used = _controls()
+            _style, stake, slip, orient_used = _controls()
         if slip is not None and slip.legs:
             st.subheader(t("slip.edit_legs", lang))
             selected_ids = []
@@ -1296,7 +1295,7 @@ def _slip_page(
                 label = f"{leg.match} — {tip_short} ({leg.odds:.2f})"
                 if st.checkbox(label, value=True, key=f"slip_leg::{leg.match_id}"):
                     selected_ids.append(leg.match_id)
-            slip = slip_with_legs(slip, selected_ids, allow_high_risk=high_risk_used)
+            slip = slip_with_legs(slip, selected_ids)
 
     if slip is None or not slip.legs:
         st.info(t("slip.empty", lang))
@@ -1316,25 +1315,11 @@ def _slip_page(
             orient=orient_labels_view.get(str(orient_used), str(orient_used))
         )
     )
-    if high_risk_used:
-        st.markdown(
-            f'<p style="font-weight:800;font-size:1.1rem;color:#b00020;">'
-            f'{t("slip.high_risk_warn", lang)}</p>',
-            unsafe_allow_html=True,
-        )
-    # Builders already trim to plausible unless high-risk override is on.
+    # Builders trim to plausible; leftover flag is rare (manual edits).
     if not slip.is_plausible:
         st.error(t("slip.implausible", lang))
-    elif (
-        not high_risk_used
-        and len(slip.legs) < max(1, int(st.session_state.get("slip_max_legs", len(slip.legs))))
-    ):
+    elif len(slip.legs) < max(1, int(st.session_state.get("slip_max_legs", len(slip.legs)))):
         st.info(t("slip.trimmed_note", lang))
-    if high_risk_used and slip.legs:
-        wanted = int(st.session_state.get("slip_max_legs", len(slip.legs)))
-        st.caption(
-            t("slip.high_risk_count", lang).format(have=len(slip.legs), want=wanted)
-        )
     st.html(ticket_html(slip, lang=lang, stake=stake))
     _render_ollama_explain(lang, slip, stake)
     with st.expander(t("slip.copy_title", lang), expanded=beginner):
@@ -1343,9 +1328,7 @@ def _slip_page(
     if not beginner:
         m1, m2, m3 = st.columns(3)
         m1.metric(t("slip.combined_odds", lang), f"{slip.combined_odds:.2f}")
-        prob_display = f"{slip.combined_prob * 100:.1f}%" if slip.is_plausible else (
-            "unrealistisch" if lang.startswith("de") else "not realistic"
-        )
+        prob_display = t("slip.combo_chance_na", lang)
         ev_display = f"{slip.expected_value * 100:.1f}%" if slip.is_plausible else "—"
         m2.metric(t("slip.combined_prob", lang), prob_display)
         m3.metric(t("slip.combined_ev", lang), ev_display)
@@ -1353,8 +1336,119 @@ def _slip_page(
             st.warning(t("slip.disclaimer", lang))
         else:
             st.caption(t("slip.disclaimer", lang))
+        _slip_paper_reserve(lang, mode, slip, stake)
     else:
         st.caption(t("slip.disclaimer", lang))
+
+
+def _slip_paper_reserve(lang, mode, slip, stake) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
+    """Reserve simulated units for the current slip in the paper ledger."""
+
+    st.divider()
+    st.caption(t("paper.mode_note", lang).format(mode=mode))
+    ledger = paper_ledger_for_mode(mode)
+    preview = preview_slip(ledger, slip, stake_units=stake, mode=mode)
+    if preview.already_committed and preview.existing_booking_id:
+        st.info(
+            t("paper.commit_ok", lang).format(id=preview.existing_booking_id[:8])
+        )
+    elif preview.ok:
+        st.caption(
+            t("paper.preview", lang).format(
+                open=preview.total_open_after,
+                avail=preview.available_after,
+            )
+        )
+    else:
+        st.warning(
+            t("paper.commit_blocked", lang).format(
+                reasons=", ".join(preview.reasons) or "—"
+            )
+        )
+    c1, c2 = st.columns(2)
+    if c1.button(
+        t("paper.commit", lang),
+        key="slip_paper_commit",
+        disabled=not preview.ok and not preview.already_committed,
+    ):
+        try:
+            booking = commit_slip(ledger, slip, stake_units=stake, mode=mode)
+            st.success(t("paper.commit_ok", lang).format(id=booking.booking_id[:8]))
+        except CapViolationError as exc:
+            st.error(
+                t("paper.commit_blocked", lang).format(
+                    reasons=", ".join(exc.reasons) or "—"
+                )
+            )
+    if c2.button(t("paper.open_page", lang), key="slip_goto_paper"):
+        st.session_state["pending_nav_page"] = "paper"
+        st.rerun()
+
+
+def _paper_page(lang, mode) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
+    """Paper-simulation ledger: units, caps, open reservations, manual settle."""
+
+    st.header(t("page.paper", lang))
+    st.caption(t("paper.intro", lang))
+    st.caption(t("paper.mode_note", lang).format(mode=mode))
+    if mode == "demo":
+        st.caption(f"**[{t('safety.demo_badge', lang)}]** {t('safety.demo', lang)}")
+
+    ledger = paper_ledger_for_mode(mode)
+    snap = ledger.snapshot()
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric(t("paper.available", lang), f"{snap.available:.1f}")
+    m2.metric(t("paper.open", lang), f"{snap.open_reserved:.1f}")
+    m3.metric(t("paper.realized", lang), f"{snap.realized_pnl:+.1f}")
+    m4.metric(t("paper.capital", lang), f"{snap.paper_capital:.0f}")
+    st.caption(
+        t("paper.caps", lang).format(
+            match=snap.max_match_stake,
+            open=snap.max_open_stake,
+        )
+    )
+
+    st.subheader(t("paper.open_list", lang))
+    bookings = open_bookings(ledger)
+    if not bookings:
+        st.info(t("paper.empty", lang))
+        return
+
+    for booking in bookings:
+        legs_txt = " · ".join(
+            f"{leg.match_id}:{leg.selection}@{leg.decimal_odds:.2f}"
+            for leg in booking.legs
+        )
+        with st.container(border=True):
+            st.markdown(
+                f"**{booking.booking_id[:8]}** · {booking.stake:.1f} u · "
+                f"@{booking.decimal_odds:.2f} · {legs_txt}"
+            )
+            b1, b2, b3, b4 = st.columns(4)
+            if b1.button(
+                t("paper.settle_win", lang),
+                key=f"paper_win::{booking.booking_id}",
+            ):
+                ledger.settle(booking.booking_id, won=True)
+                st.rerun()
+            if b2.button(
+                t("paper.settle_loss", lang),
+                key=f"paper_loss::{booking.booking_id}",
+            ):
+                ledger.settle(booking.booking_id, won=False)
+                st.rerun()
+            if b3.button(
+                t("paper.settle_void", lang),
+                key=f"paper_void::{booking.booking_id}",
+            ):
+                ledger.settle(booking.booking_id, void=True)
+                st.rerun()
+            if b4.button(
+                t("paper.cancel", lang),
+                key=f"paper_cancel::{booking.booking_id}",
+            ):
+                ledger.cancel(booking.booking_id)
+                st.rerun()
 
 
 def _diagnostics_page(lang, C, provider, mode, league, season) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
@@ -1512,7 +1606,15 @@ def _card_page(
             ),
         } for o in outcomes]
         st.dataframe(pd.DataFrame(frows), width="stretch", hide_index=True)
-        st.markdown(f"**{t('card.decision', lang)}**: {c.signal}  ·  {t('card.stake', lang)}: {c.stake_fraction:.2f}%")
+        # Prefer decision/validation fields from the live signal when present.
+        decision_line = f"**{t('card.decision', lang)}**: {c.signal}"
+        stake_txt = f"{c.stake_fraction:.2f}%"
+        if getattr(c, "sizing_allowed", True) is False or c.stake_fraction <= 0.0:
+            stake_txt = "—" if lang.startswith("de") else "—"
+            decision_line += f" · {t('sig.exploratory', lang)}"
+        else:
+            decision_line += f" · {t('card.stake', lang)}: {stake_txt}"
+        st.markdown(decision_line)
 
     st.markdown(f"**{t('card.why', lang)}**")
     for r in c.reasons:
@@ -1555,10 +1657,21 @@ def _tracker_page(lang, C, provider, mode, leagues, season) -> None:  # type: ig
     with st.expander(t("track.path_expander", lang), expanded=False):
         st.caption(t("track.persisted", lang).format(path=str(store.path), n=len(store.all_tips())))
 
-    c1, c2, c3 = st.columns(3)
+    c1, c2, c3, c4 = st.columns(4)
     c1.metric(t("track.hit_rate", lang), "-" if view.hit_rate is None else f"{view.hit_rate:.1f}%")
     c2.metric(t("track.settled_bets", lang), view.total_bets)
     c3.metric(t("track.correct", lang), view.total_correct)
+    clv_vals = [
+        e.get("clv_odds_ratio")
+        for r in view.rounds
+        for e in r["entries"]
+        if e.get("settled") and isinstance(e.get("clv_odds_ratio"), (int, float))
+    ]
+    avg_clv = sum(clv_vals) / len(clv_vals) if clv_vals else None
+    c4.metric(
+        t("track.avg_clv", lang),
+        "—" if avg_clv is None else f"{avg_clv * 100:+.1f}%",
+    )
 
     for r in reversed(view.rounds):
         label = r["label"]
@@ -1596,6 +1709,17 @@ def _tracker_page(lang, C, provider, mode, leagues, season) -> None:  # type: ig
                     result = "-"
                 odds = e["odds"]
                 odds_s = f"{odds:.2f}" if isinstance(odds, (int, float)) else escape(str(odds or "—"))
+                clv_ratio = e.get("clv_odds_ratio")
+                clv_status = e.get("clv_status")
+                if isinstance(clv_ratio, (int, float)):
+                    clv_s = f"{t('track.clv', lang)} {clv_ratio * 100:+.1f}%"
+                elif clv_status:
+                    clv_s = f"{t('track.clv_na', lang)} ({escape(str(clv_status))})"
+                else:
+                    clv_s = t("track.clv_na", lang)
+                ref_ev = e.get("closing_reference_ev")
+                if isinstance(ref_ev, (int, float)):
+                    clv_s += f" · {t('track.clv_ref_ev', lang)} {ref_ev * 100:+.1f}%"
                 st.html(
                     '<div style="padding:0.55rem 0;border-bottom:1px solid #e5e7eb;">'
                     f'<div style="font-weight:700;">{escape(str(e["match"]))}</div>'
@@ -1603,6 +1727,7 @@ def _tracker_page(lang, C, provider, mode, leagues, season) -> None:  # type: ig
                     f' <span style="margin-left:0.5rem;opacity:0.75;">{odds_s}</span></div>'
                     f'<div style="margin-top:0.2rem;font-size:0.9rem;">{outcome_html}'
                     f' · {escape(t("track.result", lang))}: {result}</div>'
+                    f'<div style="margin-top:0.15rem;font-size:0.85rem;opacity:0.85;">{clv_s}</div>'
                     "</div>"
                 )
 

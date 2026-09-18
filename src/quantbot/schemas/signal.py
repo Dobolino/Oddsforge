@@ -104,6 +104,17 @@ class ValueSignal(QuantBotModel):
     reason_codes: tuple[str, ...] = Field(default_factory=tuple)
     metrics: tuple[ValueMetrics, ...] = Field(default_factory=tuple)
     totals_line: float | None = Field(default=None, gt=0.0)
+    handicap_line: float | None = Field(
+        default=None,
+        description="Signed AH line from the home team's perspective.",
+    )
+    # Central DecisionPolicy audit fields (defaults keep legacy constructors valid).
+    policy_version: str = Field(default="")
+    policy_profile: str = Field(default="")
+    validation_status: str = Field(default="unvalidated")
+    decision_status: str = Field(default="")
+    sizing_allowed: bool = False
+    p_final: float | None = Field(default=None, ge=0.0, le=1.0)
 
     @model_validator(mode="after")
     def _validate(self) -> ValueSignal:
@@ -127,8 +138,18 @@ class ValueSignal(QuantBotModel):
             if self.signal in (SignalType.VALUE_OVER, SignalType.VALUE_UNDER):
                 if self.totals_line is None:
                     raise ValueError("totals tips require totals_line")
-            elif self.totals_line is not None:
-                raise ValueError("1X2 tips must not set totals_line")
+                if self.handicap_line is not None:
+                    raise ValueError("totals tips must not set handicap_line")
+            elif self.signal in (SignalType.VALUE_AH_HOME, SignalType.VALUE_AH_AWAY):
+                if self.handicap_line is None:
+                    raise ValueError("AH tips require handicap_line")
+                if self.totals_line is not None:
+                    raise ValueError("AH tips must not set totals_line")
+            else:
+                if self.totals_line is not None:
+                    raise ValueError("1X2 tips must not set totals_line")
+                if self.handicap_line is not None:
+                    raise ValueError("1X2 tips must not set handicap_line")
         return self
 
     @property
@@ -137,7 +158,7 @@ class ValueSignal(QuantBotModel):
 
     @property
     def tip_label(self) -> str | None:
-        """Stable tip id string for history (e.g. home, over_2.5)."""
+        """Stable tip id string for history (e.g. home, over_2.5, ah_home_-0.5)."""
 
         if self.chosen_outcome is None:
             return None
@@ -145,6 +166,12 @@ class ValueSignal(QuantBotModel):
             line = self.totals_line
             line_s = str(int(line)) if float(line).is_integer() else str(line)
             return f"{self.chosen_outcome.value}_{line_s}"
+        if self.signal in (SignalType.VALUE_AH_HOME, SignalType.VALUE_AH_AWAY):
+            assert self.handicap_line is not None
+            side = "home" if self.signal is SignalType.VALUE_AH_HOME else "away"
+            line = self.handicap_line
+            line_s = str(int(line)) if float(line).is_integer() else str(line)
+            return f"ah_{side}_{line_s}"
         return self.chosen_outcome.value
 
     def plain_rationale(self, lang: str = "de") -> str:
@@ -163,4 +190,6 @@ _SIGNAL_TO_SELECTION: dict[SignalType, Selection] = {
     SignalType.VALUE_AWAY: MatchOutcome.AWAY,
     SignalType.VALUE_OVER: TotalsSide.OVER,
     SignalType.VALUE_UNDER: TotalsSide.UNDER,
+    SignalType.VALUE_AH_HOME: MatchOutcome.HOME,
+    SignalType.VALUE_AH_AWAY: MatchOutcome.AWAY,
 }

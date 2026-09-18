@@ -22,6 +22,8 @@ def test_pages_nested_by_depth() -> None:
     assert beginner <= advanced <= expert
     assert "signals" in beginner and "glossary" in beginner
     assert "slip" not in beginner
+    assert "paper" not in beginner
+    assert "paper" in advanced and "paper" in expert
     assert "calibration" in advanced
     assert "diagnostics" in expert and "diagnostics" not in advanced
     assert "backtest" in advanced and "backtest" not in beginner
@@ -46,8 +48,8 @@ def test_plain_signal_labels() -> None:
     assert plain_signal_label(SignalType.VALUE_HOME, "de").startswith("Value erkannt")
     assert "Value spotted" in plain_signal_label(SignalType.VALUE_HOME, "en")
     assert "home" in plain_signal_label(SignalType.VALUE_HOME, "en").lower()
-    assert "Kein Value" in plain_signal_label(SignalType.NO_BET, "de")
-    assert "No value" in plain_signal_label(SignalType.NO_BET, "en")
+    assert "Kein Signal" in plain_signal_label(SignalType.NO_BET, "de")
+    assert "No signal" in plain_signal_label(SignalType.NO_BET, "en")
 
 
 def test_tone_colors_for_signed_and_confidence() -> None:
@@ -96,6 +98,7 @@ def test_all_visible_pages_have_labels() -> None:
     label_keys = {
         "signals",
         "slip",
+        "paper",
         "card",
         "tracker",
         "insights",

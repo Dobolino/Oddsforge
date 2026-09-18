@@ -22,14 +22,18 @@ Pipeline: Probability zu Market Price zu Edge zu Expected Value zu Backtest zu D
 
 `Market` und `MarketOutcome` bilden 1X2, Zweiweg-Moneyline, Totals und Spreads
 mit Auswahl, optionaler Linie und Dezimalquote ab. Für 1X2 entfernt Shin die
-Marge; für Zweiweg-Märkte wird die Power-Methode verwendet. Bei einem exakten
-Gleichstand mit einer ganzzahligen Totals- oder Spread-Linie meldet die
-Marktabrechnung `VOID` und erstattet den simulierten Einsatz vollständig.
+Marge; für Zweiweg-Märkte wird die Power-Methode verwendet.
 
-Die bestehende automatische Totals-Signalberechnung verwendet weiterhin nur
-Halblinien. Ganzzahlige Linien sind im allgemeinen Marktschema und in der
-Abrechnung darstellbar, werden aber erst nach einer push-bewussten EV- und
-Kelly-Berechnung als automatische Signale freigegeben.
+Line-Settlement (Totals/Spreads) unterstützt `WON` / `LOST` / `PUSH` /
+`HALF_WIN` / `HALF_LOSS` inkl. Viertellinien-Split. Unbekannte Regeln ergeben
+`PENDING`/`UNSUPPORTED`, kein geratenes `VOID`. Automatische Totals-Signale
+nutzen weiterhin nur Halblinien. Asian Handicap ist hinter
+`QUANTBOT_ENABLE_AH_EXPERIMENTAL=false` und braucht ein eigenes VALID-Artefakt
+bevor Value-/Kelly-Signale freigegeben werden.
+
+Live-Sizing bleibt ohne chronologisches `ValidationArtifact` mit Status
+`VALID` gesperrt (`UNVALIDATED`). CLI: `quantbot validate` (Demo-Profile
+validieren niemals Live).
 
 ## Projektstruktur
 

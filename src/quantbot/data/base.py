@@ -153,13 +153,42 @@ class BaseDataProvider(ABC):
         return snapshots[-1] if snapshots else None
 
     def get_closing_odds(self, match_id: str) -> Odds | None:
-        """Return the closing line for a match.
+        """Return a tagged closing line for a match (``is_closing=True`` only).
 
         Post-settlement data used only for Closing Line Value (CLV) analysis
-        after an event has resolved. Never feed this into features.
+        after an event has resolved. Never feed this into features. Prefer
+        :meth:`resolve_closing` when a last-prematch proxy is acceptable.
         """
 
         closing = [o for o in self._fetch_odds(match_id) if o.is_closing]
         if not closing:
             return None
         return max(closing, key=lambda o: o.timestamp)
+
+    def resolve_closing(self, match: Match):
+        """Tagged close, else last prematch 1X2 before kickoff (documented)."""
+
+        from quantbot.markets.closing import resolve_closing_odds
+
+        return resolve_closing_odds(match, list(self._fetch_odds(match.match_id)))
+
+    def get_spreads(self, match_id: str, as_of: datetime) -> list:
+        """Asian-handicap / spread quotes on or before ``as_of`` (default: none)."""
+
+        _require_aware("as_of", as_of)
+        return [
+            o
+            for o in self._fetch_spreads(match_id)
+            if o.timestamp <= as_of
+        ]
+
+    def get_latest_spread(
+        self, match_id: str, as_of: datetime, *, line: float | None = None
+    ):
+        snaps = self.get_spreads(match_id, as_of)
+        if line is not None:
+            snaps = [o for o in snaps if abs(o.line - line) < 1e-9]
+        return snaps[-1] if snaps else None
+
+    def _fetch_spreads(self, match_id: str):
+        return ()

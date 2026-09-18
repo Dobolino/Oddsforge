@@ -41,9 +41,20 @@ class MarketKind(str, Enum):
 
 
 class SettlementStatus(str, Enum):
+    """Gross settlement outcome for a unit stake.
+
+    Payoff factors: WIN=o, LOSS=0, PUSH/VOID=1, HALF_WIN=(o+1)/2, HALF_LOSS=0.5.
+    PENDING / UNSUPPORTED never invent a refund.
+    """
+
     WON = "won"
     LOST = "lost"
     VOID = "void"
+    PUSH = "push"
+    HALF_WIN = "half_win"
+    HALF_LOSS = "half_loss"
+    PENDING = "pending"
+    UNSUPPORTED = "unsupported"
 
 
 class League(str, Enum):
@@ -89,6 +100,8 @@ class SignalType(str, Enum):
     VALUE_AWAY = "value_away"
     VALUE_OVER = "value_over"
     VALUE_UNDER = "value_under"
+    VALUE_AH_HOME = "value_ah_home"
+    VALUE_AH_AWAY = "value_ah_away"
     NO_BET = "no_bet"
 
 

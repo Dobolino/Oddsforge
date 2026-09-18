@@ -128,7 +128,7 @@ class Market(QuantBotModel):
         return dict(zip((item.name for item in self.outcomes), fair, strict=True))
 
     def settle(self, selection: str, home_score: int, away_score: int) -> SettlementStatus:
-        """Resolve a selection; exact integer-line ties return VOID."""
+        """Resolve a selection with typed push / half outcomes for line markets."""
 
         if home_score < 0 or away_score < 0:
             raise ValueError("scores must be non-negative")
@@ -146,26 +146,40 @@ class Market(QuantBotModel):
             actual = "home" if home_score > away_score else "away"
             return SettlementStatus.WON if selection == actual else SettlementStatus.LOST
         assert outcome.line is not None
-        if self.kind is MarketKind.TOTALS:
-            diff = home_score + away_score - outcome.line
-            if selection == "under":
-                diff = -diff
-        else:
-            diff = home_score - away_score if selection == "home" else away_score - home_score
-            diff += outcome.line
-        if abs(diff) < 1e-9:
-            return SettlementStatus.VOID
-        return SettlementStatus.WON if diff > 0 else SettlementStatus.LOST
+        from quantbot.markets.settlement import LineMarketKind, settle_line_market
+
+        kind = (
+            LineMarketKind.TOTALS
+            if self.kind is MarketKind.TOTALS
+            else LineMarketKind.SPREAD
+        )
+        result = settle_line_market(
+            kind=kind,
+            selection=selection,
+            line=outcome.line,
+            home_score=home_score,
+            away_score=away_score,
+            decimal_odds=outcome.price,
+        )
+        # Legacy callers treated whole-line ties as VOID; PUSH is preferred but
+        # VOID remains an alias for full-stake refund semantics.
+        if result.status is SettlementStatus.PUSH:
+            return SettlementStatus.PUSH
+        return result.status
 
     def payoff(self, selection: str, home_score: int, away_score: int) -> float:
-        """Gross decimal return per unit stake: win=price, loss=0, void=1."""
+        """Gross decimal return per unit stake (incl. half-win / half-loss)."""
+
+        from quantbot.markets.settlement import payoff_factor
 
         status = self.settle(selection, home_score, away_score)
+        if status in (SettlementStatus.PENDING, SettlementStatus.UNSUPPORTED):
+            raise ValueError(f"cannot compute payoff for {status.value}")
+        price = next(item.price for item in self.outcomes if item.name == selection)
+        # Map legacy VOID (moneyline unfinished) to full refund like PUSH.
         if status is SettlementStatus.VOID:
             return 1.0
-        if status is SettlementStatus.LOST:
-            return 0.0
-        return next(item.price for item in self.outcomes if item.name == selection)
+        return payoff_factor(status, price)
 
 
 class MarketData(QuantBotModel):

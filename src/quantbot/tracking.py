@@ -23,8 +23,7 @@ from quantbot.analysis.engine import AnalysisEngine
 from quantbot.config import DATA_DIR
 from quantbot.data.base import BaseDataProvider
 from quantbot.decision.engine import DecisionEngine
-from quantbot.decision.rules import NoBetRules
-from quantbot.decision.sizing import KellySizer
+from quantbot.decision.policy import demo_tracker_policy
 from quantbot.logging import get_logger
 from quantbot.markets.odds import MarketEngine
 from quantbot.models.base import BaseModel, NotFittedError
@@ -36,21 +35,28 @@ logger = get_logger(__name__)
 _FAR_FUTURE = datetime(2100, 1, 1, tzinfo=timezone.utc)
 
 
-def _lenient_decision() -> DecisionEngine:
-    """A permissive decision engine so the demo tracker shows tips."""
+def _parse_ah_tip(tip: str) -> tuple[str, float] | None:
+    """Parse ``ah_home_-0.5`` / ``ah_away_0.5`` into ``(side, line)``."""
 
-    return DecisionEngine(
-        rules=NoBetRules(
-            min_ev=0.02,
-            min_edge=0.0,
-            max_overround=1.0,
-            min_data_quality=0.0,
-            min_model_confidence=0.0,
-            min_odds=1.01,
-            max_odds=100.0,
-        ),
-        sizer=KellySizer(kelly_fraction=0.25, max_fraction=0.05),
-    )
+    if not tip.startswith("ah_"):
+        return None
+    rest = tip[3:]
+    if rest.startswith("home_"):
+        side, raw = "home", rest[5:]
+    elif rest.startswith("away_"):
+        side, raw = "away", rest[5:]
+    else:
+        return None
+    try:
+        return side, float(raw)
+    except ValueError:
+        return None
+
+
+def _lenient_decision() -> DecisionEngine:
+    """Explicit demo-tracker profile — never used for live decisions."""
+
+    return DecisionEngine.from_policy(demo_tracker_policy())
 
 
 @dataclass(frozen=True)
@@ -95,6 +101,14 @@ class TipRecord:
     model_name: str | None = None
     odds_timestamp: str | None = None
     decision: str | None = None
+    # P2 provenance / CLV (optional; legacy JSON loads without these)
+    run_id: str | None = None
+    closing_odds: float | None = None
+    clv_odds_ratio: float | None = None
+    closing_reference_ev: float | None = None
+    clv_status: str | None = None
+    clv_reason: str | None = None
+    legacy_missing_provenance: bool = False
 
     @property
     def match_label(self) -> str:
@@ -139,6 +153,7 @@ def tip_record_from_match_signal(
     as_of: datetime,
     model_name: str | None = None,
     odds_timestamp: datetime | None = None,
+    run_id: str | None = None,
 ) -> TipRecord | None:
     """Build a TipRecord from a leak-free prediction; None if NO_BET."""
 
@@ -181,6 +196,8 @@ def tip_record_from_match_signal(
         model_name=model_name,
         odds_timestamp=odds_timestamp.isoformat() if odds_timestamp is not None else None,
         decision=signal.signal.value,
+        run_id=run_id,
+        legacy_missing_provenance=run_id is None,
     )
 
 
@@ -448,6 +465,8 @@ class TipHistoryStore:
             payload = {k: v for k, v in raw.items() if k in fields}
             if "reason_codes" in payload and isinstance(payload["reason_codes"], list):
                 payload["reason_codes"] = tuple(payload["reason_codes"])
+            if not payload.get("run_id"):
+                payload["legacy_missing_provenance"] = True
             tip = TipRecord(**payload)
             self._by_id[tip.tip_id] = len(self._tips)
             self._tips.append(tip)
@@ -477,8 +496,8 @@ class TipHistoryStore:
     def settle(self, match_id: str, actual: MatchOutcome | str) -> int:
         """Mark pending 1X2 tips for ``match_id`` using the real outcome.
 
-        Totals tips (``over_*`` / ``under_*``) are left untouched here; use
-        :meth:`settle_from_matches` which routes by tip shape.
+        Totals (``over_*`` / ``under_*``) and AH (``ah_*``) tips are left
+        untouched here; use :meth:`settle_from_matches` which routes by tip shape.
         """
 
         actual_value = actual.value if isinstance(actual, MatchOutcome) else str(actual)
@@ -486,7 +505,11 @@ class TipHistoryStore:
         for i, tip in enumerate(self._tips):
             if tip.match_id != match_id or tip.settled:
                 continue
-            if tip.tip.startswith("over_") or tip.tip.startswith("under_"):
+            if (
+                tip.tip.startswith("over_")
+                or tip.tip.startswith("under_")
+                or tip.tip.startswith("ah_")
+            ):
                 continue
             is_correct = tip.tip == actual_value
             self._tips[i] = TipRecord(
@@ -525,11 +548,85 @@ class TipHistoryStore:
             self.save()
         return updated
 
+    def settle_ah(
+        self,
+        match_id: str,
+        *,
+        tip_value: str,
+        actual: str,
+        correct: bool | None,
+    ) -> int:
+        """Mark one pending Asian-handicap tip (``ah_home_-0.5`` / ``ah_away_…``)."""
+
+        updated = 0
+        for i, tip in enumerate(self._tips):
+            if tip.match_id != match_id or tip.settled:
+                continue
+            if tip.tip != tip_value:
+                continue
+            self._tips[i] = TipRecord(
+                **{
+                    **asdict(tip),
+                    "settled": True,
+                    "actual": actual,
+                    "correct": correct,
+                }
+            )
+            updated += 1
+        if updated:
+            self.save()
+        return updated
+
+    def attach_clv(
+        self,
+        tip_id: str,
+        *,
+        closing_odds: float | None,
+        clv_odds_ratio: float | None,
+        closing_reference_ev: float | None,
+        clv_status: str,
+        clv_reason: str = "",
+    ) -> bool:
+        """Attach CLV diagnostics without rewriting frozen prediction fields."""
+
+        idx = self._by_id.get(tip_id)
+        if idx is None:
+            return False
+        tip = self._tips[idx]
+        self._tips[idx] = TipRecord(
+            **{
+                **asdict(tip),
+                "closing_odds": closing_odds,
+                "clv_odds_ratio": clv_odds_ratio,
+                "closing_reference_ev": closing_reference_ev,
+                "clv_status": clv_status,
+                "clv_reason": clv_reason,
+            }
+        )
+        self.save()
+        if tip.run_id:
+            from quantbot.runs import attach_settlement_event
+
+            attach_settlement_event(
+                run_id=tip.run_id,
+                tip_id=tip_id,
+                event={
+                    "kind": "clv",
+                    "closing_odds": closing_odds,
+                    "clv_odds_ratio": clv_odds_ratio,
+                    "closing_reference_ev": closing_reference_ev,
+                    "clv_status": clv_status,
+                    "clv_reason": clv_reason,
+                },
+            )
+        return True
+
     def settle_from_matches(self, matches: Sequence[Match]) -> int:
         """Settle any pending tips whose matches now have a finished result."""
 
+        from quantbot.markets.settlement import LineMarketKind, settle_line_market
         from quantbot.markets.totals import actual_totals_label
-        from quantbot.schemas.enums import DEFAULT_TOTALS_LINE
+        from quantbot.schemas.enums import DEFAULT_TOTALS_LINE, SettlementStatus
 
         n = 0
         for match in matches:
@@ -551,17 +648,53 @@ class TipHistoryStore:
                     line = DEFAULT_TOTALS_LINE
                 actual = actual_totals_label(match.result.total_goals, line)
                 n += self.settle_totals(match.match_id, actual)
+
+            pending_ah = [
+                t
+                for t in self._tips
+                if t.match_id == match.match_id and not t.settled and t.tip.startswith("ah_")
+            ]
+            for tip in pending_ah:
+                parsed = _parse_ah_tip(tip.tip)
+                if parsed is None:
+                    continue
+                side, line = parsed
+                odds = float(tip.odds) if tip.odds and tip.odds > 1.0 else 1.01
+                result = settle_line_market(
+                    kind=LineMarketKind.SPREAD,
+                    selection=side,
+                    line=line,
+                    home_score=match.result.home_goals,
+                    away_score=match.result.away_goals,
+                    decimal_odds=odds,
+                )
+                if result.status in (SettlementStatus.PENDING, SettlementStatus.UNSUPPORTED):
+                    continue
+                if result.status in (SettlementStatus.PUSH, SettlementStatus.VOID):
+                    correct: bool | None = None
+                else:
+                    correct = result.status in (
+                        SettlementStatus.WON,
+                        SettlementStatus.HALF_WIN,
+                    )
+                n += self.settle_ah(
+                    match.match_id,
+                    tip_value=tip.tip,
+                    actual=result.status.value,
+                    correct=correct,
+                )
         return n
 
     def hit_rate(self) -> float | None:
-        settled = [t for t in self._tips if t.settled]
+        # Pushes (correct is None) are excluded from the hit-rate denominator.
+        settled = [t for t in self._tips if t.settled and t.correct is not None]
         if not settled:
             return None
         correct = sum(1 for t in settled if t.correct)
         return round(correct / len(settled) * 100, 1)
 
     def totals(self) -> tuple[int, int]:
-        settled = [t for t in self._tips if t.settled]
+        settled = [t for t in self._tips if t.settled and t.correct is not None]
         correct = sum(1 for t in settled if t.correct)
         return len(settled), correct
 
@@ -583,7 +716,7 @@ class TipHistoryStore:
             for tip in self._tips:
                 if week_key(tip) != week:
                     continue
-                if tip.settled:
+                if tip.settled and tip.correct is not None:
                     bets += 1
                     if tip.correct:
                         correct += 1
@@ -600,6 +733,11 @@ class TipHistoryStore:
                         "actual": tip.actual,
                         "correct": tip.correct,
                         "settled": tip.settled,
+                        "closing_odds": tip.closing_odds,
+                        "clv_odds_ratio": tip.clv_odds_ratio,
+                        "closing_reference_ev": tip.closing_reference_ev,
+                        "clv_status": tip.clv_status,
+                        "clv_reason": tip.clv_reason,
                     }
                 )
             upcoming = bets == 0 and any(not e["settled"] for e in entries)
@@ -641,4 +779,90 @@ def sync_tip_history(
         all_matches.extend(provider.get_matches(league, season, _FAR_FUTURE))
     store.append_new(new_records)
     store.settle_from_matches(all_matches)
+    _attach_clv_for_settled(store, provider, all_matches)
     return store.to_view()
+
+
+def _attach_clv_for_settled(
+    store: TipHistoryStore,
+    provider: BaseDataProvider,
+    matches: Sequence[Match],
+) -> None:
+    """Fill CLV diagnostics on settled 1X2 tips when a closing quote exists."""
+
+    from quantbot.markets.clv import (
+        ClosingQuoteRef,
+        EntryQuoteRef,
+        evaluate_clv,
+    )
+    from quantbot.markets.closing import closing_selection_odds
+    from quantbot.markets.margin import remove_margin
+
+    by_id = {m.match_id: m for m in matches}
+    for tip in store.all_tips():
+        if not tip.settled or tip.clv_status:
+            continue
+        if tip.tip.startswith("over_") or tip.tip.startswith("under_") or tip.tip.startswith("ah_"):
+            # Line markets need matching close lines — leave N/A for now.
+            store.attach_clv(
+                tip.tip_id,
+                closing_odds=None,
+                clv_odds_ratio=None,
+                closing_reference_ev=None,
+                clv_status="na_market_mismatch",
+                clv_reason="CLV for totals/AH requires matching closing line",
+            )
+            continue
+        match = by_id.get(tip.match_id)
+        if match is None or tip.odds is None:
+            continue
+        resolution = provider.resolve_closing(match)
+        close_price = closing_selection_odds(resolution, tip.tip)
+        if close_price is None:
+            store.attach_clv(
+                tip.tip_id,
+                closing_odds=None,
+                clv_odds_ratio=None,
+                closing_reference_ev=None,
+                clv_status="na_missing_close",
+                clv_reason=resolution.reason or "missing close",
+            )
+            continue
+        fair_p = None
+        if resolution.odds is not None:
+            try:
+                fair = remove_margin(
+                    [resolution.odds.home, resolution.odds.draw, resolution.odds.away],
+                    "shin",
+                )
+                idx = {"home": 0, "draw": 1, "away": 2}.get(tip.tip)
+                if idx is not None:
+                    fair_p = float(fair[idx])
+            except Exception:  # noqa: BLE001
+                fair_p = None
+        result = evaluate_clv(
+            EntryQuoteRef(
+                decimal_odds=float(tip.odds),
+                market_kind="1x2",
+                period="FT",
+                rules="90min",
+                kickoff=match.kickoff,
+            ),
+            ClosingQuoteRef(
+                decimal_odds=close_price,
+                fair_probability=fair_p,
+                market_kind="1x2",
+                period="FT",
+                rules="90min",
+                timestamp=resolution.odds.timestamp if resolution.odds else None,
+                source=resolution.source.value,
+            ),
+        )
+        store.attach_clv(
+            tip.tip_id,
+            closing_odds=result.closing_odds,
+            clv_odds_ratio=result.odds_ratio_clv,
+            closing_reference_ev=result.closing_reference_ev,
+            clv_status=result.status.value,
+            clv_reason=result.reason or resolution.reason,
+        )

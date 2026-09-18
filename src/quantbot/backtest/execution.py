@@ -84,11 +84,21 @@ class ExecutionSimulator:
         """CLV as an odds ratio: ``entry_odds / closing_odds - 1``.
 
         Positive means the entry price was better (higher) than the close.
+        Prefer :func:`quantbot.markets.clv.evaluate_clv` when comparability
+        must be checked. Do not mix this with ``closing_reference_ev``.
         """
 
-        if entry_odds <= 1.0 or closing_odds <= 1.0:
-            raise ValueError("odds must be > 1.0")
-        return entry_odds / closing_odds - 1.0
+        from quantbot.markets.clv import closing_line_value_odds_ratio
+
+        return closing_line_value_odds_ratio(entry_odds, closing_odds)
+
+    @staticmethod
+    def closing_reference_ev(taken_odds: float, closing_fair_probability: float) -> float:
+        """Binary no-push reference EV vs closing fair probability."""
+
+        from quantbot.markets.clv import closing_reference_ev as _ref
+
+        return _ref(taken_odds, closing_fair_probability)
 
     def settle(
         self,

@@ -5,19 +5,19 @@ QuantBot zeigt Kennzahlen, die aus dem Sportwetten- und Finanzumfeld stammen. Hi
 ## Signale
 
 - VALUE_HOME, VALUE_DRAW, VALUE_AWAY: Das Modell sieht einen Value auf Heimsieg, Unentschieden oder Auswärtssieg. Value heisst, die Quote ist im Verhältnis zur geschätzten Wahrscheinlichkeit zu hoch.
-- NO_BET / Kein Value: Kein ausreichend belastbarer Value. Die Rejection Reasons sagen dir, warum (zum Beispiel zu wenig Edge, zu geringe Datenqualität).
+- NO_BET / Kein Signal: Kein ausreichend belastbarer Value — korrektes normales Ergebnis. Die Rejection Reasons sagen dir, warum (zum Beispiel zu wenig Edge, zu geringe Datenabdeckung).
 
 ## Wahrscheinlichkeit und Quoten
 
 - Wahrscheinlichkeit P(Home/Draw/Away): Schätzung des Modells, wie oft ein Ergebnis eintritt. Die drei Werte ergeben zusammen 100 Prozent.
 - Dezimalquote (Odds): Auszahlung pro Einheit Einsatz. Quote 2.0 heisst, 1 Einsatz wird zu 2 (also 1 Gewinn plus Einsatz zurück).
-- Faire Wahrscheinlichkeit: Marktwahrscheinlichkeit, nachdem die Buchmacher-Marge herausgerechnet wurde.
+- Marktschätzung ohne Marge: Marktwahrscheinlichkeit, nachdem die Buchmacher-Marge herausgerechnet wurde.
 - Overround (Marge): Der Aufschlag des Buchmachers. Die Summe der impliziten Wahrscheinlichkeiten liegt über 100 Prozent. Der Überschuss ist die Marge.
 
 ## Value und Einsatz
 
-- Edge: Modellwahrscheinlichkeit minus faire Marktwahrscheinlichkeit. Positiver Edge heisst, das Modell hält das Ergebnis für wahrscheinlicher als der Markt.
-- EV (Expected Value, Erwartungswert): Erwarteter Gewinn pro Einheit Einsatz. EV von 0.10 heisst im Schnitt 10 Prozent Gewinn pro Einsatz, wenn das Modell recht hat.
+- Edge: Modellwahrscheinlichkeit minus Marktschätzung ohne Marge (Prozentpunkte). Positiver Edge heisst, das Modell hält das Ergebnis für wahrscheinlicher als der Markt — belegt allein keinen Vorteil.
+- EV (Expected Value): Geschätzter langfristiger Nettoertrag pro Einsatz unter Modellannahmen. EV von 0.10 heisst im Schnitt 10 Prozent, wenn das Modell recht hat — kein garantierter Einzelgewinn.
 - Kelly Stake: Vorgeschlagener Einsatz als Anteil der Bankroll, basierend auf Edge und Quote. QuantBot nutzt Fractional Kelly, also einen Bruchteil, um das Risiko zu senken. Rein theoretisch.
 - Prognosequalität (früher oft „Confidence“): Messbare Zuverlässigkeit von 0 bis 100 aus Ensemble-Einigkeit und Datenqualität — keine Gewinnchance und keine Siegprognose.
 - Data Quality: Wie gut die Datenlage ist, von 0 bis 100 (Anzahl Spiele, Buchmacher, Verletzungsinfos).
