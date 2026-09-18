@@ -8,6 +8,8 @@ import pytest
 
 from quantbot.dashboard.paper import (
     commit_slip,
+    format_booking_leg_line,
+    format_selection,
     legs_from_slip,
     open_bookings,
     paper_ledger_for_mode,
@@ -15,7 +17,7 @@ from quantbot.dashboard.paper import (
     slip_client_key,
 )
 from quantbot.dashboard.slip import BettingSlip, SlipLeg
-from quantbot.ledger import BookingStatus, CapViolationError, ExposureCaps
+from quantbot.ledger import BookingLeg, BookingStatus, CapViolationError, ExposureCaps
 from quantbot.schemas import MatchOutcome
 
 
@@ -45,6 +47,18 @@ def test_legs_from_slip_maps_outcome(tmp_path: Path) -> None:
     assert legs[0].match_id == "m1"
     assert legs[0].selection == MatchOutcome.HOME.value
     assert legs[0].decimal_odds == pytest.approx(2.0)
+
+
+def test_format_selection_and_leg_line() -> None:
+    assert format_selection("under", "de") == "Unter"
+    assert format_selection("home", "en") == "Home"
+    line = format_booking_leg_line(
+        BookingLeg(match_id="564689", selection="under", decimal_odds=1.88),
+        index=1,
+        lang="de",
+    )
+    assert "Unter" in line
+    assert "1.88" in line
 
 
 def test_slip_client_key_stable(tmp_path: Path) -> None:
