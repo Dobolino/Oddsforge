@@ -95,3 +95,46 @@ def commit_slip(
 
 def open_bookings(ledger: PaperLedger) -> list[Booking]:
     return ledger.list_bookings(status=BookingStatus.RESERVED)
+
+
+_SELECTION_LABELS = {
+    "de": {
+        "home": "Heimsieg",
+        "draw": "Unentschieden",
+        "away": "Auswärtssieg",
+        "over": "Über",
+        "under": "Unter",
+    },
+    "en": {
+        "home": "Home",
+        "draw": "Draw",
+        "away": "Away",
+        "over": "Over",
+        "under": "Under",
+    },
+}
+
+
+def format_selection(selection: str, lang: str = "de") -> str:
+    """Human label for a stored booking selection (home/under/…)."""
+
+    key = "de" if lang.startswith("de") else "en"
+    raw = str(selection).strip().lower()
+    # totals may be stored as under / over; line lives only on the tip side
+    base = raw.split("_", 1)[0] if "_" in raw else raw
+    mapped = _SELECTION_LABELS[key].get(base)
+    if mapped is None:
+        return str(selection)
+    if "_" in raw:
+        return f"{mapped} {raw.split('_', 1)[1]}"
+    return mapped
+
+
+def format_booking_leg_line(leg: BookingLeg, *, index: int, lang: str = "de") -> str:
+    """One readable line for an open reservation card."""
+
+    sel = format_selection(leg.selection, lang)
+    match = leg.match_id
+    if lang.startswith("de"):
+        return f"{index}. Spiel {match} · {sel} @ {leg.decimal_odds:.2f}"
+    return f"{index}. Match {match} · {sel} @ {leg.decimal_odds:.2f}"

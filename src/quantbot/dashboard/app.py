@@ -1526,9 +1526,26 @@ def _slip_paper_reserve(lang, mode, slip, stake) -> None:  # type: ignore[no-unt
 def _paper_page(lang, mode) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
     """Paper-simulation ledger: units, caps, open reservations, manual settle."""
 
-    st.header(t("page.paper", lang))
-    st.caption(t("paper.intro", lang))
-    st.caption(t("paper.mode_note", lang).format(mode=mode))
+    from quantbot.dashboard.paper import format_booking_leg_line
+
+    st.markdown(
+        f"""
+        <div style="margin:0 0 1rem 0;padding:1.1rem 1.25rem;border-radius:12px;
+        background:linear-gradient(135deg,#111827 0%,#1f2937 50%,#365314 100%);
+        color:#f8fafc;">
+          <div style="font-size:0.75rem;letter-spacing:0.14em;text-transform:uppercase;
+          opacity:0.75;">{t("paper.hero_kicker", lang)}</div>
+          <div style="font-size:1.85rem;font-weight:800;line-height:1.15;margin:0.2rem 0;">
+            {t("page.paper", lang)}
+          </div>
+          <div style="font-size:0.95rem;opacity:0.88;">{t("paper.hero_sub", lang)}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.caption(
+        f"{t('paper.intro', lang)} · {t('paper.mode_note', lang).format(mode=mode)}"
+    )
     if mode == "demo":
         st.caption(f"**[{t('safety.demo_badge', lang)}]** {t('safety.demo', lang)}")
 
@@ -1553,15 +1570,18 @@ def _paper_page(lang, mode) -> None:  # type: ignore[no-untyped-def]  # pragma: 
         return
 
     for booking in bookings:
-        legs_txt = " · ".join(
-            f"{leg.match_id}:{leg.selection}@{leg.decimal_odds:.2f}"
-            for leg in booking.legs
-        )
         with st.container(border=True):
             st.markdown(
-                f"**{booking.booking_id[:8]}** · {booking.stake:.1f} u · "
-                f"@{booking.decimal_odds:.2f} · {legs_txt}"
+                "**"
+                + t("paper.booking_meta", lang).format(
+                    stake=booking.stake,
+                    odds=booking.decimal_odds,
+                    id=booking.booking_id[:8],
+                )
+                + "**"
             )
+            for i, leg in enumerate(booking.legs, start=1):
+                st.caption(format_booking_leg_line(leg, index=i, lang=lang))
             b1, b2, b3, b4 = st.columns(4)
             if b1.button(
                 t("paper.settle_win", lang),
