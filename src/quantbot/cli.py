@@ -203,6 +203,82 @@ def backtest(
     console.print(table)
 
 
+@app.command("validate")
+def validate_cmd(
+    league: str = typer.Option("premier_league", help="League id."),
+    season: str = typer.Option(_DEFAULT_SEASON, help="Season label."),
+    scope: str = typer.Option("live_default", help="Validation scope key."),
+    profile: str = typer.Option(
+        "demo",
+        help="Artifact profile: 'demo' (never unlocks live) or 'live' (requires real data).",
+    ),
+    min_n: int | None = typer.Option(None, help="Pre-declared min outer-test n (optional)."),
+    max_brier: float | None = typer.Option(None, help="Pre-declared max Brier (optional)."),
+    save: bool = typer.Option(False, "--save", help="Persist the artifact under MODEL_DIR/validation."),
+    live: bool = typer.Option(False, "--live", help="Use live provider (needs API keys)."),
+) -> None:
+    """Run a chronological train/calib/test validation (does not invent thresholds).
+
+    Without explicit criteria the artifact stays UNVALIDATED. Demo profile never
+    unlocks live Kelly sizing. Do not claim calibration from synthetic fixtures.
+    """
+
+    from quantbot.analysis.validation import ValidationCriteria
+    from quantbot.analysis.validation_run import run_chronological_validation
+    from quantbot.models import DixonColesModel
+    from quantbot.schemas import League as LeagueEnum
+
+    try:
+        lg = LeagueEnum(league)
+    except ValueError as exc:
+        raise typer.BadParameter(f"unknown league: {league}") from exc
+    if profile not in ("live", "demo"):
+        raise typer.BadParameter("profile must be live or demo")
+    if live and profile == "live":
+        console.print(
+            "[yellow]Live-profile VALID requires real chronological evidence; "
+            "criteria must be fixed before inspecting test metrics.[/yellow]"
+        )
+
+    provider = _build_provider(live, lg)
+    orch = QuantBotOrchestrator(provider=provider, live=live)
+    matches = orch.universe(lg, season)
+    criteria = None
+    if any(v is not None for v in (min_n, max_brier)):
+        criteria = ValidationCriteria(min_n=min_n, max_brier=max_brier)
+
+    try:
+        artifact = run_chronological_validation(
+            matches,
+            DixonColesModel(min_matches=5),
+            scope=scope,
+            profile=profile,
+            criteria=criteria,
+            policy=orch.policy,
+            save=save,
+            notes="cli validate — synthetic/demo must stay profile=demo",
+        )
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    console.print(
+        Panel.fit(
+            f"status={artifact.status.value}\n"
+            f"n_train={artifact.n_train} n_calib={artifact.n_calib} n_test={artifact.n_test}\n"
+            f"metrics={artifact.metrics}\n"
+            f"pipeline_hash={artifact.pipeline_hash[:12]}…\n"
+            f"id={artifact.artifact_id}",
+            title=f"Validation [{profile}/{scope}]",
+        )
+    )
+    if artifact.status.value != "valid":
+        console.print(
+            "[yellow]Sizing stays locked (UNVALIDATED/EXPIRED). "
+            "Pass explicit criteria only when justified by prior evidence.[/yellow]"
+        )
+
+
 @app.command()
 def dashboard(
     port: int = typer.Option(8501, help="Port for the Streamlit server."),

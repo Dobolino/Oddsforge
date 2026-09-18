@@ -81,6 +81,15 @@ class QuantBotOrchestrator:
 
             policy = replace(policy, min_team_matches=max(0, int(min_team_matches)))
         # Explicit artifact only — never invent VALID from missing evidence.
+        # Optional auto-load of a previously saved live artifact (same scope
+        # matching is caller's responsibility via load_latest_artifact).
+        if validation_artifact is None and live:
+            from quantbot.analysis.validation import load_latest_artifact
+
+            try:
+                validation_artifact = load_latest_artifact(scope="live_default")
+            except Exception:  # noqa: BLE001
+                validation_artifact = None
         if validation_artifact is not None:
             policy = policy_from_artifact(validation_artifact, base=policy)
         self.policy = policy
@@ -107,6 +116,70 @@ class QuantBotOrchestrator:
         self.persist_snapshots = bool(persist_snapshots)
         if self.persist_snapshots and self.snapshot_repo is None:
             self.snapshot_repo = SnapshotRepository()
+        self._last_run_manifest = None
+
+    @property
+    def last_run_manifest(self):
+        return self._last_run_manifest
+
+    def build_run_manifest(
+        self,
+        *,
+        as_of: datetime,
+        league: League | None = None,
+        season: str | None = None,
+        snapshot_ids: tuple[str, ...] = (),
+        persist: bool = True,
+    ):
+        """Freeze provenance for the current prediction batch (P2)."""
+
+        from quantbot.analysis.validation import pipeline_hash, policy_content_hash
+        from quantbot.runs import build_run_manifest, config_content_hash, save_manifest
+
+        settings = get_settings()
+        model = self.model
+        model_name = getattr(model, "name", model.__class__.__name__)
+        model_version = str(getattr(model, "version", "") or "")
+        calib_name = None
+        if hasattr(model, "calibrator") and model.calibrator is not None:
+            calib_name = model.calibrator.__class__.__name__
+        artifact = self.validation_artifact
+        manifest = build_run_manifest(
+            as_of=as_of,
+            data_mode=self._data_mode.value if hasattr(self._data_mode, "value") else str(self._data_mode),
+            model_name=model_name,
+            model_version=model_version,
+            policy_version=self.policy.version,
+            policy_hash=policy_content_hash(self.policy),
+            pipeline_hash=pipeline_hash(
+                model_name=model_name,
+                model_version=model_version,
+                shrinkage_mode=self.analysis_engine.shrinkage_mode.value,
+                calibrator=calib_name,
+            ),
+            config_hash=config_content_hash(
+                {
+                    "kelly_fraction": settings.kelly_fraction,
+                    "min_edge": settings.min_edge,
+                    "enable_ah_experimental": settings.enable_ah_experimental,
+                    "margin_method": settings.margin_method.value,
+                }
+            ),
+            snapshot_ids=snapshot_ids,
+            validation_artifact_id=None if artifact is None else artifact.artifact_id,
+            validation_status=(
+                None
+                if artifact is None
+                else artifact.effective_status().value
+            ),
+            calibrator_name=calib_name,
+            league=None if league is None else league.value,
+            season=season,
+        )
+        if persist:
+            save_manifest(manifest)
+        self._last_run_manifest = manifest
+        return manifest
 
     # --- Universe helpers ---
 
@@ -283,13 +356,15 @@ class QuantBotOrchestrator:
             reports.append(SignalReport(match=match, signal=signal, analysis=analysis))
 
         n_bets = sum(1 for r in reports if r.signal.is_bet)
+        self.build_run_manifest(as_of=as_of, league=league, season=season, persist=True)
         logger.info(
-            "Predicted %s %s as of %s: %d matches, %d value signals",
+            "Predicted %s %s as of %s: %d matches, %d value signals (run %s)",
             league.value,
             season,
             as_of.isoformat(),
             len(reports),
             n_bets,
+            None if self._last_run_manifest is None else self._last_run_manifest.run_id[:8],
         )
         return reports
 

@@ -41,6 +41,10 @@ from quantbot.analysis.validation import (
     policy_from_artifact,
     save_artifact,
 )
+from quantbot.analysis.validation_run import (
+    chronological_split,
+    run_chronological_validation,
+)
 from quantbot.analysis.diagnostics import FEATURE_GROUPS, ablation_report, feature_importance
 from quantbot.analysis.matchcard import MatchCard, build_match_card, divergence_tier
 from quantbot.analysis.value import (
@@ -106,4 +110,6 @@ __all__ = [
     "policy_content_hash",
     "policy_from_artifact",
     "save_artifact",
+    "chronological_split",
+    "run_chronological_validation",
 ]

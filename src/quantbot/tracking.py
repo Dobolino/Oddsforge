@@ -83,6 +83,14 @@ class TipRecord:
     model_name: str | None = None
     odds_timestamp: str | None = None
     decision: str | None = None
+    # P2 provenance / CLV (optional; legacy JSON loads without these)
+    run_id: str | None = None
+    closing_odds: float | None = None
+    clv_odds_ratio: float | None = None
+    closing_reference_ev: float | None = None
+    clv_status: str | None = None
+    clv_reason: str | None = None
+    legacy_missing_provenance: bool = False
 
     @property
     def match_label(self) -> str:
@@ -127,6 +135,7 @@ def tip_record_from_match_signal(
     as_of: datetime,
     model_name: str | None = None,
     odds_timestamp: datetime | None = None,
+    run_id: str | None = None,
 ) -> TipRecord | None:
     """Build a TipRecord from a leak-free prediction; None if NO_BET."""
 
@@ -169,6 +178,8 @@ def tip_record_from_match_signal(
         model_name=model_name,
         odds_timestamp=odds_timestamp.isoformat() if odds_timestamp is not None else None,
         decision=signal.signal.value,
+        run_id=run_id,
+        legacy_missing_provenance=run_id is None,
     )
 
 
@@ -436,6 +447,8 @@ class TipHistoryStore:
             payload = {k: v for k, v in raw.items() if k in fields}
             if "reason_codes" in payload and isinstance(payload["reason_codes"], list):
                 payload["reason_codes"] = tuple(payload["reason_codes"])
+            if not payload.get("run_id"):
+                payload["legacy_missing_provenance"] = True
             tip = TipRecord(**payload)
             self._by_id[tip.tip_id] = len(self._tips)
             self._tips.append(tip)
@@ -512,6 +525,50 @@ class TipHistoryStore:
         if updated:
             self.save()
         return updated
+
+    def attach_clv(
+        self,
+        tip_id: str,
+        *,
+        closing_odds: float | None,
+        clv_odds_ratio: float | None,
+        closing_reference_ev: float | None,
+        clv_status: str,
+        clv_reason: str = "",
+    ) -> bool:
+        """Attach CLV diagnostics without rewriting frozen prediction fields."""
+
+        idx = self._by_id.get(tip_id)
+        if idx is None:
+            return False
+        tip = self._tips[idx]
+        self._tips[idx] = TipRecord(
+            **{
+                **asdict(tip),
+                "closing_odds": closing_odds,
+                "clv_odds_ratio": clv_odds_ratio,
+                "closing_reference_ev": closing_reference_ev,
+                "clv_status": clv_status,
+                "clv_reason": clv_reason,
+            }
+        )
+        self.save()
+        if tip.run_id:
+            from quantbot.runs import attach_settlement_event
+
+            attach_settlement_event(
+                run_id=tip.run_id,
+                tip_id=tip_id,
+                event={
+                    "kind": "clv",
+                    "closing_odds": closing_odds,
+                    "clv_odds_ratio": clv_odds_ratio,
+                    "closing_reference_ev": closing_reference_ev,
+                    "clv_status": clv_status,
+                    "clv_reason": clv_reason,
+                },
+            )
+        return True
 
     def settle_from_matches(self, matches: Sequence[Match]) -> int:
         """Settle any pending tips whose matches now have a finished result."""

@@ -75,6 +75,10 @@ class Settings(BaseSettings):
     # --- Hard guardrail: never automate betting in v1 ---
     allow_automated_betting: bool = Field(default=False, frozen=True)
 
+    # --- Experimental markets (P2) ---
+    # Asian Handicap signals stay off until an AH ValidationArtifact exists.
+    enable_ah_experimental: bool = False
+
     @field_validator("language")
     @classmethod
     def _validate_language(cls, value: str) -> str:

@@ -103,7 +103,7 @@ def test_integer_totals_and_spreads_refund_on_push() -> None:
         (spread, "away", 103, 100),
     ):
         result = ExecutionSimulator.settle_market(market, selection, 100.0, home, away)
-        assert result.status is SettlementStatus.VOID
+        assert result.status is SettlementStatus.PUSH
         assert result.payoff == 1.0
         assert result.pnl == 0.0
     assert totals.settle("over", 2, 1) is SettlementStatus.WON
