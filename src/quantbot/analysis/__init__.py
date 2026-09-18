@@ -16,12 +16,30 @@ from quantbot.analysis.confidence import (
     DataQualitySignals,
     ensemble_agreement,
 )
-from quantbot.analysis.engine import AnalysisEngine, AnalysisResult
+from quantbot.analysis.engine import (
+    AnalysisEngine,
+    AnalysisResult,
+    ShrinkageMode,
+    eff_sample_weight,
+    effective_sample_size,
+)
 from quantbot.analysis.evaluation import (
     calibration_report,
     model_comparison,
     reliability_curve,
     walk_forward_probabilities,
+)
+from quantbot.analysis.validation import (
+    ValidationArtifact,
+    ValidationCriteria,
+    ValidationMetrics,
+    build_artifact,
+    evaluate_artifact,
+    load_latest_artifact,
+    pipeline_hash,
+    policy_content_hash,
+    policy_from_artifact,
+    save_artifact,
 )
 from quantbot.analysis.diagnostics import FEATURE_GROUPS, ablation_report, feature_importance
 from quantbot.analysis.matchcard import MatchCard, build_match_card, divergence_tier
@@ -43,6 +61,9 @@ from quantbot.analysis.value import (
 __all__ = [
     "AnalysisEngine",
     "AnalysisResult",
+    "ShrinkageMode",
+    "eff_sample_weight",
+    "effective_sample_size",
     "MatchCard",
     "build_match_card",
     "divergence_tier",
@@ -75,4 +96,14 @@ __all__ = [
     "brier_score",
     "expected_calibration_error",
     "log_loss",
+    "ValidationArtifact",
+    "ValidationCriteria",
+    "ValidationMetrics",
+    "build_artifact",
+    "evaluate_artifact",
+    "load_latest_artifact",
+    "pipeline_hash",
+    "policy_content_hash",
+    "policy_from_artifact",
+    "save_artifact",
 ]

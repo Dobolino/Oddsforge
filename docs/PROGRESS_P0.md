@@ -1,6 +1,6 @@
 # Fortschritt: CURSOR_PROMPT_QUANTBOT (P0 → P1 → P2)
 
-Stand: P0 Paket 1+2 auf Branch `cursor/p0-decision-policy-9483`.
+Stand: P0 Paket 1–3 auf Branch `cursor/p0-decision-policy-9483`.
 
 ## Bestandsaufnahme (Kurz)
 
@@ -11,8 +11,9 @@ Stand: P0 Paket 1+2 auf Branch `cursor/p0-decision-policy-9483`.
 | Slip Same-Match + ehrliche Kombi-P | DONE |
 | SnapshotRepository | DONE (SQLite lokal) |
 | Quoten-Integrität (stale/NaN/nach Anpfiff) | DONE (Live streng) |
-| Kalibrierungs-Artefakt / Freigabe VALID | MISSING |
-| Shrinkage n/(n+k), Dixon-Coles Restmasse | MISSING |
+| Kalibrierungs-Artefakt / Freigabe VALID | DONE (Schema + Gate; empirische Daten fehlen) |
+| Shrinkage n_eff/(n_eff+k) | DONE (Option EFF_SAMPLE; Legacy erhalten) |
+| Dixon-Coles Restmasse | MISSING |
 | Papier-Ledger / Exposure-Caps | MISSING |
 | P1 UX | MISSING |
 | P2 CLV / AH / Run-Manifest | MISSING |
@@ -36,16 +37,33 @@ Stand: P0 Paket 1+2 auf Branch `cursor/p0-decision-policy-9483`.
    - Live: kickoff + age enforced; Demo: age/kickoff gelockert (kein False-Positive auf Mid-Season-as_of)
 3. Orchestrator kann optional Snapshots schreiben (`persist_snapshots=True`)
 
+## Paket 3 — Validierungsartefakt & Shrinkage
+
+1. **`ValidationArtifact`** (`analysis/validation.py`)
+   - Scope, Trainingsgrenze, Testfenster, Pipeline-/Policy-Hash, Fallzahlen, Kriterien, Metriken
+   - Status nur `VALID` wenn Kriterien **vor** Test explizit gesetzt und alle Bounds passen
+   - Ohne Kriterien → `UNVALIDATED` (keine erfundenen ECE-/Brier-Defaults)
+   - Persistenz: JSON unter `models/validation/`
+   - Demo-Artefakt validiert Live **nicht**; Scope-/Pipeline-Mismatch → `UNVALIDATED`
+   - `EXPIRED`/`DEGRADED` geben kein Kelly frei
+2. **`policy_from_artifact`** + Orchestrator-Parameter `validation_artifact`
+3. **`ShrinkageMode`** (`analysis/engine.py`)
+   - `OFF` | `LEGACY_DEPTH` (bisheriges `market_shrinkage=True`) | `EFF_SAMPLE`
+   - EFF_SAMPLE: `w = n_eff / (n_eff + k)` mit `n_eff = (Σa)²/Σa²` oder konservativ `min(home, away)`
+   - `k` nur auf Entwicklungsdaten bestimmen; Default heuristisch, kein Überlegenheitsanspruch
+   - Audit: `p_raw_*`, `shrinkage_weight`, `shrinkage_mode` auf `AnalysisResult`
+
 ## Bewusst noch offen
 
-- Empirisches Validierungsartefakt (VALID/EXPIRED) + Kriterien
-- Shrinkage-Alternative `n/(n+k)`, Dixon-Coles Restmasse
+- Dixon-Coles Restmasse / adaptives Gitter
 - Papier-Ledger / Exposure-Caps
 - P1 UX-Umbenennungen
 - P2 CLV / AH Settlement / Run-Manifest
 - Live-Dashboard standardmäßig Snapshots persistieren (Flag noch opt-in)
+- Chronologische Walk-Forward-Läufe, die echte VALID-Artefakte erzeugen (Datenblocker)
 
 ## Blocker
 
 Ohne chronologische Validierungsdaten bleibt Live-Sizing gesperrt (`UNVALIDATED`).  
-Historische Provider-Dumps (`historical_import`) sind kein stilles Live-Replay.
+Historische Provider-Dumps (`historical_import`) sind kein stilles Live-Replay.  
+Synthetische Fixtures erzeugen **kein** VALID-Artefakt für den Live-Pfad.

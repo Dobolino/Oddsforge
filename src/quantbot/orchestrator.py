@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from quantbot.analysis.calibration import BaseCalibrator
 from quantbot.analysis.confidence import DataQualitySignals
 from quantbot.analysis.engine import AnalysisEngine, AnalysisResult
+from quantbot.analysis.validation import ValidationArtifact, policy_from_artifact
 from quantbot.backtest.engine import BacktestResult, WalkForwardBacktester
 from quantbot.config import get_settings
 from quantbot.data.base import BaseDataProvider
@@ -53,6 +54,8 @@ class QuantBotOrchestrator:
         initial_bankroll: Starting bankroll for backtests.
         decision_policy: Versioned policy (defaults from ``live`` flag).
         live: When no policy/engine is passed, select live vs demo profile.
+        validation_artifact: Optional empirical release record; only ``VALID``
+            live artifacts unlock Kelly sizing.
     """
 
     def __init__(
@@ -70,13 +73,18 @@ class QuantBotOrchestrator:
         live: bool = False,
         snapshot_repo: SnapshotRepository | None = None,
         persist_snapshots: bool = False,
+        validation_artifact: ValidationArtifact | None = None,
     ) -> None:
         policy = decision_policy or policy_for_mode(live=live)
         if min_team_matches is not None:
             from dataclasses import replace
 
             policy = replace(policy, min_team_matches=max(0, int(min_team_matches)))
+        # Explicit artifact only — never invent VALID from missing evidence.
+        if validation_artifact is not None:
+            policy = policy_from_artifact(validation_artifact, base=policy)
         self.policy = policy
+        self.validation_artifact = validation_artifact
         self.min_team_matches = policy.min_team_matches
         self.provider = provider or DummyDataProvider()
         base_model = model or EloModel()
