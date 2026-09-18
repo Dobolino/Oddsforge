@@ -26,10 +26,21 @@ PAGES_BY_MODE: dict[UXMode, tuple[str, ...]] = {
     # Beginner: no tip slip / accumulators — Gemini+Claude: kombis raise risk for newcomers.
     UXMode.BEGINNER: ("signals", "tracker", "settings", "glossary"),
     # Advanced: calibration is a must-have signal-quality view (Claude review).
-    UXMode.ADVANCED: ("signals", "slip", "card", "tracker", "calibration", "backtest", "settings", "glossary"),
+    UXMode.ADVANCED: (
+        "signals",
+        "slip",
+        "paper",
+        "card",
+        "tracker",
+        "calibration",
+        "backtest",
+        "settings",
+        "glossary",
+    ),
     UXMode.EXPERT: (
         "signals",
         "slip",
+        "paper",
         "card",
         "tracker",
         "insights",

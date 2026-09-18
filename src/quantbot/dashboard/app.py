@@ -34,6 +34,12 @@ from quantbot.dashboard.leagues import (
     resolve_sport,
     sport_choices,
 )
+from quantbot.dashboard.paper import (
+    commit_slip,
+    open_bookings,
+    paper_ledger_for_mode,
+    preview_slip,
+)
 from quantbot.dashboard.slip import (
     build_boosted_slip,
     build_safe_slip,
@@ -45,6 +51,7 @@ from quantbot.dashboard.slip import (
 )
 from quantbot.dashboard.ux import UXMode, pages_for
 from quantbot.i18n import DEFAULT_LANGUAGE, GLOSSARY, LANGUAGES, t
+from quantbot.ledger import CapViolationError
 
 
 def _current_season() -> str:
@@ -247,7 +254,6 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
         unsafe_allow_html=True,
     )
     st.sidebar.title(f"QuantBot v{__version__}")
-    st.sidebar.caption(f"Stand: v{__version__} · Spieltag-Fenster · Tippschein-Hero")
 
     default_lang = get_settings().language if get_settings().language in LANGUAGES else DEFAULT_LANGUAGE
     lang = st.sidebar.radio(
@@ -278,6 +284,7 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     all_pages = {
         "signals": t("page.signals", lang),
         "slip": t("page.slip", lang),
+        "paper": t("page.paper", lang),
         "card": t("page.card", lang),
         "tracker": t("page.tracker", lang),
         "insights": t("page.insights", lang),
@@ -376,7 +383,11 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
             else:
                 provider = basketball_provider
             live = live_provider is not None
-            st.sidebar.info(t("mode.live" if live else "mode.demo", lang))
+            if live:
+                st.sidebar.info(t("mode.live", lang))
+            else:
+                st.sidebar.markdown(f"**[{t('safety.demo_badge', lang)}]**")
+                st.sidebar.info(t("mode.demo", lang))
             last = getattr(provider, "finished_last_updated", None)
             if last is not None:
                 when = last.astimezone().strftime("%Y-%m-%d %H:%M")
@@ -392,6 +403,7 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
             st.sidebar.warning(t("mode.live_failed", lang))
             provider = None
     else:
+        st.sidebar.markdown(f"**[{t('safety.demo_badge', lang)}]**")
         st.sidebar.info(t("mode.demo", lang))
 
     # Beginners also need season when live data is empty for the default year.
@@ -437,12 +449,17 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     if st.session_state.get("welcome_dismissed"):
         st.caption(t("safety.short", lang))
         if not live:
-            st.caption(t("safety.demo", lang))
+            st.caption(f"**[{t('safety.demo_badge', lang)}]** {t('safety.demo', lang)}")
     else:
         st.info(t("safety.banner", lang))
         if not live:
-            st.caption(t("safety.demo", lang))
+            st.caption(f"**[{t('safety.demo_badge', lang)}]** {t('safety.demo', lang)}")
         st.caption(t("safety.account_limits", lang))
+    help_cols = st.columns([4, 1])
+    help_cols[0].caption(t("help.footer", lang))
+    if help_cols[1].button(t("help.open_glossary", lang), key="help_open_glossary"):
+        st.session_state["pending_nav_page"] = "glossary"
+        st.rerun()
 
     _welcome_card(lang, ux_mode)
     # Odds name-matching reports are filled during predict/odds fetch — warn
@@ -451,10 +468,6 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     if page == "glossary":
         _glossary_page(lang)
         return
-
-    # Always show the matchday / date-range control on Tips, Tip slip, and
-    # Match card — including when no fixtures loaded yet. After the math-review
-    # merge the picker was hidden behind the empty-season early return, so users
 
     if page == "settings":
         _settings_page(
@@ -466,9 +479,13 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
             live=live,
         )
         return
-    # lost date + range selection whenever Football-Data returned no games.
-    # Match card previously had no date UI and defaulted to mid-season as_of,
-    # which hid current live fixtures.
+
+    # Paper ledger is mode-scoped and does not need fixtures/leagues.
+    if page == "paper":
+        _paper_page(lang, mode)
+        return
+
+    # Matchday / date-range on Tips, Tip slip, and Match card (incl. empty season).
     shared_window = None
     if page in ("signals", "slip", "card"):
         shared_window = _pick_window(
@@ -1319,8 +1336,119 @@ def _slip_page(
             st.warning(t("slip.disclaimer", lang))
         else:
             st.caption(t("slip.disclaimer", lang))
+        _slip_paper_reserve(lang, mode, slip, stake)
     else:
         st.caption(t("slip.disclaimer", lang))
+
+
+def _slip_paper_reserve(lang, mode, slip, stake) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
+    """Reserve simulated units for the current slip in the paper ledger."""
+
+    st.divider()
+    st.caption(t("paper.mode_note", lang).format(mode=mode))
+    ledger = paper_ledger_for_mode(mode)
+    preview = preview_slip(ledger, slip, stake_units=stake, mode=mode)
+    if preview.already_committed and preview.existing_booking_id:
+        st.info(
+            t("paper.commit_ok", lang).format(id=preview.existing_booking_id[:8])
+        )
+    elif preview.ok:
+        st.caption(
+            t("paper.preview", lang).format(
+                open=preview.total_open_after,
+                avail=preview.available_after,
+            )
+        )
+    else:
+        st.warning(
+            t("paper.commit_blocked", lang).format(
+                reasons=", ".join(preview.reasons) or "—"
+            )
+        )
+    c1, c2 = st.columns(2)
+    if c1.button(
+        t("paper.commit", lang),
+        key="slip_paper_commit",
+        disabled=not preview.ok and not preview.already_committed,
+    ):
+        try:
+            booking = commit_slip(ledger, slip, stake_units=stake, mode=mode)
+            st.success(t("paper.commit_ok", lang).format(id=booking.booking_id[:8]))
+        except CapViolationError as exc:
+            st.error(
+                t("paper.commit_blocked", lang).format(
+                    reasons=", ".join(exc.reasons) or "—"
+                )
+            )
+    if c2.button(t("paper.open_page", lang), key="slip_goto_paper"):
+        st.session_state["pending_nav_page"] = "paper"
+        st.rerun()
+
+
+def _paper_page(lang, mode) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
+    """Paper-simulation ledger: units, caps, open reservations, manual settle."""
+
+    st.header(t("page.paper", lang))
+    st.caption(t("paper.intro", lang))
+    st.caption(t("paper.mode_note", lang).format(mode=mode))
+    if mode == "demo":
+        st.caption(f"**[{t('safety.demo_badge', lang)}]** {t('safety.demo', lang)}")
+
+    ledger = paper_ledger_for_mode(mode)
+    snap = ledger.snapshot()
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric(t("paper.available", lang), f"{snap.available:.1f}")
+    m2.metric(t("paper.open", lang), f"{snap.open_reserved:.1f}")
+    m3.metric(t("paper.realized", lang), f"{snap.realized_pnl:+.1f}")
+    m4.metric(t("paper.capital", lang), f"{snap.paper_capital:.0f}")
+    st.caption(
+        t("paper.caps", lang).format(
+            match=snap.max_match_stake,
+            open=snap.max_open_stake,
+        )
+    )
+
+    st.subheader(t("paper.open_list", lang))
+    bookings = open_bookings(ledger)
+    if not bookings:
+        st.info(t("paper.empty", lang))
+        return
+
+    for booking in bookings:
+        legs_txt = " · ".join(
+            f"{leg.match_id}:{leg.selection}@{leg.decimal_odds:.2f}"
+            for leg in booking.legs
+        )
+        with st.container(border=True):
+            st.markdown(
+                f"**{booking.booking_id[:8]}** · {booking.stake:.1f} u · "
+                f"@{booking.decimal_odds:.2f} · {legs_txt}"
+            )
+            b1, b2, b3, b4 = st.columns(4)
+            if b1.button(
+                t("paper.settle_win", lang),
+                key=f"paper_win::{booking.booking_id}",
+            ):
+                ledger.settle(booking.booking_id, won=True)
+                st.rerun()
+            if b2.button(
+                t("paper.settle_loss", lang),
+                key=f"paper_loss::{booking.booking_id}",
+            ):
+                ledger.settle(booking.booking_id, won=False)
+                st.rerun()
+            if b3.button(
+                t("paper.settle_void", lang),
+                key=f"paper_void::{booking.booking_id}",
+            ):
+                ledger.settle(booking.booking_id, void=True)
+                st.rerun()
+            if b4.button(
+                t("paper.cancel", lang),
+                key=f"paper_cancel::{booking.booking_id}",
+            ):
+                ledger.cancel(booking.booking_id)
+                st.rerun()
 
 
 def _diagnostics_page(lang, C, provider, mode, league, season) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover

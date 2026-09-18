@@ -22,6 +22,8 @@ def test_pages_nested_by_depth() -> None:
     assert beginner <= advanced <= expert
     assert "signals" in beginner and "glossary" in beginner
     assert "slip" not in beginner
+    assert "paper" not in beginner
+    assert "paper" in advanced and "paper" in expert
     assert "calibration" in advanced
     assert "diagnostics" in expert and "diagnostics" not in advanced
     assert "backtest" in advanced and "backtest" not in beginner
@@ -96,6 +98,7 @@ def test_all_visible_pages_have_labels() -> None:
     label_keys = {
         "signals",
         "slip",
+        "paper",
         "card",
         "tracker",
         "insights",

@@ -236,6 +236,60 @@ _STRINGS: dict[str, dict[str, str]] = {
     "page.backtest": {"de": "Backtest", "en": "Backtest"},
     "page.glossary": {"de": "Glossar", "en": "Glossary"},
     "page.tracker": {"de": "Verlauf", "en": "History"},
+    "page.paper": {"de": "Papiersimulation", "en": "Paper simulation"},
+    "paper.intro": {
+        "de": "Reine Papiersimulation gegen eine dokumentierte Kapitalbasis (Default 1000 Einheiten). "
+              "Caps: höchstens 5 % pro Spiel und 10 % offen — keine Echtgeld-Kontooptik, kein Auto-Betting.",
+        "en": "Paper simulation only against a documented capital base (default 1000 units). "
+              "Caps: at most 5% per match and 10% open — not a real-money account, no auto-betting.",
+    },
+    "paper.available": {"de": "Verfügbar", "en": "Available"},
+    "paper.open": {"de": "Offen reserviert", "en": "Open reserved"},
+    "paper.realized": {"de": "Realisiert (PnL)", "en": "Realized (PnL)"},
+    "paper.capital": {"de": "Papierkapitalbasis", "en": "Paper capital base"},
+    "paper.caps": {
+        "de": "Cap pro Spiel {match:.0f} · Cap offen {open:.0f} (Einheiten)",
+        "en": "Per-match cap {match:.0f} · Open cap {open:.0f} (units)",
+    },
+    "paper.open_list": {"de": "Offene Reservierungen", "en": "Open reservations"},
+    "paper.empty": {
+        "de": "Keine offenen Papierbuchungen. Über die Kombi-Analyse kannst du eine Simulation reservieren.",
+        "en": "No open paper bookings. Reserve a simulation from Accumulator analysis.",
+    },
+    "paper.settle_win": {"de": "Als Gewinn abrechnen", "en": "Settle as win"},
+    "paper.settle_loss": {"de": "Als Verlust abrechnen", "en": "Settle as loss"},
+    "paper.settle_void": {"de": "Stornieren / Void", "en": "Void / cancel stake"},
+    "paper.cancel": {"de": "Reservierung lösen", "en": "Release reservation"},
+    "paper.commit": {
+        "de": "In Papiersimulation reservieren",
+        "en": "Reserve in paper simulation",
+    },
+    "paper.commit_ok": {
+        "de": "Reserviert ({id}). Idempotent — erneutes Klicken bucht nicht doppelt.",
+        "en": "Reserved ({id}). Idempotent — clicking again does not double-book.",
+    },
+    "paper.commit_blocked": {
+        "de": "Caps/Verfügbarkeit blockieren: {reasons}",
+        "en": "Caps/availability block: {reasons}",
+    },
+    "paper.preview": {
+        "de": "Vorschau: offen danach {open:.1f} · verfügbar danach {avail:.1f}",
+        "en": "Preview: open after {open:.1f} · available after {avail:.1f}",
+    },
+    "paper.mode_note": {
+        "de": "Modus „{mode}“ — Demo- und Live-Ledger sind getrennt.",
+        "en": "Mode “{mode}” — demo and live ledgers stay separate.",
+    },
+    "paper.open_page": {
+        "de": "Zur Papiersimulation",
+        "en": "Open paper simulation",
+    },
+    "help.footer": {
+        "de": "Hilfe & Glossar jederzeit über Seiten → Glossar · check-dein-spiel.de · 0800 1 37 27 00",
+        "en": "Help & glossary always via Pages → Glossary · check-dein-spiel.de · 0800 1 37 27 00",
+    },
+    "help.open_glossary": {"de": "Glossar", "en": "Glossary"},
+    "safety.demo_badge": {"de": "DEMO", "en": "DEMO"},
     "page.card": {"de": "Spielkarte", "en": "Match card"},
     "page.calibration": {"de": "Kalibrierung", "en": "Calibration"},
     "page.models": {"de": "Modellvergleich", "en": "Model comparison"},
