@@ -19,6 +19,7 @@ from quantbot.backtest.engine import BacktestResult, WalkForwardBacktester
 from quantbot.config import get_settings
 from quantbot.data.base import BaseDataProvider
 from quantbot.data.dummy import DummyDataProvider
+from quantbot.data.snapshot_repo import DataMode, SnapshotRepository
 from quantbot.decision.engine import DecisionEngine
 from quantbot.decision.policy import DecisionPolicy, policy_for_mode
 from quantbot.logging import get_logger
@@ -67,6 +68,8 @@ class QuantBotOrchestrator:
         *,
         decision_policy: DecisionPolicy | None = None,
         live: bool = False,
+        snapshot_repo: SnapshotRepository | None = None,
+        persist_snapshots: bool = False,
     ) -> None:
         policy = decision_policy or policy_for_mode(live=live)
         if min_team_matches is not None:
@@ -90,6 +93,12 @@ class QuantBotOrchestrator:
         self.decision_engine = decision_engine
         self.initial_bankroll = initial_bankroll
         self._totals_margin_method = settings.totals_margin_method
+        self._live = bool(live)
+        self._data_mode = DataMode.LIVE_REPLAY if live else DataMode.DEMO
+        self.snapshot_repo = snapshot_repo
+        self.persist_snapshots = bool(persist_snapshots)
+        if self.persist_snapshots and self.snapshot_repo is None:
+            self.snapshot_repo = SnapshotRepository()
 
     # --- Universe helpers ---
 
@@ -156,8 +165,30 @@ class QuantBotOrchestrator:
             entry = self.provider.get_latest_odds(match.match_id, as_of)
             if entry is None:
                 continue
+            if self.persist_snapshots and self.snapshot_repo is not None:
+                try:
+                    self.snapshot_repo.put_odds(
+                        entry,
+                        provider=getattr(self.provider, "provider_name", "unknown"),
+                        endpoint=f"provider://{getattr(self.provider, 'provider_name', 'unknown')}/odds",
+                        data_mode=self._data_mode,
+                        fetched_at=datetime.now(timezone.utc),
+                        available_at=entry.timestamp,
+                    )
+                except Exception:  # noqa: BLE001 — persistence must not break predict
+                    logger.warning("Failed to persist odds snapshot for %s", match.match_id)
+
+            from datetime import timedelta
+
+            from quantbot.markets.integrity import DEFAULT_MAX_QUOTE_AGE, check_1x2_odds
+
+            integrity = check_1x2_odds(
+                entry,
+                as_of=as_of,
+                kickoff=match.kickoff if self._live else None,
+                max_age=DEFAULT_MAX_QUOTE_AGE if self._live else timedelta(days=3650),
+            )
             prediction = model.predict(match)
-            market = self.market_engine.to_market_data(entry)
             snapshots = self.provider.get_odds(match.match_id, as_of)
             quality = DataQualitySignals(
                 home_matches=counts.get(match.home_team.team_id, 0),
@@ -168,6 +199,50 @@ class QuantBotOrchestrator:
                     and match.away_injury_status is not InjuryStatus.UNKNOWN
                 ),
             )
+            if integrity:
+                # Do not release EV/Kelly from a tainted book. Keep a minimal
+                # analysis shell so callers still receive a SignalReport.
+                from math import isfinite
+
+                from quantbot.analysis.confidence import ConfidenceLevel
+                from quantbot.analysis.engine import AnalysisResult
+                from quantbot.schemas import MatchOutcome, ValueMetrics
+
+                safe_odds = (
+                    float(entry.home)
+                    if isfinite(entry.home) and entry.home > 1.0
+                    else 1.01
+                )
+                p_home = float(max(0.0, min(1.0, prediction.home)))
+                placeholder = ValueMetrics(
+                    outcome=MatchOutcome.HOME,
+                    model_prob=p_home,
+                    fair_market_prob=0.5,
+                    decimal_odds=safe_odds,
+                    edge=p_home - 0.5,
+                    expected_value=p_home * safe_odds - 1.0,
+                )
+                analysis = AnalysisResult(
+                    match_id=match.match_id,
+                    metrics=(placeholder,),
+                    best_ev=placeholder,
+                    data_quality=0.0,
+                    model_confidence=0.0,
+                    confidence_level=ConfidenceLevel.LOW,
+                    ensemble_agreement=0.0,
+                    home_matches=quality.home_matches,
+                    away_matches=quality.away_matches,
+                )
+                signal = self.decision_engine.invalid_data_signal(
+                    match_id=match.match_id,
+                    timestamp=entry.timestamp,
+                    reasons=integrity,
+                    metrics=(),
+                )
+                reports.append(SignalReport(match=match, signal=signal, analysis=analysis))
+                continue
+
+            market = self.market_engine.to_market_data(entry)
             analysis = self.analysis_engine.analyze(
                 prediction, market, entry.decimal_odds(), quality
             )

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from quantbot.markets.arbitrage import ArbitrageEngine, ArbitrageOpportunity
+from quantbot.markets.integrity import check_1x2_odds, check_totals_odds
 from quantbot.markets.margin import (
     booksum,
     implied_probabilities,
@@ -11,7 +13,6 @@ from quantbot.markets.margin import (
     shins_method,
     validate_odds,
 )
-from quantbot.markets.arbitrage import ArbitrageEngine, ArbitrageOpportunity
 from quantbot.markets.odds import MarketEngine
 from quantbot.markets.totals import TotalsMarketEngine, actual_totals_label, tip_label_for
 
@@ -27,6 +28,8 @@ __all__ = [
     "remove_margin",
     "shins_method",
     "validate_odds",
+    "check_1x2_odds",
+    "check_totals_odds",
     "actual_totals_label",
     "tip_label_for",
 ]

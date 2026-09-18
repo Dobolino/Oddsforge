@@ -294,3 +294,29 @@ class DecisionEngine:
             sizing_allowed=sizing_ok,
             p_final=float(candidate.model_prob),
         )
+
+    def invalid_data_signal(
+        self,
+        *,
+        match_id: str,
+        timestamp,
+        reasons: tuple[Reason, ...],
+        data_quality: float = 0.0,
+        model_confidence: float = 0.0,
+        metrics: tuple = (),
+    ) -> ValueSignal:
+        """Emit an INVALID_DATA decision without computing Kelly/EV release."""
+
+        if not reasons:
+            raise ValueError("invalid_data_signal requires at least one reason")
+        return _signal_from_reasons(
+            match_id=match_id,
+            timestamp=timestamp,
+            signal=SignalType.NO_BET,
+            reasons=reasons,
+            model_confidence=model_confidence,
+            data_quality=data_quality,
+            metrics=metrics,
+            policy=self.policy,
+            decision_status=DecisionStatus.INVALID_DATA,
+        )
