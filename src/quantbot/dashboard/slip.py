@@ -14,6 +14,7 @@ from math import isfinite, prod
 from quantbot.dashboard.ux import (
     market_stance,
     plain_signal_label,
+    signal_display_line,
     tip_badge_html,
     tip_kind_from_label,
 )
@@ -143,7 +144,7 @@ def _leg_from_report(report: SignalReport, lang: str, role: str) -> SlipLeg | No
     return SlipLeg(
         match_id=match.match_id,
         match=f"{match.home_team.name} vs {match.away_team.name}",
-        tip=plain_signal_label(signal.signal, lang, line=signal.totals_line),
+        tip=plain_signal_label(signal.signal, lang, line=signal_display_line(signal)),
         outcome=signal.chosen_outcome,
         odds=float(signal.decimal_odds),
         model_prob=float(metric.model_prob),

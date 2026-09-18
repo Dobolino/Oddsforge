@@ -1657,10 +1657,21 @@ def _tracker_page(lang, C, provider, mode, leagues, season) -> None:  # type: ig
     with st.expander(t("track.path_expander", lang), expanded=False):
         st.caption(t("track.persisted", lang).format(path=str(store.path), n=len(store.all_tips())))
 
-    c1, c2, c3 = st.columns(3)
+    c1, c2, c3, c4 = st.columns(4)
     c1.metric(t("track.hit_rate", lang), "-" if view.hit_rate is None else f"{view.hit_rate:.1f}%")
     c2.metric(t("track.settled_bets", lang), view.total_bets)
     c3.metric(t("track.correct", lang), view.total_correct)
+    clv_vals = [
+        e.get("clv_odds_ratio")
+        for r in view.rounds
+        for e in r["entries"]
+        if e.get("settled") and isinstance(e.get("clv_odds_ratio"), (int, float))
+    ]
+    avg_clv = sum(clv_vals) / len(clv_vals) if clv_vals else None
+    c4.metric(
+        t("track.avg_clv", lang),
+        "—" if avg_clv is None else f"{avg_clv * 100:+.1f}%",
+    )
 
     for r in reversed(view.rounds):
         label = r["label"]
@@ -1698,6 +1709,17 @@ def _tracker_page(lang, C, provider, mode, leagues, season) -> None:  # type: ig
                     result = "-"
                 odds = e["odds"]
                 odds_s = f"{odds:.2f}" if isinstance(odds, (int, float)) else escape(str(odds or "—"))
+                clv_ratio = e.get("clv_odds_ratio")
+                clv_status = e.get("clv_status")
+                if isinstance(clv_ratio, (int, float)):
+                    clv_s = f"{t('track.clv', lang)} {clv_ratio * 100:+.1f}%"
+                elif clv_status:
+                    clv_s = f"{t('track.clv_na', lang)} ({escape(str(clv_status))})"
+                else:
+                    clv_s = t("track.clv_na", lang)
+                ref_ev = e.get("closing_reference_ev")
+                if isinstance(ref_ev, (int, float)):
+                    clv_s += f" · {t('track.clv_ref_ev', lang)} {ref_ev * 100:+.1f}%"
                 st.html(
                     '<div style="padding:0.55rem 0;border-bottom:1px solid #e5e7eb;">'
                     f'<div style="font-weight:700;">{escape(str(e["match"]))}</div>'
@@ -1705,6 +1727,7 @@ def _tracker_page(lang, C, provider, mode, leagues, season) -> None:  # type: ig
                     f' <span style="margin-left:0.5rem;opacity:0.75;">{odds_s}</span></div>'
                     f'<div style="margin-top:0.2rem;font-size:0.9rem;">{outcome_html}'
                     f' · {escape(t("track.result", lang))}: {result}</div>'
+                    f'<div style="margin-top:0.15rem;font-size:0.85rem;opacity:0.85;">{clv_s}</div>'
                     "</div>"
                 )
 

@@ -1,7 +1,7 @@
-# Fortschritt: CURSOR_PROMPT_QUANTBOT (P0 → P1 → P2)
+# Fortschritt: CURSOR_PROMPT_QUANTBOT (P0 → P1 → P2 → P3)
 
-Stand: P0 + P1 + **P2 Kern** auf Branch `cursor/p2-clv-manifest-valid-9483`
-(basiert auf `cursor/p0-decision-policy-9483`).
+Stand: P0–P2 + **P3** auf Branch `cursor/p3-ah-clv-kelly-9483`
+(basiert auf `cursor/p2-clv-manifest-valid-9483`).
 
 ## Bestandsaufnahme (Kurz)
 
@@ -17,23 +17,27 @@ Stand: P0 + P1 + **P2 Kern** auf Branch `cursor/p2-clv-manifest-valid-9483`
 | Run-Manifest | DONE |
 | CLV Comparability + closing_reference_ev | DONE |
 | Chronologischer VALID-Runner + CLI | DONE |
-| AH Settlement (typed, experimental flag) | DONE (Math); Signale noch nicht verdrahtet |
+| AH Settlement (typed, experimental flag) | DONE |
+| Generalisiertes Kelly (Push/Viertel) | DONE |
+| AH Value-Signale (exploratory, sizing gated) | DONE |
+| Closing last-prematch Proxy | DONE |
+| CLV im Verlauf-UI | DONE |
 | Empirische Live-VALID-Daten | **BLOCKER** |
 
-## P2 geliefert
+## P3 geliefert
 
-1. **Run-Manifest** (`quantbot.runs`) — Run-ID, as_of, Snapshot-IDs, Pipeline-/Policy-/Config-Hash, Validation-Ref; Settlement nur als Folgeereignis (Manifest unverändert)
-2. **CLV** (`quantbot.markets.clv`) — N/A bei Line/Markt/Period/Post-Kickoff; Odds-Ratio und `closing_reference_ev` getrennt; TipHistory `attach_clv`
-3. **VALID-Runner** (`quantbot.analysis.validation_run` + `quantbot validate`) — chronologisches Train/Calib/Test; ohne vorab gesetzte Criteria → UNVALIDATED; Demo validiert nie Live
-4. **AH Settlement** — PUSH/HALF_WIN/HALF_LOSS + Viertellinien; `enable_ah_experimental=False`; kein AH-Kelly ohne generalized Kelly + AH-VALID
+1. **Generalisiertes Kelly** (`KellySizer.generalized_*`, `binary_win_lose_outcomes`, `push_market_outcomes`) — AH-Pfad nutzt generalized Kelly auf Binär-Payoffs; Push-Märkte vorbereitet
+2. **AH DecisionEngine** (`decide_ah`, `VALUE_AH_*`, Orchestrator `_maybe_prefer_ah` hinter `enable_ah_experimental`) — exploratory Signale; `ah_sizing_released=False` bis AH-VALID
+3. **Closing** (`markets/closing.py`) — tagged `is_closing`, sonst last prematch vor Kickoff (dokumentiert); nie post-kickoff
+4. **CLV Verlauf** — TipHistory `attach_clv` + Tracker-Metrik/Zeilen; AH/Totals ehrlich `na_market_mismatch`
+5. **AH Settlement im Tracker** — `ah_*` Tips via `settle_line_market`; Push aus Hit-Rate ausgeschlossen
 
 ## Blocker (ehrlich)
 
-Ohne echte chronologische Live-Daten und **vorab** festgelegte Criteria gibt es kein Live-`VALID`-Artefakt → Live-Sizing bleibt gesperrt. Synthetische/Demo-Läufe dürfen das nicht freischalten.
+Ohne echte chronologische Live-Daten und **vorab** festgelegte Criteria gibt es kein Live-`VALID`-Artefakt → Live-Sizing und AH-Sizing bleiben gesperrt. Synthetische/Demo-Läufe dürfen das nicht freischalten.
 
-## Bewusst zurückgestellt
+## Bewusst zurückgestellt / gated
 
-- AH Value-Signale in DecisionEngine (Flag existiert; Sizing absichtlich aus)
-- Live Closing-Quotes (`is_closing`) aus Provider-Historie
-- Dashboard-Spalten für CLV im Verlauf (Datenpfad bereit)
-- Generalisiertes Kelly für Push-/Viertellinien
+- AH-Sizing Release (braucht dediziertes AH ValidationArtifact)
+- Live exchange closes als Pflicht (Proxy last-prematch ist dokumentiert, nicht gleichwertig)
+- CLV für Totals/AH mit matching close lines

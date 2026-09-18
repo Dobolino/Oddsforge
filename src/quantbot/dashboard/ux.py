@@ -188,6 +188,8 @@ _SIGNAL_PLAIN: dict[SignalType, dict[str, str]] = {
     SignalType.VALUE_AWAY: {"de": "Value erkannt: Auswärtssieg", "en": "Value spotted: away win"},
     SignalType.VALUE_OVER: {"de": "Value erkannt: Über 2,5 Tore", "en": "Value spotted: over 2.5 goals"},
     SignalType.VALUE_UNDER: {"de": "Value erkannt: Unter 2,5 Tore", "en": "Value spotted: under 2.5 goals"},
+    SignalType.VALUE_AH_HOME: {"de": "Value erkannt: AH Heim", "en": "Value spotted: AH home"},
+    SignalType.VALUE_AH_AWAY: {"de": "Value erkannt: AH Auswärts", "en": "Value spotted: AH away"},
     SignalType.NO_BET: {"de": "Kein Signal", "en": "No signal"},
 }
 
@@ -199,6 +201,8 @@ _TIP_COLORS: dict[SignalType, dict[str, str]] = {
     SignalType.VALUE_AWAY: {"bg": "#1f5fbf", "fg": "#ffffff"},
     SignalType.VALUE_OVER: {"bg": "#0f766e", "fg": "#ffffff"},
     SignalType.VALUE_UNDER: {"bg": "#475569", "fg": "#ffffff"},
+    SignalType.VALUE_AH_HOME: {"bg": "#047857", "fg": "#ffffff"},
+    SignalType.VALUE_AH_AWAY: {"bg": "#1d4ed8", "fg": "#ffffff"},
     SignalType.NO_BET: {"bg": "#6b7280", "fg": "#ffffff"},
 }
 
@@ -220,7 +224,25 @@ def plain_signal_label(signal: SignalType, lang: str = "de", *, line: float | No
         side = "over" if signal is SignalType.VALUE_OVER else "under"
         return f"Value spotted: {side} {line_s} {unit}"
 
+    if line is not None and signal in (SignalType.VALUE_AH_HOME, SignalType.VALUE_AH_AWAY):
+        line_s = str(line).replace(".", ",") if lang == "de" else str(line)
+        if lang == "de":
+            side = "Heim" if signal is SignalType.VALUE_AH_HOME else "Auswärts"
+            return f"Value erkannt: AH {side} {line_s}"
+        side = "home" if signal is SignalType.VALUE_AH_HOME else "away"
+        return f"Value spotted: AH {side} {line_s}"
+
     return label
+
+
+def signal_display_line(signal) -> float | None:  # type: ignore[no-untyped-def]
+    """Totals or AH line for plain labels / badges."""
+
+    if getattr(signal, "totals_line", None) is not None:
+        return float(signal.totals_line)
+    if getattr(signal, "handicap_line", None) is not None:
+        return float(signal.handicap_line)
+    return None
 
 
 def tip_badge_html(signal: SignalType, lang: str = "de", *, large: bool = False, text: str | None = None) -> str:
@@ -284,6 +306,10 @@ def tip_kind_from_label(label: str) -> SignalType:
     """Best-effort map of a tip label back to SignalType (for slip coloring)."""
 
     low = label.lower()
+    if low.startswith("ah_home") or "ah heim" in low or ("ah" in low and "home" in low):
+        return SignalType.VALUE_AH_HOME
+    if low.startswith("ah_away") or "ah auswärts" in low or ("ah" in low and "away" in low):
+        return SignalType.VALUE_AH_AWAY
     if "über" in low or "over" in low:
         return SignalType.VALUE_OVER
     if "unter" in low or "under" in low:

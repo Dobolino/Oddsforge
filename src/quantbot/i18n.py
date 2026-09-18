@@ -430,6 +430,10 @@ _STRINGS: dict[str, dict[str, str]] = {
     "track.hit": {"de": "Treffer", "en": "Hit"},
     "track.miss": {"de": "Daneben", "en": "Miss"},
     "track.pending": {"de": "offen", "en": "pending"},
+    "track.clv": {"de": "CLV", "en": "CLV"},
+    "track.clv_na": {"de": "CLV n/a", "en": "CLV n/a"},
+    "track.clv_ref_ev": {"de": "Close-Ref-EV", "en": "Close-ref EV"},
+    "track.avg_clv": {"de": "Ø CLV (Odds)", "en": "Avg CLV (odds)"},
     # API keys
     "keys.save": {"de": "Schlüssel speichern", "en": "Save keys"},
     "keys.cancel": {"de": "Änderungen verwerfen", "en": "Discard changes"},

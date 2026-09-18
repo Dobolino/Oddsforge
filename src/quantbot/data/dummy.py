@@ -246,3 +246,43 @@ class DummyDataProvider(BaseDataProvider):
                 )
             )
         return tuple(snapshots)
+
+    def _fetch_spreads(self, match_id: str):
+        from quantbot.schemas.enums import DEFAULT_HANDICAP_LINE
+        from quantbot.schemas.odds import SpreadOdds
+
+        match = next((m for m in self._fetch_matches() if m.match_id == match_id), None)
+        if match is None or match.league is League.NBA:
+            return ()
+        strengths = self._team_strength()
+        home_s = strengths[match.home_team.team_id]
+        away_s = strengths[match.away_team.team_id]
+        edge = home_s - away_s + _HOME_ADVANTAGE
+        p_home = 1.0 / (1.0 + math.exp(-1.2 * edge))
+        p_home = min(0.72, max(0.28, p_home))
+        p_away = 1.0 - p_home
+        offsets = [
+            (timedelta(hours=72), False),
+            (timedelta(hours=24), False),
+            (timedelta(hours=2), False),
+            (timedelta(minutes=10), True),
+        ]
+        snapshots = []
+        for idx, (lead, is_closing) in enumerate(offsets):
+            rng = self._match_rng(match_id, f"spread:{idx}")
+            noisy_h = max(0.05, p_home * (1.0 + rng.uniform(-0.05, 0.05)))
+            noisy_a = max(0.05, p_away * (1.0 + rng.uniform(-0.05, 0.05)))
+            total = noisy_h + noisy_a
+            margin_factor = (1.0 + _BASE_OVERROUND) / total
+            snapshots.append(
+                SpreadOdds(
+                    match_id=match_id,
+                    bookmaker="dummy_book",
+                    timestamp=match.kickoff - lead,
+                    line=DEFAULT_HANDICAP_LINE,
+                    home=round(1.0 / (noisy_h * margin_factor), 3),
+                    away=round(1.0 / (noisy_a * margin_factor), 3),
+                    is_closing=is_closing,
+                )
+            )
+        return tuple(snapshots)

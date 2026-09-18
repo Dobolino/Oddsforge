@@ -55,6 +55,7 @@ def _signal_from_reasons(
     decimal_odds: float | None = None,
     stake_fraction: float = 0.0,
     totals_line: float | None = None,
+    handicap_line: float | None = None,
     sizing_allowed: bool = False,
     p_final: float | None = None,
 ) -> ValueSignal:
@@ -75,6 +76,7 @@ def _signal_from_reasons(
         reason_codes=tuple(r.code for r in reasons),
         metrics=metrics,
         totals_line=totals_line,
+        handicap_line=handicap_line,
         policy_version=policy.version,
         policy_profile=policy.profile.value,
         validation_status=policy.validation_status.value,
@@ -291,6 +293,148 @@ class DecisionEngine:
             decimal_odds=candidate.decimal_odds,
             stake_fraction=stake_out,
             totals_line=totals_line,
+            sizing_allowed=sizing_ok,
+            p_final=float(candidate.model_prob),
+        )
+
+    def decide_ah(
+        self,
+        *,
+        match_id: str,
+        timestamp,
+        metrics: tuple,
+        handicap_line: float,
+        data_quality: float,
+        model_confidence: float,
+        overround: float,
+        home_matches: int | None = None,
+        away_matches: int | None = None,
+        ah_sizing_released: bool = False,
+    ) -> ValueSignal:
+        """        Experimental AH path: exploratory signals; sizing only with AH VALID.
+
+        Half-line AH uses generalized Kelly on binary win/lose payoffs.
+        Without an AH ValidationArtifact, stake stays 0 even if 1X2 sizing
+        is unlocked.
+        """
+
+        if not metrics:
+            raise ValueError("AH metrics must not be empty")
+        candidate = max(metrics, key=lambda m: m.expected_value)
+        invalid = validate_candidate_inputs(
+            model_prob=getattr(candidate, "model_prob", None),
+            decimal_odds=getattr(candidate, "decimal_odds", None),
+            home_matches=home_matches,
+            away_matches=away_matches,
+            min_team_matches=self.policy.min_team_matches,
+        )
+        if invalid:
+            return _signal_from_reasons(
+                match_id=match_id,
+                timestamp=timestamp,
+                signal=SignalType.NO_BET,
+                reasons=invalid,
+                model_confidence=model_confidence,
+                data_quality=data_quality,
+                metrics=metrics,
+                policy=self.policy,
+                decision_status=DecisionStatus.INVALID_DATA,
+                handicap_line=handicap_line,
+            )
+
+        result = self.rules.evaluate(
+            candidate,
+            overround=overround,
+            data_quality=data_quality,
+            model_confidence=model_confidence,
+        )
+        if not result.passed:
+            return _signal_from_reasons(
+                match_id=match_id,
+                timestamp=timestamp,
+                signal=SignalType.NO_BET,
+                reasons=result.reasons,
+                model_confidence=model_confidence,
+                data_quality=data_quality,
+                metrics=metrics,
+                policy=self.policy,
+                decision_status=DecisionStatus.NO_BET,
+                handicap_line=handicap_line,
+                p_final=float(candidate.model_prob),
+            )
+
+        # Half-line AH uses generalized Kelly on binary win/lose payoffs
+        # (same optimum as closed-form Kelly). Push/quarter markets pass
+        # explicit multi-state outcomes via the sizer helpers. Sizing stays
+        # off without a dedicated AH ValidationArtifact.
+        outcomes = KellySizer.binary_win_lose_outcomes(
+            float(candidate.model_prob), float(candidate.decimal_odds)
+        )
+        stake = self.sizer.generalized_stake_fraction(outcomes)
+        if stake <= 0.0:
+            return _signal_from_reasons(
+                match_id=match_id,
+                timestamp=timestamp,
+                signal=SignalType.NO_BET,
+                reasons=(KELLY_ZERO,),
+                model_confidence=model_confidence,
+                data_quality=data_quality,
+                metrics=metrics,
+                policy=self.policy,
+                decision_status=DecisionStatus.NO_BET,
+                handicap_line=handicap_line,
+                p_final=float(candidate.model_prob),
+            )
+
+        sizing_ok = bool(ah_sizing_released)
+        reasons: list[Reason] = [
+            value_reason(
+                candidate.outcome.value, candidate.edge, candidate.expected_value, stake
+            )
+        ]
+        if not sizing_ok:
+            reasons.append(MODEL_UNVALIDATED_NO_SIZING)
+            stake_out = 0.0
+            if not self.policy.allow_exploratory_value_signals:
+                return _signal_from_reasons(
+                    match_id=match_id,
+                    timestamp=timestamp,
+                    signal=SignalType.NO_BET,
+                    reasons=tuple(reasons),
+                    model_confidence=model_confidence,
+                    data_quality=data_quality,
+                    metrics=metrics,
+                    policy=self.policy,
+                    decision_status=DecisionStatus.MODEL_NOT_VALIDATED,
+                    handicap_line=handicap_line,
+                    p_final=float(candidate.model_prob),
+                )
+            status = DecisionStatus.VALUE_EXPLORATORY
+        else:
+            stake_out = stake
+            status = DecisionStatus.VALUE_RELEASED
+
+        signal_type = (
+            SignalType.VALUE_AH_HOME
+            if candidate.outcome is MatchOutcome.HOME
+            else SignalType.VALUE_AH_AWAY
+        )
+        return _signal_from_reasons(
+            match_id=match_id,
+            timestamp=timestamp,
+            signal=signal_type,
+            reasons=tuple(reasons),
+            model_confidence=model_confidence,
+            data_quality=data_quality,
+            metrics=metrics,
+            policy=self.policy,
+            decision_status=status,
+            chosen_outcome=candidate.outcome,
+            edge=candidate.edge,
+            expected_value=candidate.expected_value,
+            decimal_odds=candidate.decimal_odds,
+            stake_fraction=stake_out,
+            handicap_line=handicap_line,
             sizing_allowed=sizing_ok,
             p_final=float(candidate.model_prob),
         )

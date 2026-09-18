@@ -100,6 +100,8 @@ class SignalType(str, Enum):
     VALUE_AWAY = "value_away"
     VALUE_OVER = "value_over"
     VALUE_UNDER = "value_under"
+    VALUE_AH_HOME = "value_ah_home"
+    VALUE_AH_AWAY = "value_ah_away"
     NO_BET = "no_bet"
 
 

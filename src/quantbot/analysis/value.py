@@ -235,3 +235,38 @@ def totals_metrics_from_prediction(
     model_probs = prediction.score_matrix.totals_probabilities(totals.line)
     calc = ValueCalculator()
     return calc.totals_metrics(model_probs, market, totals.decimal_odds())
+
+
+def ah_metrics_from_prediction(
+    prediction: Prediction,
+    spread,
+    *,
+    fair_home: float,
+    fair_away: float,
+) -> tuple[ValueMetrics, ...]:
+    """Half-line Asian-handicap metrics from score-matrix cover probabilities."""
+
+    from quantbot.schemas.lines import require_handicap_half_line
+
+    require_handicap_half_line(spread.line)
+    if prediction.score_matrix is None:
+        raise ValueError("prediction has no score_matrix for AH")
+    p_home, p_away = prediction.score_matrix.handicap_probabilities(spread.line)
+    return (
+        ValueMetrics(
+            outcome=MatchOutcome.HOME,
+            model_prob=p_home,
+            fair_market_prob=fair_home,
+            decimal_odds=float(spread.home),
+            edge=edge(p_home, fair_home),
+            expected_value=expected_value(p_home, float(spread.home)),
+        ),
+        ValueMetrics(
+            outcome=MatchOutcome.AWAY,
+            model_prob=p_away,
+            fair_market_prob=fair_away,
+            decimal_odds=float(spread.away),
+            edge=edge(p_away, fair_away),
+            expected_value=expected_value(p_away, float(spread.away)),
+        ),
+    )

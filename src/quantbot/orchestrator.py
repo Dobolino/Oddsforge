@@ -353,6 +353,16 @@ class QuantBotOrchestrator:
                     signal_1x2=signal,
                     quality=quality,
                 )
+                if get_settings().enable_ah_experimental:
+                    signal = self._maybe_prefer_ah(
+                        match=match,
+                        as_of=as_of,
+                        prediction=prediction,
+                        data_quality=analysis.data_quality,
+                        model_confidence=analysis.model_confidence,
+                        signal_current=signal,
+                        quality=quality,
+                    )
             reports.append(SignalReport(match=match, signal=signal, analysis=analysis))
 
         n_bets = sum(1 for r in reports if r.signal.is_bet)
@@ -419,6 +429,64 @@ class QuantBotOrchestrator:
         if (totals_signal.expected_value or 0.0) > (signal_1x2.expected_value or 0.0):
             return totals_signal
         return signal_1x2
+
+    def _maybe_prefer_ah(
+        self,
+        *,
+        match: Match,
+        as_of: datetime,
+        prediction,
+        data_quality: float,
+        model_confidence: float,
+        signal_current: ValueSignal,
+        quality: DataQualitySignals | None = None,
+    ) -> ValueSignal:
+        """Experimental AH: prefer when EV beats current tip; sizing stays gated."""
+
+        from quantbot.analysis.value import ah_metrics_from_prediction
+        from quantbot.markets.margin import remove_margin
+        from quantbot.schemas.enums import DEFAULT_HANDICAP_LINE
+
+        if prediction.score_matrix is None:
+            return signal_current
+        spread = self.provider.get_latest_spread(
+            match.match_id, as_of, line=DEFAULT_HANDICAP_LINE
+        )
+        if spread is None:
+            return signal_current
+        try:
+            fair = remove_margin([spread.home, spread.away], "power")
+        except Exception:  # noqa: BLE001
+            return signal_current
+        try:
+            metrics = ah_metrics_from_prediction(
+                prediction,
+                spread,
+                fair_home=float(fair[0]),
+                fair_away=float(fair[1]),
+            )
+        except ValueError:
+            return signal_current
+        overround = 1.0 / spread.home + 1.0 / spread.away - 1.0
+        ah_signal = self.decision_engine.decide_ah(
+            match_id=match.match_id,
+            timestamp=spread.timestamp,
+            metrics=metrics,
+            handicap_line=float(spread.line),
+            data_quality=data_quality,
+            model_confidence=model_confidence,
+            overround=overround,
+            home_matches=None if quality is None else quality.home_matches,
+            away_matches=None if quality is None else quality.away_matches,
+            ah_sizing_released=False,  # requires dedicated AH ValidationArtifact
+        )
+        if not ah_signal.is_bet:
+            return signal_current
+        if not signal_current.is_bet:
+            return ah_signal
+        if (ah_signal.expected_value or 0.0) > (signal_current.expected_value or 0.0):
+            return ah_signal
+        return signal_current
 
     def _maybe_prefer_nba_totals(
         self,

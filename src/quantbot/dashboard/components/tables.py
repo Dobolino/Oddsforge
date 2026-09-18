@@ -18,6 +18,7 @@ from quantbot.dashboard.ux import (
     market_stance_label,
     plain_signal_label,
     reason_for_mode,
+    signal_display_line,
     stake_display,
     tip_badge_html,
     tone_color_for_confidence,
@@ -64,7 +65,7 @@ def signals_dataframe(
     for report in reports:
         s = report.signal
         m = report.match
-        tip = plain_signal_label(s.signal, lang, line=s.totals_line)
+        tip = plain_signal_label(s.signal, lang, line=signal_display_line(s))
         if mode is UXMode.BEGINNER:
             # Emoji prefix so the table tip column is scannable without HTML.
             prefix = {
@@ -73,6 +74,8 @@ def signals_dataframe(
                 "value_away": "🔵 ",
                 "value_over": "🟢 ",
                 "value_under": "⚪ ",
+                "value_ah_home": "🟢 ",
+                "value_ah_away": "🔵 ",
                 "no_bet": "⚪ ",
             }.get(s.signal.value, "")
             tip = f"{prefix}{tip}"
@@ -162,7 +165,7 @@ def colored_signals_table_html(
         tip_text = (
             s.signal.value
             if mode is UXMode.EXPERT
-            else plain_signal_label(s.signal, lang, line=s.totals_line)
+            else plain_signal_label(s.signal, lang, line=signal_display_line(s))
         )
         tip_cell = tip_badge_html(s.signal, lang, text=tip_text)
         why = reason_for_mode(s, mode, lang)
@@ -261,12 +264,12 @@ def beginner_tip_cards(
         cards.append(
             {
                 "match": f"{m.home_team.name} vs {m.away_team.name}",
-                "tip": plain_signal_label(s.signal, lang, line=s.totals_line),
+                "tip": plain_signal_label(s.signal, lang, line=signal_display_line(s)),
                 "tip_html": tip_badge_html(
-                    s.signal, lang, large=True, text=plain_signal_label(s.signal, lang, line=s.totals_line)
+                    s.signal, lang, large=True, text=plain_signal_label(s.signal, lang, line=signal_display_line(s))
                 ),
                 "tip_html_small": tip_badge_html(
-                    s.signal, lang, large=False, text=plain_signal_label(s.signal, lang, line=s.totals_line)
+                    s.signal, lang, large=False, text=plain_signal_label(s.signal, lang, line=signal_display_line(s))
                 ),
                 "why": reason_for_mode(s, UXMode.BEGINNER, lang),
                 "is_bet": "1" if s.is_bet else "0",
