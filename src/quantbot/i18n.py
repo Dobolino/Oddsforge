@@ -114,25 +114,48 @@ _STRINGS: dict[str, dict[str, str]] = {
         "en": "Decision support only — QuantBot does not bet. Help: check-dein-spiel.de · 0800 1 37 27 00.",
     },
     "safety.demo": {
-        "de": "Du siehst Demodaten mit erfundenen Zahlen. Gut zum Ausprobieren, "
-              "nicht zum Wetten — Demo-Trefferquoten sind keine reale Renditeerwartung.",
-        "en": "You are seeing demo data with made-up numbers. Fine for trying "
-              "the app, not for real betting — demo hit rates are not a real return expectation.",
+        "de": "Demodaten — nur zum Ausprobieren, keine reale Erwartung.",
+        "en": "Demo data — for trying the app, not a real return expectation.",
     },
     "safety.account_limits": {
-        "de": "Hinweis: Positive Modell-Ergebnisse können bei regulierten Buchmachern "
-              "zu Einsatzlimits oder Kontosperren führen — reale Kelly-Strategien sind dadurch eingeschränkt.",
-        "en": "Note: Positive model results can lead to stake limits or account restrictions "
-              "at regulated bookmakers — real Kelly strategies are limited by that.",
+        "de": "Hinweis: Gute Tipps können bei Buchmachern zu Limits führen.",
+        "en": "Note: Strong tips can lead to bookmaker stake limits.",
     },
     "ctrl.window_sidebar": {"de": "Spieltag-Fenster", "en": "Matchday window"},
+    "ctrl.agenda": {"de": "Agenda", "en": "Agenda"},
+    "ctrl.agenda_hint": {
+        "de": "Tag tippen → Entwurf. Danach „Übernehmen“.",
+        "en": "Tap a day → draft. Then press Apply.",
+    },
+    "ctrl.agenda_empty": {
+        "de": "Keine Spiele in diesem Entwurf.",
+        "en": "No fixtures in this draft range.",
+    },
+    "ctrl.window_apply": {"de": "Zeitraum übernehmen", "en": "Apply date range"},
+    "ctrl.window_pending": {
+        "de": "Entwurf noch nicht übernommen.",
+        "en": "Draft not applied yet.",
+    },
+    "ctrl.window_active": {
+        "de": "Aktiv: {start} – {end}",
+        "en": "Active: {start} – {end}",
+    },
+    "ctrl.date_range": {"de": "Spieltage (von–bis)", "en": "Matchdays (from–to)"},
+    "ctrl.date_range_hint": {
+        "de": "Nur Spiele in diesem Zeitraum.",
+        "en": "Only fixtures in this window.",
+    },
     "slip.from_tips": {
-        "de": "Aus Modell-Signalen übernommen: kurze Kombi mit höchster Modellwahrscheinlichkeit "
-              "(Näherung — Spiele sind oft korreliert).",
-        "en": "Taken from model signals: short slip with the highest model probability "
-              "(approximation — matches are often correlated).",
+        "de": "Aus Modell-Signalen: kurze Kombi mit hoher Modell-P.",
+        "en": "From model signals: short high model-P slip.",
     },
     "slip.adjust": {"de": "Analyse anpassen", "en": "Adjust analysis"},
+    "slip.hero_kicker": {"de": "Simulation", "en": "Simulation"},
+    "slip.hero_sub": {
+        "de": "Signale + Quoten im Zeitraum — QuantBot wettet nicht.",
+        "en": "Signals + odds in the window — QuantBot does not bet.",
+    },
+    "slip.options": {"de": "Optionen", "en": "Options"},
     "track.learn_miss": {
         "de": "Signal daneben? Oft war „Kein Signal“ die bessere Entscheidung — unsichere Spiele werden bewusst ausgelassen.",
         "en": "Missed a signal? Often „No signal“ was the better call — uncertain matches are skipped on purpose.",
@@ -202,12 +225,12 @@ _STRINGS: dict[str, dict[str, str]] = {
     "slip.copy_title": {"de": "Als Text zum Kopieren", "en": "As text to copy"},
     "slip.ticket_title": {"de": "Kombi-Simulation", "en": "Accumulator scenario"},
     "slip.stake": {
-        "de": "Simulierte Einheiten (1 = eine Einheit, kein Geldbetrag)",
-        "en": "Simulated units (1 = one unit, not a cash amount)",
+        "de": "Simulierte Einheiten",
+        "en": "Simulated units",
     },
     "slip.all_leagues": {
-        "de": "Die Analyse holt Value-Signale aus allen gewählten Ligen im Datumsbereich.",
-        "en": "The analysis pulls value signals from all selected leagues in the date window.",
+        "de": "Alle gewählten Ligen im Zeitraum.",
+        "en": "All selected leagues in the window.",
     },
     "sig.open_slip_hint": {
         "de": "Kombi-Analyse? Button darunter oder links unter Seiten „Kombi-Analyse“.",
@@ -491,9 +514,9 @@ _STRINGS: dict[str, dict[str, str]] = {
     "slip.ollama_title": {"de": "KI-Erklärung (Ollama)", "en": "AI explanation (Ollama)"},
     "keys.basketball": {"de": "BallDontLie / NBA Schlüssel (optional)", "en": "BallDontLie / NBA key (optional)"},
     "keys.basketball_missing": {"de": "BallDontLie / NBA: nicht hinterlegt (Demo-NBA aktiv)", "en": "BallDontLie / NBA: not set (demo NBA active)"},
-    "keys.basketball_optional": {"de": "NBA: Demodaten — noch keine Live-Anbindung, kein Schlüssel erforderlich.", "en": "NBA: demo data — live integration is not available yet; no key required."},
+    "keys.basketball_optional": {"de": "NBA: Demodaten (kein Schlüssel nötig).", "en": "NBA: demo data (no key needed)."},
     "keys.apifootball": {"de": "API-Football Schlüssel (optional, für Handicap-Quoten)", "en": "API-Football key (optional, for handicap odds)"},
-    "keys.apifootball_optional": {"de": "API-Football: optional. Liefert Asian-Handicap- und Tor-Quoten. Kostenloser Zugang: 100 Abrufe pro Tag.", "en": "API-Football: optional. Provides Asian-handicap and goals odds. Free tier: 100 requests per day."},
+    "keys.apifootball_optional": {"de": "API-Football optional (AH/Tore, Free: 100/Tag).", "en": "API-Football optional (AH/totals, free: 100/day)."},
     "keys.test": {"de": "API-Football testen", "en": "Test API-Football"},
     "keys.test_missing": {"de": "Zuerst den API-Football Schlüssel eintragen und speichern.", "en": "Save the API-Football key first."},
     "keys.test_ok": {"de": "Verbindung steht. Konto {account}, Tarif {plan}. Heute {used} von {limit} Abrufen genutzt, {left} übrig.", "en": "Connected. Account {account}, plan {plan}. {used} of {limit} requests used today, {left} left."},
@@ -502,8 +525,8 @@ _STRINGS: dict[str, dict[str, str]] = {
     "status.missing": {"de": "FEHLT", "en": "MISSING"},
     "slip.smart_cross_sport": {"de": "⚡ Smart Cross-Sport Selection", "en": "⚡ Smart Cross-Sport Selection"},
     "slip.cross_sport_note": {
-        "de": "Hinweis: Unkorrelierte Sportarten (z. B. Premier League + NBA) senken Liga-Abhängigkeit, aber Kombi-/Parlay-Drag bleibt.",
-        "en": "Note: Mixing uncorrelated sports (e.g. Premier League + NBA) reduces single-league dependency, but parlay drag still applies.",
+        "de": "Cross-Sport kann Liga-Abhängigkeit senken — Parlay-Drag bleibt.",
+        "en": "Cross-sport can reduce league dependency — parlay drag remains.",
     },
     "slip.smart_empty": {
         "de": "Keine Legs erfüllen die Smart-Kriterien (Edge > 2 %, Datenqualität > 70 %).",
@@ -606,16 +629,9 @@ _STRINGS: dict[str, dict[str, str]] = {
         "de": "Für diese Seite bitte eine einzelne Liga wählen. „Alle“ gilt für Tipps, Tippschein und Verlauf.",
         "en": "Pick a single league for this page. „All“ applies to Tips, Tip slip and Tracker.",
     },
-    "ctrl.date_range": {"de": "Spieltage (von–bis)", "en": "Match days (from–to)"},
-    "ctrl.date_range_hint": {
-        "de": "Nur Spiele in diesem Zeitraum kommen auf Tipps, Tippschein und Spielkarte.",
-        "en": "Only matches in this window appear on Tips, tip slip and Match card.",
-    },
     "ctrl.date_range_empty_hint": {
-        "de": "Spieltag-Fenster und Saison stehen links in der Sidebar — "
-              "Zeitraum oder Saison anpassen und die Seite neu laden.",
-        "en": "Matchday window and season are in the left sidebar — "
-              "adjust the range or season and reload the page.",
+        "de": "Spieltag-Fenster und Saison stehen links in der Sidebar.",
+        "en": "Matchday window and season are in the left sidebar.",
     },
     "ctrl.range_today": {"de": "Heute", "en": "Today"},
     "ctrl.range_3d": {"de": "3 Tage", "en": "3 days"},
@@ -632,62 +648,52 @@ _STRINGS: dict[str, dict[str, str]] = {
         "en": "In demo mode the default is mid-season so fixtures are visible.",
     },
     "slip.intro": {
-        "de": "Diese Simulation kombiniert Modell-Signale, Quoten und Spiele im gewählten Zeitraum. "
-              "Mehrere Ereignisse erhöhen das Risiko; QuantBot platziert keine Wetten.",
-        "en": "Builds a tip slip like at a bookmaker: match, tip, odds, across league "
-              "and date range. QuantBot places nothing — copy only.",
+        "de": "Kombi aus Signalen im Zeitraum. Mehr Tipps = mehr Risiko.",
+        "en": "Combo from signals in the window. More legs = more risk.",
     },
     "slip.style": {"de": "Schein-Art", "en": "Slip style"},
     "slip.orient": {"de": "Ausrichtung", "en": "Orientation"},
-    "slip.orient_safe": {"de": "Höhere geschätzte Einzelchancen", "en": "Higher estimated single-outcome chances"},
+    "slip.orient_safe": {"de": "Sicher", "en": "Safe"},
     "slip.orient_balanced": {"de": "Ausgewogen", "en": "Balanced"},
     "slip.orient_contra": {
-        "de": "Größere Modell-Markt-Abweichung",
-        "en": "Larger model–market deviation",
+        "de": "Gegen den Markt",
+        "en": "Against the market",
     },
     "slip.orient_hint": {
-        "de": "Höhere Einzelchancen = Mit-Markt-Favoriten, kurze Quoten (≤2.60), kein Über/Unter, "
-              "Kombi-Quote max. ca. 8. Größere Abweichung = bewusst riskanter — die Abweichung "
-              "kann einen Modell- oder Datenfehler anzeigen; sie belegt keinen Vorteil.",
-        "en": "Higher single-outcome chances = with-market favorites, short odds (≤2.60), no over/under, "
-              "combined odds capped near 8. Larger deviation = deliberately riskier — the gap can "
-              "indicate a model or data error; it does not prove an edge.",
+        "de": "Sicher = kurze Quoten. Gegen den Markt = bewusst riskanter.",
+        "en": "Safe = short odds. Against the market = deliberately riskier.",
     },
     "slip.orient_safe_default": {
-        "de": "Standard: Mit dem Markt (höhere geschätzte Einzelchancen). Größere Abweichung erst bewusst wählen.",
-        "en": "Default: with the market (higher estimated single-outcome chances). Choose larger deviation deliberately.",
+        "de": "Standard: Sicher. Gegen den Markt erst bewusst wählen.",
+        "en": "Default: Safe. Choose against the market deliberately.",
     },
     "slip.active_orient": {
-        "de": "Aktive Ausrichtung: {orient}",
-        "en": "Active orientation: {orient}",
+        "de": "Ausrichtung: {orient}",
+        "en": "Orientation: {orient}",
     },
     "slip.high_risk": {
-        "de": "Höheres Risiko erlauben (mehr Tipps / höhere Quote)",
-        "en": "Allow higher risk (more tips / higher odds)",
+        "de": "Höheres Risiko (mehr Tipps)",
+        "en": "Higher risk (more tips)",
     },
     "slip.high_risk_help": {
-        "de": "Hebt die Sicherheitsgrenzen an. Die Kombi kann unglaubwürdige Chancen zeigen.",
-        "en": "Lifts the safety caps. The combo may show unrealistic chances.",
+        "de": "Hebt Sicherheitsgrenzen an — Kombi kann unglaubwürdig wirken.",
+        "en": "Lifts safety caps — combo may look unrealistic.",
     },
     "slip.high_risk_warn": {
-        "de": "⚠ HÖHERES RISIKO AKTIV — längere Kombis, oft unrealistische Modellchancen. "
-              "Nur Simulation. QuantBot wettet nicht.",
-        "en": "⚠ HIGHER RISK ON — longer combos, often unrealistic model chances. "
-              "Simulation only. QuantBot does not bet.",
+        "de": "⚠ HÖHERES RISIKO — längere Kombi, oft unrealistische Chancen. Nur Simulation.",
+        "en": "⚠ HIGHER RISK — longer combo, often unrealistic chances. Simulation only.",
     },
     "slip.high_risk_count": {
-        "de": "Tipps im Schein: {have} (gewünscht: {want}).",
-        "en": "Tips on slip: {have} (requested: {want}).",
+        "de": "Tipps: {have} (gewünscht {want})",
+        "en": "Tips: {have} (wanted {want})",
     },
     "slip.limits_caption": {
-        "de": "Gewählt: {n} Tipps (max. {cap} in diesem Modus). Das System kürzt den Schein, "
-              "wenn die Kombi unglaubwürdig wird — Schutzregeln lassen sich nicht umgehen.",
-        "en": "Selected: {n} tips (max {cap} in this mode). The system shortens the slip when "
-              "the combo becomes unrealistic — safety rules cannot be bypassed.",
+        "de": "{n} Tipps (max. {cap}). Ohne Höheres Risiko wird gekürzt.",
+        "en": "{n} tips (max {cap}). Without higher risk the slip is trimmed.",
     },
     "slip.combo_chance_na": {
-        "de": "Keine belastbare Kombi-Wahrscheinlichkeit verfügbar",
-        "en": "No reliable accumulator probability available",
+        "de": "nicht belastbar",
+        "en": "not reliable",
     },
     "slip.style_safe": {"de": "Hohe Modell-P", "en": "High model-P"},
     "slip.style_boosted": {
@@ -695,18 +701,14 @@ _STRINGS: dict[str, dict[str, str]] = {
         "en": "Selection + higher odds",
     },
     "slip.style_safe_hint": {
-        "de": "Modell-Signale mit der höchsten Modell-Wahrscheinlichkeit "
-              "(Produkt-Näherung bei Kombis — keine Unabhängigkeitsgarantie).",
-        "en": "Model signals with the highest model probability "
-              "(product approximation for combis — no independence guarantee).",
+        "de": "Höchste Modell-Wahrscheinlichkeiten.",
+        "en": "Highest model probabilities.",
     },
     "slip.style_boosted_hint": {
-        "de": "Kern-Signale plus zusätzliche Tipps mit höherer Quote. "
-              "Nur Auswahlhilfe — Kombis erhöhen Varianz und Ruin-Risiko stärker als die EV suggeriert.",
-        "en": "Core signals plus extra higher-odds tips. "
-              "Selection aid only — accumulators raise variance and ruin risk more than EV suggests.",
+        "de": "Kern + Zusatz mit höheren Quoten.",
+        "en": "Core + extras with higher odds.",
     },
-    "slip.max_legs": {"de": "Anzahl Tipps im Schein", "en": "Number of tips on the slip"},
+    "slip.max_legs": {"de": "Anzahl Tipps", "en": "Number of tips"},
     "slip.core_legs": {"de": "Kern-Tipps", "en": "Core tips"},
     "slip.boost_legs": {"de": "Zusatz-Tipps", "en": "Extra tips"},
     "slip.edit_legs": {
@@ -714,43 +716,35 @@ _STRINGS: dict[str, dict[str, str]] = {
         "en": "Select tips (uncheck = remove from the slip)",
     },
     "slip.legs_risk": {
-        "de": "Mehr Tipps = höhere Quote, aber kleinere Chance, dass alles trifft. Spiele sind oft korreliert.",
-        "en": "More tips = higher odds, but a lower chance that all hit. Matches are often correlated.",
+        "de": "Mehr Tipps = höhere Quote, kleinere Trefferchance.",
+        "en": "More tips = higher odds, lower hit chance.",
     },
     "slip.empty": {
-        "de": "Keine Value-Tipps für einen Schein. Oft ist kein Schein die beste Entscheidung.",
-        "en": "No value tips for a slip. Often no slip is the best decision.",
+        "de": "Keine Value-Tipps für einen Schein.",
+        "en": "No value tips for a slip.",
     },
     "slip.combined_odds": {"de": "Kombi-Quote", "en": "Combined odds"},
-    "slip.combined_prob": {"de": "Geschätzte Trefferchance", "en": "Estimated hit chance"},
-    "slip.combined_ev": {"de": "Erwartete Rendite (Kombi)", "en": "Expected return (slip)"},
+    "slip.combined_prob": {"de": "Kombi-P", "en": "Combo P"},
+    "slip.combined_ev": {"de": "Erwartete Rendite", "en": "Expected return"},
     "slip.implausible": {
-        "de": "Modellwerte zu hoch, meist zu wenig Daten. Nicht verlässlich. "
-              "Auch eine Einzelquote über 8,0 wird als riskant markiert.",
-        "en": "Model values too high, usually too little data. Not reliable. "
-              "A single price above 8.0 is also flagged as risky.",
+        "de": "Modellwerte zu hoch / zu wenig Daten — nicht verlässlich.",
+        "en": "Model values too high / too little data — not reliable.",
     },
     "slip.trimmed_note": {
-        "de": "Schein wurde gekürzt, damit die Kombi-Chance glaubwürdig bleibt.",
-        "en": "Slip was shortened so the combined chance stays believable.",
+        "de": "Schein gekürzt (Glaubwürdigkeit).",
+        "en": "Slip shortened (credibility).",
     },
     "slip.legs": {"de": "Tipps im Schein", "en": "Legs on the slip"},
     "slip.role": {"de": "Rolle", "en": "Role"},
     "slip.role_core": {"de": "Kern", "en": "Core"},
     "slip.role_boost": {"de": "Zusatz", "en": "Extra"},
     "slip.disclaimer": {
-        "de": "Unabhängigkeitsannahme: Die Trefferchance ist das Produkt der Einzelwahrscheinlichkeiten. "
-              "In der Praxis hängen Spiele und Märkte zusammen — die Kombi-Chance ist daher nur eine Näherung. "
-              "Keine Gewinn- oder Renditegarantie. Kein Aufruf zum Wetten.",
-        "en": "Independence assumption: hit chance is the product of single probabilities. "
-              "In practice matches and markets are correlated — the combined chance is only an approximation. "
-              "No win or return guarantee. Not a call to bet.",
+        "de": "Kombi-P ist eine Näherung (Spiele korrelieren). Keine Wett-Aufforderung.",
+        "en": "Combo P is an approximation (matches correlate). Not a call to bet.",
     },
     "slip.glossary_gate": {
-        "de": "Bevor der Tippschein freigeschaltet wird: bitte einmal das Glossar lesen "
-              "(Begriffe wie Edge, EV und Unabhängigkeit). Danach kannst du den Schein öffnen.",
-        "en": "Before the tip slip unlocks: please open the glossary once "
-              "(terms like edge, EV and independence). After that you can open the slip.",
+        "de": "Bitte einmal das Glossar lesen, bevor der Tippschein freigeschaltet wird.",
+        "en": "Please open the glossary once before the tip slip unlocks.",
     },
     "slip.glossary_cta": {"de": "Zum Glossar", "en": "Open glossary"},
     "slip.col_prob": {"de": "Chance", "en": "Chance"},

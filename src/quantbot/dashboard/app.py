@@ -463,14 +463,15 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     mode = "live" if live else "demo"
     C = _install_cache()
 
-    _api_status_badges(
-        lang,
-        fd_key=fd_key,
-        odds_key=odds_key,
-        bball_key=bball_key,
-        apif_key=apif_key,
-        live=live,
-    )
+    with st.expander(t("page.settings", lang) + " · API", expanded=False):
+        _api_status_badges(
+            lang,
+            fd_key=fd_key,
+            odds_key=odds_key,
+            bball_key=bball_key,
+            apif_key=apif_key,
+            live=live,
+        )
 
     # Thin safety line once onboarding is done; full banner only on first visit.
     if st.session_state.get("welcome_dismissed"):
@@ -482,11 +483,11 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
         if not live:
             st.caption(f"**[{t('safety.demo_badge', lang)}]** {t('safety.demo', lang)}")
         st.caption(t("safety.account_limits", lang))
-    help_cols = st.columns([4, 1])
-    help_cols[0].caption(t("help.footer", lang))
-    if help_cols[1].button(t("help.open_glossary", lang), key="help_open_glossary"):
-        st.session_state["pending_nav_page"] = "glossary"
-        st.rerun()
+        help_cols = st.columns([4, 1])
+        help_cols[0].caption(t("help.footer", lang))
+        if help_cols[1].button(t("help.open_glossary", lang), key="help_open_glossary"):
+            st.session_state["pending_nav_page"] = "glossary"
+            st.rerun()
 
     _welcome_card(lang, ux_mode)
     # Odds name-matching reports are filled during predict/odds fetch — warn
@@ -769,6 +770,28 @@ def _window_key(leagues, season: str, live: bool) -> str:  # type: ignore[no-unt
     return f"window::{','.join(lg.value for lg in leagues)}::{season}::{'live' if live else 'demo'}"
 
 
+def _window_draft_key(leagues, season: str, live: bool) -> str:  # type: ignore[no-untyped-def]
+    return f"window_draft::{','.join(lg.value for lg in leagues)}::{season}::{'live' if live else 'demo'}"
+
+
+def _fixture_days(orchestrator, leagues, season: str, start_d: date, end_d: date) -> list[tuple[date, list[str]]]:
+    """Group upcoming fixtures in ``[start_d, end_d]`` by kickoff day for the agenda."""
+
+    by_day: dict[date, list[str]] = {}
+    for league in leagues:
+        try:
+            matches = orchestrator.universe(league, season)
+        except Exception:  # noqa: BLE001
+            continue
+        for match in matches:
+            day = match.kickoff.date()
+            if day < start_d or day > end_d:
+                continue
+            label = f"{match.home_team.name} – {match.away_team.name}"
+            by_day.setdefault(day, []).append(label)
+    return sorted(by_day.items(), key=lambda item: item[0])
+
+
 def _default_window_bounds(orchestrator, leagues, season: str, live: bool):  # type: ignore[no-untyped-def]
     if live:
         start_default = datetime.now(timezone.utc).date()
@@ -820,44 +843,98 @@ def _pick_window(
     *,
     where: str = "main",
 ):  # type: ignore[no-untyped-def]  # pragma: no cover
-    """Kickoff date range for tips/slip; model stand = range start.
+    """Kickoff date range with draft → confirm; agenda days set the draft.
 
     ``where`` is ``"main"`` (page body) or ``"sidebar"`` (shared for Einfach).
+    Predictions always use the *committed* window until the user confirms.
     """
 
     start_default, end_default = _default_window_bounds(orchestrator, leagues, season, live)
-    # Persist under our OWN key (not the date_input's widget key). Streamlit
-    # drops a widget's state when the widget is not rendered on a run — e.g.
-    # while switching UX modes — which reset the date. A plain session_state
-    # entry survives that, so the chosen range stays put across mode switches.
     store = _window_key(leagues, season, live)
+    draft_store = _window_draft_key(leagues, season, live)
     if store not in st.session_state:
         st.session_state[store] = (start_default, end_default)
+    if draft_store not in st.session_state:
+        st.session_state[draft_store] = st.session_state[store]
 
     ui = st.sidebar if where == "sidebar" else st
     if where == "sidebar":
         ui.markdown(f"**{t('ctrl.window_sidebar', lang)}**")
 
+    committed = st.session_state[store]
+    draft = st.session_state[draft_store]
+    input_key = f"{draft_store}::input"
+    if input_key not in st.session_state:
+        st.session_state[input_key] = draft
+
+    def _set_draft(start: date, end: date) -> None:
+        st.session_state[draft_store] = (start, end)
+        st.session_state[input_key] = (start, end)
+
     presets = ui.columns(3)
-    if presets[0].button(t("ctrl.range_today", lang), width="stretch", key=f"{store}::today"):
-        st.session_state[store] = (start_default, start_default)
+    if presets[0].button(t("ctrl.range_today", lang), width="stretch", key=f"{draft_store}::today"):
+        _set_draft(start_default, start_default)
         st.rerun()
-    if presets[1].button(t("ctrl.range_3d", lang), width="stretch", key=f"{store}::3d"):
-        st.session_state[store] = (start_default, start_default + timedelta(days=2))
+    if presets[1].button(t("ctrl.range_3d", lang), width="stretch", key=f"{draft_store}::3d"):
+        _set_draft(start_default, start_default + timedelta(days=2))
         st.rerun()
-    if presets[2].button(t("ctrl.range_7d", lang), width="stretch", key=f"{store}::7d"):
-        st.session_state[store] = (start_default, start_default + timedelta(days=6))
+    if presets[2].button(t("ctrl.range_7d", lang), width="stretch", key=f"{draft_store}::7d"):
+        _set_draft(start_default, start_default + timedelta(days=6))
         st.rerun()
 
-    raw = ui.date_input(t("ctrl.date_range", lang), value=st.session_state[store])
+    raw = ui.date_input(
+        t("ctrl.date_range", lang),
+        key=input_key,
+    )
     if isinstance(raw, (tuple, list)) and len(raw) == 2:
-        start_d, end_d = raw[0], raw[1]
+        draft_start, draft_end = raw[0], raw[1]
     else:
-        start_d = end_d = raw if isinstance(raw, date) else start_default
-    if end_d < start_d:
-        start_d, end_d = end_d, start_d
-    st.session_state[store] = (start_d, end_d)
+        draft_start = draft_end = raw if isinstance(raw, date) else start_default
+    if draft_end < draft_start:
+        draft_start, draft_end = draft_end, draft_start
+    st.session_state[draft_store] = (draft_start, draft_end)
+
+    # Agenda look-ahead: show days with fixtures around the draft / defaults.
+    agenda_from = min(draft_start, start_default)
+    agenda_to = max(draft_end, start_default + timedelta(days=13 if not live else 6))
+    days = _fixture_days(orchestrator, leagues, season, agenda_from, agenda_to)
+    with ui.expander(t("ctrl.agenda", lang), expanded=False):
+        ui.caption(t("ctrl.agenda_hint", lang))
+        if not days:
+            ui.caption(t("ctrl.agenda_empty", lang))
+        else:
+            for day, labels in days[:12]:
+                cols = ui.columns([1, 3])
+                if cols[0].button(day.isoformat(), key=f"{draft_store}::day::{day.isoformat()}"):
+                    _set_draft(day, day)
+                    st.rerun()
+                preview = ", ".join(labels[:2])
+                if len(labels) > 2:
+                    preview += f" (+{len(labels) - 2})"
+                cols[1].caption(preview)
+
+    pending = st.session_state[draft_store] != committed
+    if pending:
+        ui.warning(t("ctrl.window_pending", lang))
+    else:
+        ui.caption(
+            t("ctrl.window_active", lang).format(
+                start=committed[0].isoformat(),
+                end=committed[1].isoformat(),
+            )
+        )
+    if ui.button(
+        t("ctrl.window_apply", lang),
+        type="primary" if pending else "secondary",
+        width="stretch",
+        key=f"{draft_store}::apply",
+        disabled=not pending,
+    ):
+        st.session_state[store] = st.session_state[draft_store]
+        st.rerun()
+
     ui.caption(t("ctrl.date_range_hint", lang))
+    start_d, end_d = st.session_state[store]
     as_of = _as_of_for_window(start_d, end_d, live=live)
     return as_of, start_d, end_d
 
@@ -1135,8 +1212,24 @@ def _slip_page(
 ) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
     """Theoretical tip slip across leagues and a kickoff date range."""
 
-    st.header(t("page.slip", lang))
-    from quantbot.preferences import is_glossary_seen, set_glossary_seen
+    from quantbot.preferences import is_glossary_seen
+
+    # Compact hero — brand + one line, no wall of copy.
+    st.markdown(
+        f"""
+        <div style="margin:0 0 1rem 0;padding:1.1rem 1.25rem;border-radius:12px;
+        background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 55%,#0f766e 100%);
+        color:#f8fafc;">
+          <div style="font-size:0.75rem;letter-spacing:0.14em;text-transform:uppercase;
+          opacity:0.75;">{t("slip.hero_kicker", lang)}</div>
+          <div style="font-size:1.85rem;font-weight:800;line-height:1.15;margin:0.2rem 0;">
+            {t("page.slip", lang)}
+          </div>
+          <div style="font-size:0.95rem;opacity:0.88;">{t("slip.hero_sub", lang)}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     if not (st.session_state.get("glossary_seen") or is_glossary_seen()):
         st.warning(t("slip.glossary_gate", lang))
         if st.button(t("slip.glossary_cta", lang), key="slip_goto_glossary"):
@@ -1147,9 +1240,7 @@ def _slip_page(
     beginner = ux_mode is UXMode.BEGINNER
     from_tips = bool(st.session_state.pop("slip_from_tips", False))
     if from_tips:
-        st.info(t("slip.from_tips", lang))
-    elif not beginner:
-        st.caption(t("slip.intro", lang))
+        st.caption(t("slip.from_tips", lang))
     if len(leagues) > 1:
         st.caption(t("slip.all_leagues", lang))
 
@@ -1167,30 +1258,6 @@ def _slip_page(
         _name_match_warnings(lang, orchestrator.provider, leagues)
     available = sum(1 for r in reports if r.signal.is_bet)
 
-    if not beginner:
-        st.caption(t("slip.cross_sport_note", lang))
-        if st.button(t("slip.smart_cross_sport", lang), key="slip_smart_cross"):
-            smart = build_smart_cross_sport_slip(
-                reports,
-                lang=lang,
-                max_legs=min(4, max(1, available or 1)),
-                min_edge=0.02,
-                min_data_quality=70.0,
-                prefer_mixed=True,
-            )
-            if smart is None or not smart.legs:
-                st.warning(t("slip.smart_empty", lang))
-            else:
-                st.session_state["slip_pref_style"] = "safe"
-                # Pre-select smart legs via session checkboxes on next run
-                for leg in smart.legs:
-                    st.session_state[f"slip_leg::{leg.match_id}"] = True
-                st.success(
-                    t("slip.smart_done", lang).format(n=len(smart.legs))
-                )
-                st.session_state["slip_smart_override"] = [leg.match_id for leg in smart.legs]
-                st.rerun()
-
     span_days = (end_d - start_d).days + 1
     default_legs = default_leg_count(
         beginner=beginner, span_days=span_days, available=max(available, 1)
@@ -1201,13 +1268,34 @@ def _slip_page(
         "boosted": t("slip.style_boosted", lang),
     }
     pref = st.session_state.pop("slip_pref_style", None)
-    # Beginner: selection only — no “booster” / high-odds accumulator style.
     style_options = ["safe"] if beginner else list(style_labels)
     if pref not in style_options:
         pref = "safe"
     style_index = style_options.index(pref)
 
-    def _controls() -> tuple[str, float, object, str]:
+    def _controls() -> tuple[str, float, object, str, bool]:
+        if not beginner:
+            if st.button(t("slip.smart_cross_sport", lang), key="slip_smart_cross"):
+                smart = build_smart_cross_sport_slip(
+                    reports,
+                    lang=lang,
+                    max_legs=min(4, max(1, available or 1)),
+                    min_edge=0.02,
+                    min_data_quality=70.0,
+                    prefer_mixed=True,
+                )
+                if smart is None or not smart.legs:
+                    st.warning(t("slip.smart_empty", lang))
+                else:
+                    st.session_state["slip_pref_style"] = "safe"
+                    for leg in smart.legs:
+                        st.session_state[f"slip_leg::{leg.match_id}"] = True
+                    st.session_state["slip_smart_override"] = [
+                        leg.match_id for leg in smart.legs
+                    ]
+                    st.rerun()
+            st.caption(t("slip.cross_sport_note", lang))
+
         style_local = st.radio(
             t("slip.style", lang),
             style_options,
@@ -1223,7 +1311,6 @@ def _slip_page(
             "balanced": t("slip.orient_balanced", lang),
             "contra": t("slip.orient_contra", lang),
         }
-        # Streamlit ignores ``value=`` once the widget key exists — pin default.
         if st.session_state.get("slip_orient") not in {"safe", "balanced", "contra"}:
             st.session_state["slip_orient"] = "safe"
         orient_local = st.select_slider(
@@ -1234,8 +1321,21 @@ def _slip_page(
             help=t("slip.orient_safe_default", lang),
         )
         st.caption(t("slip.orient_hint", lang))
-        # Migrate away legacy high-risk preference — never bypasses policy caps.
-        st.session_state.pop("slip_high_risk", None)
+
+        high_risk = False
+        if not beginner:
+            high_risk = st.checkbox(
+                t("slip.high_risk", lang),
+                value=bool(st.session_state.get("slip_high_risk", False)),
+                key="slip_high_risk",
+                help=t("slip.high_risk_help", lang),
+            )
+            if high_risk:
+                st.markdown(
+                    f'<p style="color:#b91c1c;font-weight:700;">{t("slip.high_risk_warn", lang)}</p>',
+                    unsafe_allow_html=True,
+                )
+
         stake_local = st.number_input(
             t("slip.stake", lang),
             min_value=0.0,
@@ -1245,8 +1345,10 @@ def _slip_page(
             key="slip_stake_input",
         )
         max_available = max(1, min(8, available or 1))
-        # Safe orientation: short kombis only (long slips explode combined odds).
-        max_cap = min(4, max_available) if orient_local == "safe" else max_available
+        if high_risk:
+            max_cap = max_available
+        else:
+            max_cap = min(4, max_available) if orient_local == "safe" else max_available
         if int(st.session_state.get("slip_max_legs", max_cap)) > max_cap:
             st.session_state["slip_max_legs"] = max_cap
         if max_cap <= 1:
@@ -1261,7 +1363,6 @@ def _slip_page(
                 help=t("slip.legs_risk", lang),
                 key="slip_max_legs",
             )
-        st.caption(t("slip.legs_risk", lang))
         st.caption(t("slip.limits_caption", lang).format(n=max_legs_local, cap=max_cap))
 
         if style_local == "safe":
@@ -1270,59 +1371,66 @@ def _slip_page(
                 lang=lang,
                 max_legs=max_legs_local,
                 bias=orient_local,
+                allow_high_risk=high_risk,
             )
         else:
-            core_legs = max(1, (max_legs_local + 1) // 2) if beginner else max(1, min(2, max_legs_local))
+            core_legs = (
+                max(1, (max_legs_local + 1) // 2)
+                if beginner
+                else max(1, min(2, max_legs_local))
+            )
             boost_legs = max(0, max_legs_local - core_legs)
             if not beginner:
                 c1, c2 = st.columns(2)
-                core_legs = c1.slider(t("slip.core_legs", lang), min_value=1, max_value=5, value=core_legs)
-                boost_legs = c2.slider(t("slip.boost_legs", lang), min_value=0, max_value=4, value=boost_legs)
+                core_legs = c1.slider(
+                    t("slip.core_legs", lang), min_value=1, max_value=5, value=core_legs
+                )
+                boost_legs = c2.slider(
+                    t("slip.boost_legs", lang), min_value=0, max_value=4, value=boost_legs
+                )
             slip_local = build_boosted_slip(
                 reports,
                 lang=lang,
                 core_legs=core_legs,
                 boost_legs=boost_legs,
                 bias=orient_local,
+                allow_high_risk=high_risk,
             )
-        return style_local, float(stake_local), slip_local, orient_local
+        return style_local, float(stake_local), slip_local, orient_local, high_risk
 
     smart_ids = st.session_state.pop("slip_smart_override", None)
     orient_used = st.session_state.get("slip_orient", "safe")
+    high_risk_used = bool(st.session_state.get("slip_high_risk", False))
 
-    if beginner:
-        # Ticket first; knobs live in an expander so the slip stays the hero.
-        with st.expander(t("slip.adjust", lang), expanded=False):
-            _style, stake, slip, orient_used = _controls()
-            if slip is not None and slip.legs:
-                st.caption(t("slip.edit_legs", lang))
-                selected_ids = []
-                for leg in slip.legs:
-                    tip_short = leg.tip.replace("Tipp: ", "").replace("Tip: ", "")
-                    label = f"{leg.match} — {tip_short} ({leg.odds:.2f})"
-                    if st.checkbox(label, value=True, key=f"slip_leg::{leg.match_id}"):
-                        selected_ids.append(leg.match_id)
-                slip = slip_with_legs(slip, selected_ids)
-    else:
+    with st.expander(t("slip.adjust", lang), expanded=False):
         if smart_ids:
             slip = build_smart_cross_sport_slip(
-                reports, lang=lang, max_legs=len(smart_ids), min_edge=0.02, min_data_quality=70.0
+                reports,
+                lang=lang,
+                max_legs=len(smart_ids),
+                min_edge=0.02,
+                min_data_quality=70.0,
             )
             stake = float(st.session_state.get("slip_stake_input", 1.0))
-            _style = "safe"
+            high_risk_used = False
             if slip is not None:
-                slip = slip_with_legs(slip, smart_ids)
+                slip = slip_with_legs(slip, smart_ids, allow_high_risk=False)
         else:
-            _style, stake, slip, orient_used = _controls()
+            _style, stake, slip, orient_used, high_risk_used = _controls()
         if slip is not None and slip.legs:
-            st.subheader(t("slip.edit_legs", lang))
+            st.caption(t("slip.edit_legs", lang))
             selected_ids = []
             for leg in slip.legs:
-                tip_short = leg.tip.replace("Tipp: ", "").replace("Tip: ", "")
+                tip_short = (
+                    leg.tip.replace("Tipp: ", "")
+                    .replace("Tip: ", "")
+                    .replace("Value erkannt: ", "")
+                    .replace("Value spotted: ", "")
+                )
                 label = f"{leg.match} — {tip_short} ({leg.odds:.2f})"
                 if st.checkbox(label, value=True, key=f"slip_leg::{leg.match_id}"):
                     selected_ids.append(leg.match_id)
-            slip = slip_with_legs(slip, selected_ids)
+            slip = slip_with_legs(slip, selected_ids, allow_high_risk=high_risk_used)
 
     if slip is None or not slip.legs:
         st.info(t("slip.empty", lang))
@@ -1331,38 +1439,41 @@ def _slip_page(
     stake = max(0.0, float(stake))
 
     st.subheader(t("slip.ticket_title", lang))
-    st.caption(t("slip.range_note", lang).format(start=start_d.isoformat(), end=end_d.isoformat()))
-    orient_labels_view = {
-        "safe": t("slip.orient_safe", lang),
-        "balanced": t("slip.orient_balanced", lang),
-        "contra": t("slip.orient_contra", lang),
-    }
     st.caption(
-        t("slip.active_orient", lang).format(
-            orient=orient_labels_view.get(str(orient_used), str(orient_used))
+        f"{t('slip.range_note', lang).format(start=start_d.isoformat(), end=end_d.isoformat())} · "
+        + t("slip.active_orient", lang).format(
+            orient={
+                "safe": t("slip.orient_safe", lang),
+                "balanced": t("slip.orient_balanced", lang),
+                "contra": t("slip.orient_contra", lang),
+            }.get(str(orient_used), str(orient_used))
         )
     )
-    # Builders trim to plausible; leftover flag is rare (manual edits).
-    if not slip.is_plausible:
+    if high_risk_used:
+        st.markdown(
+            f'<p style="color:#b91c1c;font-weight:700;">{t("slip.high_risk_warn", lang)}</p>',
+            unsafe_allow_html=True,
+        )
+        wanted = int(st.session_state.get("slip_max_legs", len(slip.legs)))
+        st.caption(
+            t("slip.high_risk_count", lang).format(have=len(slip.legs), want=wanted)
+        )
+    elif not slip.is_plausible:
         st.error(t("slip.implausible", lang))
     elif len(slip.legs) < max(1, int(st.session_state.get("slip_max_legs", len(slip.legs)))):
         st.info(t("slip.trimmed_note", lang))
     st.html(ticket_html(slip, lang=lang, stake=stake))
     _render_ollama_explain(lang, slip, stake)
-    with st.expander(t("slip.copy_title", lang), expanded=beginner):
+    with st.expander(t("slip.copy_title", lang), expanded=False):
         st.code(format_ticket(slip, lang=lang, stake=stake), language=None)
 
     if not beginner:
         m1, m2, m3 = st.columns(3)
         m1.metric(t("slip.combined_odds", lang), f"{slip.combined_odds:.2f}")
-        prob_display = t("slip.combo_chance_na", lang)
+        m2.metric(t("slip.combined_prob", lang), t("slip.combo_chance_na", lang))
         ev_display = f"{slip.expected_value * 100:.1f}%" if slip.is_plausible else "—"
-        m2.metric(t("slip.combined_prob", lang), prob_display)
         m3.metric(t("slip.combined_ev", lang), ev_display)
-        if len(slip.legs) > 1:
-            st.warning(t("slip.disclaimer", lang))
-        else:
-            st.caption(t("slip.disclaimer", lang))
+        st.caption(t("slip.disclaimer", lang))
         _slip_paper_reserve(lang, mode, slip, stake)
     else:
         st.caption(t("slip.disclaimer", lang))
