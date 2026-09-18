@@ -20,14 +20,13 @@ from quantbot.config import get_settings
 from quantbot.data.base import BaseDataProvider
 from quantbot.data.dummy import DummyDataProvider
 from quantbot.decision.engine import DecisionEngine
-from quantbot.decision.rules import NoBetRules
-from quantbot.decision.sizing import KellySizer
+from quantbot.decision.policy import DecisionPolicy, policy_for_mode
 from quantbot.logging import get_logger
 from quantbot.markets.odds import MarketEngine
 from quantbot.models.base import BaseModel, NotFittedError
 from quantbot.models.calibrated import CalibratedModel
 from quantbot.models.elo import EloModel
-from quantbot.schemas import InjuryStatus, League, Match, SignalType, ValueSignal
+from quantbot.schemas import InjuryStatus, League, Match, ValueSignal
 
 logger = get_logger(__name__)
 
@@ -51,6 +50,8 @@ class QuantBotOrchestrator:
         model: Prediction model refit per as_of (defaults to Elo).
         market_engine / analysis_engine / decision_engine: Pipeline stages.
         initial_bankroll: Starting bankroll for backtests.
+        decision_policy: Versioned policy (defaults from ``live`` flag).
+        live: When no policy/engine is passed, select live vs demo profile.
     """
 
     def __init__(
@@ -62,12 +63,18 @@ class QuantBotOrchestrator:
         decision_engine: DecisionEngine | None = None,
         initial_bankroll: float = 1000.0,
         calibrator: BaseCalibrator | None = None,
-        min_team_matches: int = 0,
+        min_team_matches: int | None = None,
+        *,
+        decision_policy: DecisionPolicy | None = None,
+        live: bool = False,
     ) -> None:
-        # Below this many finished matches for either team, issue no tip: a
-        # goals model fit on a handful of games per team is overconfident
-        # (extreme probabilities), so early-season data is not trustworthy.
-        self.min_team_matches = max(0, int(min_team_matches))
+        policy = decision_policy or policy_for_mode(live=live)
+        if min_team_matches is not None:
+            from dataclasses import replace
+
+            policy = replace(policy, min_team_matches=max(0, int(min_team_matches)))
+        self.policy = policy
+        self.min_team_matches = policy.min_team_matches
         self.provider = provider or DummyDataProvider()
         base_model = model or EloModel()
         # Optionally wrap the model so calibrated probabilities reach the
@@ -79,17 +86,7 @@ class QuantBotOrchestrator:
         self.market_engine = market_engine or MarketEngine(method=settings.margin_method)
         self.analysis_engine = analysis_engine or AnalysisEngine()
         if decision_engine is None:
-            decision_engine = DecisionEngine(
-                rules=NoBetRules(
-                    min_edge=settings.min_edge,
-                    min_data_quality=settings.min_data_quality,
-                    min_model_confidence=settings.min_model_confidence,
-                ),
-                sizer=KellySizer(
-                    kelly_fraction=settings.kelly_fraction,
-                    max_fraction=0.05,
-                ),
-            )
+            decision_engine = DecisionEngine.from_policy(policy)
         self.decision_engine = decision_engine
         self.initial_bankroll = initial_bankroll
         self._totals_margin_method = settings.totals_margin_method
@@ -174,17 +171,12 @@ class QuantBotOrchestrator:
             analysis = self.analysis_engine.analyze(
                 prediction, market, entry.decimal_odds(), quality
             )
-            if min(quality.home_matches, quality.away_matches) < self.min_team_matches:
-                # Too little history for this pairing: no reliable tip.
-                reports.append(
-                    SignalReport(
-                        match=match,
-                        signal=self._insufficient_data_signal(market, analysis),
-                        analysis=analysis,
-                    )
-                )
-                continue
-            signal = self.decision_engine.decide(analysis, market)
+            signal = self.decision_engine.decide(
+                analysis,
+                market,
+                home_matches=quality.home_matches,
+                away_matches=quality.away_matches,
+            )
             if use_basketball and isinstance(model, BasketballModel):
                 signal = self._maybe_prefer_nba_totals(
                     match=match,
@@ -217,24 +209,6 @@ class QuantBotOrchestrator:
             n_bets,
         )
         return reports
-
-    def _insufficient_data_signal(
-        self, market, analysis: AnalysisResult
-    ) -> ValueSignal:
-        """A NO_BET signal used when a team has too little match history."""
-
-        return ValueSignal(
-            match_id=analysis.match_id,
-            timestamp=market.timestamp,
-            signal=SignalType.NO_BET,
-            model_confidence=analysis.model_confidence,
-            data_quality=analysis.data_quality,
-            stake_fraction=0.0,
-            rationale="insufficient team match history",
-            rationale_de="Zu wenig Spiele pro Team für einen verlässlichen Tipp.",
-            rationale_en="Too few matches per team for a reliable tip.",
-            metrics=analysis.metrics,
-        )
 
     def _maybe_prefer_totals(
         self,
@@ -277,6 +251,8 @@ class QuantBotOrchestrator:
             metrics=totals_metrics,
             data_quality=data_quality,
             model_confidence=model_confidence,
+            home_matches=None if quality is None else quality.home_matches,
+            away_matches=None if quality is None else quality.away_matches,
         )
         if not totals_signal.is_bet:
             return signal_1x2
@@ -338,6 +314,8 @@ class QuantBotOrchestrator:
             metrics=metrics,
             data_quality=data_quality,
             model_confidence=model_confidence,
+            home_matches=None if quality is None else quality.home_matches,
+            away_matches=None if quality is None else quality.away_matches,
         )
         if not totals_signal.is_bet:
             return signal_ml

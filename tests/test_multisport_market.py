@@ -40,12 +40,13 @@ def _leg(index: int, *, odds: float, prob: float) -> SlipLeg:
 def test_slip_multiplies_probs_and_flags_required_thresholds() -> None:
     slip = BettingSlip((_leg(1, odds=2.0, prob=0.6), _leg(2, odds=2.0, prob=0.5)), "safe")
     assert slip.combined_prob == pytest.approx(0.3)
-    assert slip.geschaetzte_chance == "30.0 %"
+    assert slip.geschaetzte_chance == "n/a"
+    assert slip.independence_scenario_pct == pytest.approx(30.0)
     inflated = BettingSlip((_leg(1, odds=4.0, prob=0.4), _leg(2, odds=4.0, prob=0.4)), "safe")
     assert inflated.combined_prob * inflated.combined_odds > 2.5
-    assert inflated.geschaetzte_chance == "unrealistisch"
+    assert inflated.independence_scenario_pct is None
     longshot = BettingSlip((_leg(1, odds=8.01, prob=0.15),), "safe")
-    assert longshot.geschaetzte_chance == "unrealistisch"
+    assert longshot.independence_scenario_pct is None
 
 
 def test_moneyline_uses_two_way_power_without_phantom_draw() -> None:

@@ -23,8 +23,7 @@ from quantbot.analysis.engine import AnalysisEngine
 from quantbot.config import DATA_DIR
 from quantbot.data.base import BaseDataProvider
 from quantbot.decision.engine import DecisionEngine
-from quantbot.decision.rules import NoBetRules
-from quantbot.decision.sizing import KellySizer
+from quantbot.decision.policy import demo_tracker_policy
 from quantbot.logging import get_logger
 from quantbot.markets.odds import MarketEngine
 from quantbot.models.base import BaseModel, NotFittedError
@@ -37,20 +36,9 @@ _FAR_FUTURE = datetime(2100, 1, 1, tzinfo=timezone.utc)
 
 
 def _lenient_decision() -> DecisionEngine:
-    """A permissive decision engine so the demo tracker shows tips."""
+    """Explicit demo-tracker profile — never used for live decisions."""
 
-    return DecisionEngine(
-        rules=NoBetRules(
-            min_ev=0.02,
-            min_edge=0.0,
-            max_overround=1.0,
-            min_data_quality=0.0,
-            min_model_confidence=0.0,
-            min_odds=1.01,
-            max_odds=100.0,
-        ),
-        sizer=KellySizer(kelly_fraction=0.25, max_fraction=0.05),
-    )
+    return DecisionEngine.from_policy(demo_tracker_policy())
 
 
 @dataclass(frozen=True)

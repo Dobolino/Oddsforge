@@ -582,10 +582,14 @@ _STRINGS: dict[str, dict[str, str]] = {
         "en": "Tips on slip: {have} (requested: {want}).",
     },
     "slip.limits_caption": {
-        "de": "Gewählt: {n} Tipps (max. {cap} in diesem Modus). Ohne „Höheres Risiko“ kürzt "
-              "das System den Schein, wenn die Kombi unglaubwürdig wird.",
-        "en": "Selected: {n} tips (max {cap} in this mode). Without “Higher risk” the system "
-              "shortens the slip when the combo becomes unrealistic.",
+        "de": "Gewählt: {n} Tipps (max. {cap} in diesem Modus). Das System kürzt den Schein, "
+              "wenn die Kombi unglaubwürdig wird — Schutzregeln lassen sich nicht umgehen.",
+        "en": "Selected: {n} tips (max {cap} in this mode). The system shortens the slip when "
+              "the combo becomes unrealistic — safety rules cannot be bypassed.",
+    },
+    "slip.combo_chance_na": {
+        "de": "nicht belastbar",
+        "en": "not reliable",
     },
     "slip.style_safe": {"de": "Hohe Modell-P", "en": "High model-P"},
     "slip.style_boosted": {

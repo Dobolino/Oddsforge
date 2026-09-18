@@ -104,6 +104,13 @@ class ValueSignal(QuantBotModel):
     reason_codes: tuple[str, ...] = Field(default_factory=tuple)
     metrics: tuple[ValueMetrics, ...] = Field(default_factory=tuple)
     totals_line: float | None = Field(default=None, gt=0.0)
+    # Central DecisionPolicy audit fields (defaults keep legacy constructors valid).
+    policy_version: str = Field(default="")
+    policy_profile: str = Field(default="")
+    validation_status: str = Field(default="unvalidated")
+    decision_status: str = Field(default="")
+    sizing_allowed: bool = False
+    p_final: float | None = Field(default=None, ge=0.0, le=1.0)
 
     @model_validator(mode="after")
     def _validate(self) -> ValueSignal:

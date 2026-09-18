@@ -43,15 +43,6 @@ def test_slip_with_legs_filters_and_recomputes() -> None:
     assert empty.legs == ()
 
 
-def test_i18n_high_risk_warning_present() -> None:
-    from quantbot.i18n import t
-
-    warn_de = t("slip.high_risk_warn", "de")
-    warn_en = t("slip.high_risk_warn", "en")
-    assert "HÖHERES RISIKO" in warn_de
-    assert "HIGHER RISK" in warn_en
-    assert t("slip.high_risk", "de")
-    assert t("slip.limits_caption", "de")
 
 def test_default_leg_count_beginner_is_short() -> None:
     assert default_leg_count(beginner=True, span_days=7, available=10) == 3

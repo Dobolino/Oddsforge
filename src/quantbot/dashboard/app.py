@@ -418,11 +418,8 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
         # Pull model probabilities toward the fair market when data is thin, so
         # sparse-fit overconfidence does not turn into false value.
         analysis_engine=AnalysisEngine(market_shrinkage=True),
-        # No tip when a team has fewer than this many finished matches. Kept low
-        # (3) because calibration + market shrinkage already temper thin-data
-        # probabilities; this only blocks the most extreme sparsity (1-2 games),
-        # so tips still appear a few matchdays into the season.
         min_team_matches=3,
+        live=live,
     )
     mode = "live" if live else "demo"
     C = _install_cache()
@@ -1192,18 +1189,8 @@ def _slip_page(
             help=t("slip.orient_safe_default", lang),
         )
         st.caption(t("slip.orient_hint", lang))
-        high_risk = st.checkbox(
-            t("slip.high_risk", lang),
-            value=bool(st.session_state.get("slip_high_risk", False)),
-            key="slip_high_risk",
-            help=t("slip.high_risk_help", lang),
-        )
-        if high_risk:
-            st.markdown(
-                f'<p style="font-weight:800;font-size:1.05rem;color:#b00020;margin:0.2rem 0 0.6rem 0;">'
-                f'{t("slip.high_risk_warn", lang)}</p>',
-                unsafe_allow_html=True,
-            )
+        # Migrate away legacy high-risk preference — never bypasses policy caps.
+        st.session_state.pop("slip_high_risk", None)
         stake_local = st.number_input(
             t("slip.stake", lang),
             min_value=0.0,
@@ -1213,11 +1200,8 @@ def _slip_page(
             key="slip_stake_input",
         )
         max_available = max(1, min(8, available or 1))
-        # Safe orientation: short kombis only — unless high-risk override is on.
-        if high_risk:
-            max_cap = max_available
-        else:
-            max_cap = min(4, max_available) if orient_local == "safe" else max_available
+        # Safe orientation: short kombis only (long slips explode combined odds).
+        max_cap = min(4, max_available) if orient_local == "safe" else max_available
         if int(st.session_state.get("slip_max_legs", max_cap)) > max_cap:
             st.session_state["slip_max_legs"] = max_cap
         if max_cap <= 1:
@@ -1241,7 +1225,6 @@ def _slip_page(
                 lang=lang,
                 max_legs=max_legs_local,
                 bias=orient_local,
-                allow_high_risk=high_risk,
             )
         else:
             core_legs = max(1, (max_legs_local + 1) // 2) if beginner else max(1, min(2, max_legs_local))
@@ -1256,18 +1239,16 @@ def _slip_page(
                 core_legs=core_legs,
                 boost_legs=boost_legs,
                 bias=orient_local,
-                allow_high_risk=high_risk,
             )
-        return style_local, float(stake_local), slip_local, orient_local, high_risk
+        return style_local, float(stake_local), slip_local, orient_local
 
     smart_ids = st.session_state.pop("slip_smart_override", None)
     orient_used = st.session_state.get("slip_orient", "safe")
-    high_risk_used = bool(st.session_state.get("slip_high_risk", False))
 
     if beginner:
         # Ticket first; knobs live in an expander so the slip stays the hero.
         with st.expander(t("slip.adjust", lang), expanded=False):
-            _style, stake, slip, orient_used, high_risk_used = _controls()
+            _style, stake, slip, orient_used = _controls()
             if slip is not None and slip.legs:
                 st.caption(t("slip.edit_legs", lang))
                 selected_ids = []
@@ -1276,7 +1257,7 @@ def _slip_page(
                     label = f"{leg.match} — {tip_short} ({leg.odds:.2f})"
                     if st.checkbox(label, value=True, key=f"slip_leg::{leg.match_id}"):
                         selected_ids.append(leg.match_id)
-                slip = slip_with_legs(slip, selected_ids, allow_high_risk=high_risk_used)
+                slip = slip_with_legs(slip, selected_ids)
     else:
         if smart_ids:
             slip = build_smart_cross_sport_slip(
@@ -1285,9 +1266,9 @@ def _slip_page(
             stake = float(st.session_state.get("slip_stake_input", 10.0))
             _style = "safe"
             if slip is not None:
-                slip = slip_with_legs(slip, smart_ids, allow_high_risk=high_risk_used)
+                slip = slip_with_legs(slip, smart_ids)
         else:
-            _style, stake, slip, orient_used, high_risk_used = _controls()
+            _style, stake, slip, orient_used = _controls()
         if slip is not None and slip.legs:
             st.subheader(t("slip.edit_legs", lang))
             selected_ids = []
@@ -1296,7 +1277,7 @@ def _slip_page(
                 label = f"{leg.match} — {tip_short} ({leg.odds:.2f})"
                 if st.checkbox(label, value=True, key=f"slip_leg::{leg.match_id}"):
                     selected_ids.append(leg.match_id)
-            slip = slip_with_legs(slip, selected_ids, allow_high_risk=high_risk_used)
+            slip = slip_with_legs(slip, selected_ids)
 
     if slip is None or not slip.legs:
         st.info(t("slip.empty", lang))
@@ -1316,25 +1297,11 @@ def _slip_page(
             orient=orient_labels_view.get(str(orient_used), str(orient_used))
         )
     )
-    if high_risk_used:
-        st.markdown(
-            f'<p style="font-weight:800;font-size:1.1rem;color:#b00020;">'
-            f'{t("slip.high_risk_warn", lang)}</p>',
-            unsafe_allow_html=True,
-        )
-    # Builders already trim to plausible unless high-risk override is on.
+    # Builders trim to plausible; leftover flag is rare (manual edits).
     if not slip.is_plausible:
         st.error(t("slip.implausible", lang))
-    elif (
-        not high_risk_used
-        and len(slip.legs) < max(1, int(st.session_state.get("slip_max_legs", len(slip.legs))))
-    ):
+    elif len(slip.legs) < max(1, int(st.session_state.get("slip_max_legs", len(slip.legs)))):
         st.info(t("slip.trimmed_note", lang))
-    if high_risk_used and slip.legs:
-        wanted = int(st.session_state.get("slip_max_legs", len(slip.legs)))
-        st.caption(
-            t("slip.high_risk_count", lang).format(have=len(slip.legs), want=wanted)
-        )
     st.html(ticket_html(slip, lang=lang, stake=stake))
     _render_ollama_explain(lang, slip, stake)
     with st.expander(t("slip.copy_title", lang), expanded=beginner):
@@ -1343,9 +1310,7 @@ def _slip_page(
     if not beginner:
         m1, m2, m3 = st.columns(3)
         m1.metric(t("slip.combined_odds", lang), f"{slip.combined_odds:.2f}")
-        prob_display = f"{slip.combined_prob * 100:.1f}%" if slip.is_plausible else (
-            "unrealistisch" if lang.startswith("de") else "not realistic"
-        )
+        prob_display = t("slip.combo_chance_na", lang)
         ev_display = f"{slip.expected_value * 100:.1f}%" if slip.is_plausible else "—"
         m2.metric(t("slip.combined_prob", lang), prob_display)
         m3.metric(t("slip.combined_ev", lang), ev_display)

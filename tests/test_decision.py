@@ -175,15 +175,24 @@ def test_rules_collect_multiple_reasons() -> None:
 
 
 def test_decision_engine_value_signal() -> None:
-    engine = DecisionEngine(
-        rules=NoBetRules(min_ev=0.0, min_edge=0.03, min_data_quality=60.0, min_model_confidence=55.0),
-        sizer=KellySizer(kelly_fraction=0.25, max_fraction=0.1),
+    from dataclasses import replace
+
+    from quantbot.decision import ValidationStatus, live_policy
+
+    policy = replace(
+        live_policy().with_validation(ValidationStatus.VALID),
+        min_ev=0.0,
+        min_edge=0.03,
+        kelly_fraction=0.25,
+        max_stake_fraction=0.1,
     )
+    engine = DecisionEngine.from_policy(policy)
     metric = _metric(MatchOutcome.HOME, 0.60, 0.50, 2.1)  # edge 0.10, ev 0.26
     signal = engine.decide(_analysis(metric), _market())
     assert signal.signal is SignalType.VALUE_HOME
     assert signal.chosen_outcome is MatchOutcome.HOME
     assert signal.stake_fraction > 0.0
+    assert signal.sizing_allowed is True
     assert signal.edge == pytest.approx(0.10)
     assert "value on home" in signal.rationale
     assert "Vorteil" in signal.rationale_de
