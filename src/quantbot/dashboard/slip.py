@@ -292,25 +292,34 @@ def build_safe_slip(
     lang: str = "de",
     max_legs: int = 3,
     bias: str = "safe",
+    allow_high_risk: bool = False,
 ) -> BettingSlip | None:
     """Slip built from value tips, ranked by the chosen orientation ``bias``.
 
-    High-risk bypasses were removed: plausibility / combined-odds caps always
-    apply. Underdog legs above 8.0 stay filtered out. At most one tip per match.
+    With ``allow_high_risk=True`` plausibility / combined-odds caps are lifted
+    so longer slips are possible — the UI must warn boldly. Underdog legs
+    above 8.0 stay filtered out. At most one tip per match.
     """
 
-    legs = _value_legs(reports, lang, bias=bias)
+    filter_bias = "balanced" if (allow_high_risk and bias == "safe") else bias
+    legs = _value_legs(reports, lang, bias=filter_bias)
     if not legs:
         return None
-    legs.sort(key=_leg_sort_key(bias))
-    cap = min(max(1, max_legs), _MAX_SAFE_LEGS if bias == "safe" else max_legs)
-    combined_cap = _MAX_SAFE_COMBINED_ODDS if bias == "safe" else None
+    legs.sort(key=_leg_sort_key(filter_bias))
+    if allow_high_risk:
+        cap = max(1, max_legs)
+        combined_cap = None
+        enforce = False
+    else:
+        cap = min(max(1, max_legs), _MAX_SAFE_LEGS if bias == "safe" else max_legs)
+        combined_cap = _MAX_SAFE_COMBINED_ODDS if bias == "safe" else None
+        enforce = True
     return _select_plausible_legs(
         legs,
         max_legs=cap,
         style="safe",
         max_combined_odds=combined_cap,
-        enforce_plausible=True,
+        enforce_plausible=enforce,
     )
 
 
@@ -322,20 +331,22 @@ def build_boosted_slip(
     boost_legs: int = 2,
     min_boost_odds: float = 2.2,
     bias: str = "safe",
+    allow_high_risk: bool = False,
 ) -> BettingSlip | None:
     """Safer core tips plus higher-odds legs to lift the combined price."""
 
-    legs = _value_legs(reports, lang, bias=bias)
+    filter_bias = "balanced" if (allow_high_risk and bias == "safe") else bias
+    legs = _value_legs(reports, lang, bias=filter_bias)
     if not legs:
         return None
 
-    by_prob = sorted(legs, key=_leg_sort_key(bias))
+    by_prob = sorted(legs, key=_leg_sort_key(filter_bias))
     core_n = max(1, min(core_legs, len(by_prob)))
     core_slip = _select_plausible_legs(
         [_copy_leg(leg, role="core") for leg in by_prob[: max(core_n * 2, core_n)]],
         max_legs=core_n,
         style="boosted",
-        enforce_plausible=True,
+        enforce_plausible=not allow_high_risk,
     )
     if core_slip is None:
         return None
@@ -354,17 +365,22 @@ def build_boosted_slip(
         if booster.match_id in {leg.match_id for leg in chosen}:
             continue
         trial = BettingSlip(legs=tuple(chosen + [booster]), style="boosted")
-        if trial.is_plausible:
+        if allow_high_risk or trial.is_plausible:
             chosen.append(booster)
 
     return BettingSlip(legs=tuple(chosen), style="boosted")
 
 
-def slip_with_legs(slip: BettingSlip, match_ids: Sequence[str]) -> BettingSlip:
+def slip_with_legs(
+    slip: BettingSlip,
+    match_ids: Sequence[str],
+    *,
+    allow_high_risk: bool = False,
+) -> BettingSlip:
     """Keep only selected legs (order preserved); empty selection → empty slip.
 
-    Duplicate match_ids are rejected. Manual edits are re-checked for
-    plausibility — there is no high-risk bypass.
+    Duplicate match_ids are rejected. Without high-risk, manual edits are
+    re-checked for plausibility.
     """
 
     wanted: list[str] = []
@@ -376,10 +392,11 @@ def slip_with_legs(slip: BettingSlip, match_ids: Sequence[str]) -> BettingSlip:
         wanted.append(mid)
     wanted_set = set(wanted)
     kept = tuple(leg for leg in slip.legs if leg.match_id in wanted_set)
-    # Preserve user order of match_ids when possible.
     by_id = {leg.match_id: leg for leg in kept}
     ordered = tuple(by_id[mid] for mid in wanted if mid in by_id)
     trimmed = BettingSlip(legs=ordered, style=slip.style)
+    if allow_high_risk:
+        return trimmed
     return make_plausible_slip(trimmed) or trimmed
 
 
@@ -493,6 +510,11 @@ def format_ticket(
     lines.append("╠══════════════════════════════════════╣")
     for i, leg in enumerate(slip.legs, start=1):
         tip_short = leg.tip.replace("Tipp: ", "").replace("Tip: ", "")
+        tip_short = (
+            tip_short.replace("Value erkannt: ", "")
+            .replace("Value spotted: ", "")
+            .strip()
+        )
         role = "  ★ Zusatz" if leg.role == "boost" and de else (
             "  ★ Extra" if leg.role == "boost" else ""
         )
@@ -511,32 +533,28 @@ def format_ticket(
     if de:
         lines.append(f"║  Einheiten:         {stake:>8.2f}         ║")
         lines.append(f"║  Gesamtquote:       {slip.combined_odds:>8.2f}         ║")
-        lines.append(f"║  Sim. Auszahlungsf.:{payout:>8.2f}         ║")
-        lines.append("║  Kombi-P: nicht belastbar (keine      ║")
-        lines.append("║           freigegebene Wahrscheinlichkeit)║")
+        lines.append(f"║  Sim. Auszahlung:   {payout:>8.2f}         ║")
+        lines.append("║  Kombi-P: nicht belastbar             ║")
         scen = slip.independence_scenario_pct
         if scen is not None:
             lines.append(f"║  Unabh.-Szenario*:  {scen:>7.1f} %        ║")
     else:
         lines.append(f"║  Units:             {stake:>8.2f}         ║")
         lines.append(f"║  Combined odds:     {slip.combined_odds:>8.2f}         ║")
-        lines.append(f"║  Sim. payout factor:{payout:>8.2f}         ║")
-        lines.append("║  Combo P: not reliable (no released   ║")
-        lines.append("║           accumulator probability)    ║")
+        lines.append(f"║  Sim. payout:       {payout:>8.2f}         ║")
+        lines.append("║  Combo P: not reliable                ║")
         scen = slip.independence_scenario_pct
         if scen is not None:
             lines.append(f"║  Indep. scenario*:  {scen:>7.1f} %        ║")
     lines.append("╠══════════════════════════════════════╣")
     if de:
-        lines.append("║  * Produkt der Einzel-P unter         ║")
-        lines.append("║    Unabhängigkeit — kein Freigabe-P.  ║")
+        lines.append("║  * Produkt der Einzel-P (Diagnostik)  ║")
         if not slip.is_plausible:
-            lines.append("║  ⚠ Ausreißer-Diagnostik: Werte extrem ║")
+            lines.append("║  ⚠ Ausreißer — kein Freigabe-P.       ║")
     else:
-        lines.append("║  * Product of leg probs under         ║")
-        lines.append("║    independence — not a released P.   ║")
+        lines.append("║  * Product of leg probs (diagnostic)  ║")
         if not slip.is_plausible:
-            lines.append("║  ⚠ Outlier diagnostic: extreme values ║")
+            lines.append("║  ⚠ Outlier — not a released P.        ║")
     lines.append("╠══════════════════════════════════════╣")
     note = (
         "  Nur Vorschlag. QuantBot wettet nicht.  "
@@ -570,6 +588,11 @@ def ticket_html(
     rows: list[str] = []
     for i, leg in enumerate(slip.legs, start=1):
         tip_short = leg.tip.replace("Tipp: ", "").replace("Tip: ", "")
+        tip_short = (
+            tip_short.replace("Value erkannt: ", "")
+            .replace("Value spotted: ", "")
+            .strip()
+        )
         match_name = escape(leg.match)
         tip_badge = tip_badge_html(tip_kind_from_label(leg.tip), lang, text=tip_short)
         badge = (
@@ -612,41 +635,32 @@ def ticket_html(
         )
     stake_lbl = "Einheiten" if de else "Units"
     odds_lbl = "Gesamtquote" if de else "Combined odds"
-    win_lbl = "Sim. Auszahlungsfaktor" if de else "Sim. payout factor"
-    chance_lbl = "Kombi-Wahrscheinlichkeit" if de else "Accumulator probability"
+    win_lbl = "Sim. Auszahlung" if de else "Sim. payout"
+    chance_lbl = "Kombi-P" if de else "Combo P"
     title = "KOMBI-SIMULATION" if de else "ACCUMULATOR SCENARIO"
     sub = (
-        "Nur ein Vorschlag zum Abschreiben — QuantBot setzt nichts."
+        "Nur Vorschlag — QuantBot wettet nicht."
         if de
-        else "Suggestion only — QuantBot places nothing."
+        else "Suggestion only — QuantBot does not bet."
     )
     scen = slip.independence_scenario_pct
-    chance_txt = (
-        "Keine belastbare Kombi-Wahrscheinlichkeit verfügbar"
-        if de
-        else "No reliable accumulator probability available"
-    )
+    chance_txt = "nicht belastbar" if de else "not reliable"
     chance_row = (
         f'<div style="display:flex;justify-content:space-between;margin:0.25rem 0;gap:0.5rem;">'
         f"<span>{chance_lbl}</span>"
         f'<b style="text-align:right;">{chance_txt}</b></div>'
     )
     if scen is not None:
-        scen_lbl = "Unabh.-Szenario (Diagnostik)" if de else "Indep. scenario (diagnostic)"
+        scen_lbl = "Unabh.-Szenario*" if de else "Indep. scenario*"
         chance_row += (
             f'<div style="display:flex;justify-content:space-between;margin:0.25rem 0;'
             f'font-size:0.9rem;opacity:0.85;"><span>{scen_lbl}</span>'
             f"<span>{scen:.1f} %</span></div>"
         )
     if not slip.is_plausible:
-        warn = (
-            "Ausreißer-Diagnostik: extreme Modellwerte — kein Freigabe-P."
-            if de
-            else "Outlier diagnostic: extreme model values — not a released P."
-        )
+        warn = "⚠ Ausreißer — kein Freigabe-P." if de else "⚠ Outlier — not a released P."
         chance_row += (
-            f'<div style="margin-top:0.4rem;padding:0.4rem 0.5rem;background:#fce8e6;color:#b00020;'
-            f'border-radius:4px;font-size:0.8rem;">⚠ {warn}</div>'
+            f'<div style="margin-top:0.35rem;color:#b91c1c;font-size:0.85rem;">{warn}</div>'
         )
     return (
         '<div style="max-width:520px;margin:0.5rem 0 1rem 0;padding:1.25rem 1.4rem;'
