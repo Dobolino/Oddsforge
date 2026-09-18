@@ -1212,6 +1212,8 @@ def _slip_page(
             key="slip_bankroll_input",
         )
         max_stake = float(bankroll_local) * 0.05
+        if float(st.session_state.get("slip_stake_input", 0.0) or 0.0) > max_stake:
+            st.session_state["slip_stake_input"] = max_stake
         stake_local = st.number_input(
             t("slip.stake", lang),
             min_value=0.0,
@@ -1336,7 +1338,10 @@ def _slip_page(
     # Builders already trim to plausible unless high-risk override is on.
     if not slip.is_plausible:
         st.error(t("slip.implausible", lang))
-    elif len(slip.legs) < max(1, int(st.session_state.get("slip_max_legs", len(slip.legs)))):
+    elif (
+        not high_risk_used
+        and len(slip.legs) < max(1, int(st.session_state.get("slip_max_legs", len(slip.legs))))
+    ):
         st.info(t("slip.trimmed_note", lang))
     if high_risk_used and slip.legs:
         wanted = int(st.session_state.get("slip_max_legs", len(slip.legs)))
