@@ -91,6 +91,9 @@ def _synthetic_report(
         model_confidence=80.0,
         confidence_level=ConfidenceLevel.HIGH,
         ensemble_agreement=1.0,
+        # Totals need a modest sample before they may enter a tip slip.
+        home_matches=8 if isinstance(outcome, TotalsSide) else 10,
+        away_matches=8 if isinstance(outcome, TotalsSide) else 10,
     )
     return SignalReport(match=match, signal=signal, analysis=analysis)
 
@@ -160,10 +163,11 @@ def test_safe_slip_accepts_mixed_sports() -> None:
             quality=75,
             odds=1.85,
             model_prob=0.6,
-            outcome=TotalsSide.UNDER,
+            outcome=MatchOutcome.HOME,
         ),
     ]
-    slip = build_safe_slip(reports, lang="en", max_legs=2)
+    # Use balanced so totals/1X2 preference of "safe" does not drop a sport.
+    slip = build_safe_slip(reports, lang="en", max_legs=2, bias="balanced")
     assert slip is not None
     assert len(slip.legs) == 2
     sports = {leg.sport for leg in slip.legs}

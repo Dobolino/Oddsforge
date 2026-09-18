@@ -65,6 +65,7 @@ def test_ticket_html_renders_compact_markup() -> None:
                 role="core",
                 league="Premier League",
                 kickoff_date="2026-09-20",
+                stance="with",
             ),
         ),
         style="safe",
@@ -74,7 +75,12 @@ def test_ticket_html_renders_compact_markup() -> None:
     assert "Brighton &amp; Hove" in html  # escaped ampersand
     assert "```" not in html
     assert "\n            <tr>" not in html
-
+    # Stance sits on its own line under the tip badge (no mid-phrase wrap).
+    assert "Mit Markt" in html
+    assert html.index("→") < html.index("Mit Markt")
+    assert "</div><div" in html[html.index("→") : html.index("Mit Markt") + 20] or (
+        html.index("Mit Markt") > html.index("</div>", html.index("→"))
+    )
 
 def test_tip_badge_colors_home_away_draw() -> None:
     from quantbot.dashboard.ux import tip_badge_html, tip_kind_from_label
@@ -92,16 +98,19 @@ def test_tip_badge_colors_home_away_draw() -> None:
 def test_as_of_for_live_window_uses_now() -> None:
     from datetime import date, datetime, timedelta, timezone
 
-    from quantbot.dashboard.app import _as_of_for_window
+    from quantbot.dashboard.app import _as_of_for_window, _as_of_cache_key
 
     today = datetime.now(timezone.utc).date()
     as_of = _as_of_for_window(today, today + timedelta(days=2), live=True)
     assert as_of.date() == today
-    assert as_of.hour != 0 or as_of.minute != 0 or as_of.second != 0 or as_of.microsecond != 0 or True
-    # Must not be midnight-only when "now" has progressed; always timezone-aware.
     assert as_of.tzinfo is not None
-    # Live stand should be at/after midnight of today (not a past day).
+    # Live stand is rounded to the minute so Streamlit cache keys stay stable.
+    assert as_of.second == 0
+    assert as_of.microsecond == 0
     assert as_of >= datetime(today.year, today.month, today.day, tzinfo=timezone.utc)
+    assert _as_of_cache_key(as_of) == as_of.isoformat()
+    noisy = as_of.replace(second=17, microsecond=123456)
+    assert _as_of_cache_key(noisy) == as_of.isoformat()
 
 
 def test_as_of_for_demo_window_is_midnight() -> None:

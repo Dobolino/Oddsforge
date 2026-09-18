@@ -448,8 +448,8 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
         st.caption(t("safety.account_limits", lang))
 
     _welcome_card(lang, ux_mode)
-    if live and provider is not None:
-        _name_match_warnings(lang, provider, selected_leagues)
+    # Odds name-matching reports are filled during predict/odds fetch — warn
+    # after those pages load data (see _signals_page / _slip_page), not here.
 
     if page == "glossary":
         _glossary_page(lang)
@@ -707,7 +707,8 @@ def _name_match_warnings(lang, provider, leagues) -> None:  # type: ignore[no-un
         + " — "
         + t("matchwarn.body", lang).format(fuzzy=fuzzy, unmatched=unmatched)
     )
-    with st.expander(t("matchwarn.title", lang), expanded=False):
+    # Expand details when events failed to match — those matches never become tips.
+    with st.expander(t("matchwarn.title", lang), expanded=unmatched > 0):
         for issue in issues[:12]:
             odds = f"{issue.odds_home} vs {issue.odds_away}"
             if issue.kind == "fuzzy" and issue.fixture_home and issue.fixture_away:
@@ -749,15 +750,24 @@ def _default_window_bounds(orchestrator, leagues, season: str, live: bool):  # t
 def _as_of_for_window(start_d: date, end_d: date, *, live: bool) -> datetime:
     """Model stand for a kickoff window.
 
-    Live windows that include today use ``now`` so bookmaker ``last_update``
-    timestamps from later today remain visible. Historical / demo windows use
-    midnight UTC of the start day.
+    Live windows that include today use ``now`` (rounded to the minute) so
+    bookmaker ``last_update`` timestamps from later today remain visible and
+    Streamlit ``cache_data`` keys stay stable across widget reruns.
+    Historical / demo windows use midnight UTC of the start day.
     """
 
     today = datetime.now(timezone.utc).date()
     if live and start_d <= today <= end_d:
-        return datetime.now(timezone.utc)
+        now = datetime.now(timezone.utc)
+        # Drop seconds/µs — otherwise every Streamlit rerun busts the predict cache.
+        return now.replace(second=0, microsecond=0)
     return datetime(start_d.year, start_d.month, start_d.day, tzinfo=timezone.utc)
+
+
+def _as_of_cache_key(as_of: datetime) -> str:
+    """Stable ISO key for cached predict/card calls (minute precision)."""
+
+    return as_of.replace(second=0, microsecond=0).isoformat()
 
 
 def _pick_window(
@@ -830,6 +840,17 @@ def _filter_by_kickoff(reports, start_d: date, end_d: date):  # type: ignore[no-
     ]
 
 
+def _rank_value_reports(reports):  # type: ignore[no-untyped-def]
+    """Value tips by edge first, then remaining matches (stable secondary order)."""
+
+    bets = sorted(
+        (r for r in reports if r.signal.is_bet),
+        key=lambda r: (-float(r.signal.edge or 0.0), r.match.kickoff),
+    )
+    others = [r for r in reports if not r.signal.is_bet]
+    return bets + others
+
+
 def _signals_page(
     lang, ux_mode, C, orchestrator, mode, leagues, season, live, window=None
 ) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
@@ -850,15 +871,21 @@ def _signals_page(
             st.caption(f"{t('term.edge', lang)} · {t('term.ev', lang)} · {t('term.stake', lang)}")
 
     reports = _filter_by_kickoff(
-        _predict_leagues(C, orchestrator, mode, leagues, season, as_of.isoformat()),
+        _predict_leagues(C, orchestrator, mode, leagues, season, _as_of_cache_key(as_of)),
         start_d,
         end_d,
     )
+    if live and orchestrator.provider is not None:
+        _name_match_warnings(lang, orchestrator.provider, leagues)
     n_bets = sum(1 for r in reports if r.signal.is_bet)
+    value_pct = (100.0 * n_bets / len(reports)) if reports else 0.0
     st.caption(
         t("sig.range_summary", lang).format(
             start=start_d.isoformat(), end=end_d.isoformat(), n=len(reports), k=n_bets
         )
+    )
+    st.caption(
+        t("sig.value_rate", lang).format(k=n_bets, n=len(reports), pct=f"{value_pct:.0f}")
     )
     if live and not reports:
         upcoming_n = 0
@@ -918,18 +945,33 @@ def _signals_page(
         # Accumulators stay out of Simple mode (Gemini/Claude review).
         return
 
-    c1, c2 = st.columns(2)
+    c1, c2, c3 = st.columns(3)
     c1.metric(t("sig.matches", lang), len(reports))
     c2.metric(t("sig.values", lang), n_bets)
+    c3.metric(t("sig.value_share", lang), f"{value_pct:.0f}%")
+    # Cap the main table when almost every match is "value" (early-season noise).
+    top_n = 12 if ux_mode is UXMode.ADVANCED else 20
+    ranked = _rank_value_reports(reports)
+    show_top = ranked[:top_n] if n_bets > top_n else ranked
+    if n_bets > top_n:
+        st.caption(t("sig.top_n_note", lang).format(n=top_n, total=n_bets))
     if len(leagues) == 1:
-        render_colored_signals_table(reports, mode=ux_mode, lang=lang)
+        render_colored_signals_table(show_top, mode=ux_mode, lang=lang)
+        if n_bets > top_n:
+            with st.expander(t("sig.all_matches", lang), expanded=False):
+                render_colored_signals_table(reports, mode=ux_mode, lang=lang)
     else:
         for league in leagues:
             lg_reports = [r for r in reports if r.match.league is league]
             if not lg_reports:
                 continue
             st.subheader(league_title(league))
-            render_colored_signals_table(lg_reports, mode=ux_mode, lang=lang)
+            lg_ranked = _rank_value_reports(lg_reports)
+            lg_bets = sum(1 for r in lg_ranked if r.signal.is_bet)
+            lg_show = lg_ranked[:top_n] if lg_bets > top_n else lg_ranked
+            if lg_bets > top_n:
+                st.caption(t("sig.top_n_note", lang).format(n=top_n, total=lg_bets))
+            render_colored_signals_table(lg_show, mode=ux_mode, lang=lang)
 
 
 
@@ -1008,10 +1050,12 @@ def _slip_page(
         as_of, start_d, end_d = window
 
     reports = _filter_by_kickoff(
-        _predict_leagues(C, orchestrator, mode, leagues, season, as_of.isoformat()),
+        _predict_leagues(C, orchestrator, mode, leagues, season, _as_of_cache_key(as_of)),
         start_d,
         end_d,
     )
+    if live and orchestrator.provider is not None:
+        _name_match_warnings(lang, orchestrator.provider, leagues)
     available = sum(1 for r in reports if r.signal.is_bet)
 
     if not beginner:
@@ -1054,7 +1098,7 @@ def _slip_page(
         pref = "safe"
     style_index = style_options.index(pref)
 
-    def _controls() -> tuple[str, float, object]:
+    def _controls() -> tuple[str, float, object, str]:
         style_local = st.radio(
             t("slip.style", lang),
             style_options,
@@ -1070,12 +1114,15 @@ def _slip_page(
             "balanced": t("slip.orient_balanced", lang),
             "contra": t("slip.orient_contra", lang),
         }
+        # Streamlit ignores ``value=`` once the widget key exists — pin default.
+        if st.session_state.get("slip_orient") not in {"safe", "balanced", "contra"}:
+            st.session_state["slip_orient"] = "safe"
         orient_local = st.select_slider(
             t("slip.orient", lang),
             options=["safe", "balanced", "contra"],
-            value="safe",
             format_func=lambda k: orient_labels[k],
             key="slip_orient",
+            help=t("slip.orient_safe_default", lang),
         )
         st.caption(t("slip.orient_hint", lang))
         bankroll_local = st.number_input(
@@ -1095,11 +1142,15 @@ def _slip_page(
             key="slip_stake_input",
         )
         max_available = max(1, min(8, available or 1))
+        # Safe orientation: short kombis only (long slips explode combined odds).
+        max_cap = min(4, max_available) if orient_local == "safe" else max_available
+        if int(st.session_state.get("slip_max_legs", max_cap)) > max_cap:
+            st.session_state["slip_max_legs"] = max_cap
         max_legs_local = st.slider(
             t("slip.max_legs", lang),
             min_value=1,
-            max_value=max_available,
-            value=min(default_legs, max_available),
+            max_value=max_cap,
+            value=min(default_legs, max_cap),
             help=t("slip.legs_risk", lang),
             key="slip_max_legs",
         )
@@ -1119,14 +1170,15 @@ def _slip_page(
             slip_local = build_boosted_slip(
                 reports, lang=lang, core_legs=core_legs, boost_legs=boost_legs, bias=orient_local
             )
-        return style_local, float(stake_local), slip_local
+        return style_local, float(stake_local), slip_local, orient_local
 
     smart_ids = st.session_state.pop("slip_smart_override", None)
+    orient_used = st.session_state.get("slip_orient", "safe")
 
     if beginner:
         # Ticket first; knobs live in an expander so the slip stays the hero.
         with st.expander(t("slip.adjust", lang), expanded=False):
-            _style, stake, slip = _controls()
+            _style, stake, slip, orient_used = _controls()
             if slip is not None and slip.legs:
                 st.caption(t("slip.edit_legs", lang))
                 selected_ids = []
@@ -1146,7 +1198,7 @@ def _slip_page(
             if slip is not None:
                 slip = slip_with_legs(slip, smart_ids)
         else:
-            _style, stake, slip = _controls()
+            _style, stake, slip, orient_used = _controls()
         if slip is not None and slip.legs:
             st.subheader(t("slip.edit_legs", lang))
             selected_ids = []
@@ -1168,8 +1220,21 @@ def _slip_page(
 
     st.subheader(t("slip.ticket_title", lang))
     st.caption(t("slip.range_note", lang).format(start=start_d.isoformat(), end=end_d.isoformat()))
+    orient_labels_view = {
+        "safe": t("slip.orient_safe", lang),
+        "balanced": t("slip.orient_balanced", lang),
+        "contra": t("slip.orient_contra", lang),
+    }
+    st.caption(
+        t("slip.active_orient", lang).format(
+            orient=orient_labels_view.get(str(orient_used), str(orient_used))
+        )
+    )
+    # Builders already trim to plausible; leftover flag is rare (manual edits).
     if not slip.is_plausible:
         st.error(t("slip.implausible", lang))
+    elif len(slip.legs) < max(1, int(st.session_state.get("slip_max_legs", len(slip.legs)))):
+        st.info(t("slip.trimmed_note", lang))
     st.html(ticket_html(slip, lang=lang, stake=stake))
     with st.expander(t("slip.copy_title", lang), expanded=beginner):
         st.code(format_ticket(slip, lang=lang, stake=stake), language=None)
@@ -1291,7 +1356,7 @@ def _card_page(
     else:
         as_of, start_d, end_d = window
     try:
-        cards = C["cards"](orchestrator, mode, league.value, season, as_of.isoformat())
+        cards = C["cards"](orchestrator, mode, league.value, season, _as_of_cache_key(as_of))
     except ValueError as exc:
         st.warning(str(exc))
         return
