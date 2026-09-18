@@ -564,6 +564,30 @@ _STRINGS: dict[str, dict[str, str]] = {
         "de": "Aktive Ausrichtung: {orient}",
         "en": "Active orientation: {orient}",
     },
+    "slip.high_risk": {
+        "de": "Höheres Risiko erlauben (mehr Tipps / höhere Quote)",
+        "en": "Allow higher risk (more tips / higher odds)",
+    },
+    "slip.high_risk_help": {
+        "de": "Hebt die Sicherheitsgrenzen an. Die Kombi kann unglaubwürdige Chancen zeigen.",
+        "en": "Lifts the safety caps. The combo may show unrealistic chances.",
+    },
+    "slip.high_risk_warn": {
+        "de": "⚠ HÖHERES RISIKO AKTIV — längere Kombis, oft unrealistische Modellchancen. "
+              "Nur Simulation. QuantBot wettet nicht.",
+        "en": "⚠ HIGHER RISK ON — longer combos, often unrealistic model chances. "
+              "Simulation only. QuantBot does not bet.",
+    },
+    "slip.high_risk_count": {
+        "de": "Tipps im Schein: {have} (gewünscht: {want}).",
+        "en": "Tips on slip: {have} (requested: {want}).",
+    },
+    "slip.limits_caption": {
+        "de": "Gewählt: {n} Tipps (max. {cap} in diesem Modus). Ohne „Höheres Risiko“ kürzt "
+              "das System den Schein, wenn die Kombi unglaubwürdig wird.",
+        "en": "Selected: {n} tips (max {cap} in this mode). Without “Higher risk” the system "
+              "shortens the slip when the combo becomes unrealistic.",
+    },
     "slip.style_safe": {"de": "Hohe Modell-P", "en": "High model-P"},
     "slip.style_boosted": {
         "de": "Auswahl + höhere Quoten",

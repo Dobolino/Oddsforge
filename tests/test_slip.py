@@ -11,6 +11,7 @@ from quantbot.dashboard.slip import (
     build_safe_slip,
     format_ticket,
     make_plausible_slip,
+    slip_with_legs,
 )
 from quantbot.dashboard.ux import pages_for, UXMode
 from quantbot.orchestrator import QuantBotOrchestrator, SignalReport
@@ -149,6 +150,187 @@ def test_safe_builder_never_returns_implausible_combo() -> None:
     slip = build_safe_slip(reports, lang="de", max_legs=5, bias="safe")
     assert slip is not None
     assert slip.is_plausible
+
+
+def test_high_risk_allows_longer_implausible_slip() -> None:
+    """Without override the builder trims; with allow_high_risk it keeps more legs."""
+
+    from quantbot.analysis.confidence import ConfidenceLevel
+    from quantbot.analysis.engine import AnalysisResult
+    from quantbot.schemas import Match, Team, ValueMetrics, ValueSignal
+    from quantbot.schemas.enums import MatchStatus, SignalType
+
+    def _report(mid: str, odds: float, model_prob: float, fair: float) -> SignalReport:
+        kickoff = datetime(2024, 12, 20, 20, 0, tzinfo=timezone.utc)
+        match = Match(
+            match_id=mid,
+            league=League.PREMIER_LEAGUE,
+            season="2024-2025",
+            kickoff=kickoff,
+            prediction_timestamp=kickoff.replace(hour=18),
+            home_team=Team(team_id=f"{mid}_h", name=f"Home {mid}"),
+            away_team=Team(team_id=f"{mid}_a", name=f"Away {mid}"),
+            status=MatchStatus.SCHEDULED,
+        )
+        metrics = (
+            ValueMetrics(
+                outcome=MatchOutcome.HOME,
+                model_prob=model_prob,
+                fair_market_prob=fair,
+                decimal_odds=odds,
+                edge=model_prob - fair,
+                expected_value=model_prob * odds - 1.0,
+            ),
+            ValueMetrics(
+                outcome=MatchOutcome.DRAW,
+                model_prob=0.2,
+                fair_market_prob=0.25,
+                decimal_odds=4.0,
+                edge=-0.05,
+                expected_value=-0.2,
+            ),
+            ValueMetrics(
+                outcome=MatchOutcome.AWAY,
+                model_prob=0.15,
+                fair_market_prob=0.3,
+                decimal_odds=3.5,
+                edge=-0.15,
+                expected_value=-0.475,
+            ),
+        )
+        signal = ValueSignal(
+            match_id=mid,
+            timestamp=kickoff.replace(hour=18),
+            signal=SignalType.VALUE_HOME,
+            chosen_outcome=MatchOutcome.HOME,
+            edge=model_prob - fair,
+            expected_value=model_prob * odds - 1.0,
+            decimal_odds=odds,
+            model_confidence=70.0,
+            data_quality=80.0,
+            stake_fraction=0.01,
+            rationale="synthetic",
+            rationale_de="synthetisch",
+            metrics=metrics,
+        )
+        analysis = AnalysisResult(
+            match_id=mid,
+            metrics=metrics,
+            best_ev=metrics[0],
+            data_quality=80.0,
+            model_confidence=70.0,
+            confidence_level=ConfidenceLevel.MEDIUM,
+            ensemble_agreement=1.0,
+            home_matches=8,
+            away_matches=8,
+        )
+        return SignalReport(match=match, signal=signal, analysis=analysis)
+
+    reports = [
+        _report("a", 1.7, 0.95, 0.55),
+        _report("b", 1.7, 0.94, 0.55),
+        _report("c", 1.8, 0.93, 0.52),
+        _report("d", 1.8, 0.58, 0.52),
+        _report("e", 2.0, 0.52, 0.48),
+        _report("f", 1.9, 0.55, 0.50),
+    ]
+    capped = build_safe_slip(reports, lang="de", max_legs=6, bias="safe")
+    assert capped is not None
+    assert capped.is_plausible
+    assert len(capped.legs) < 6
+
+    risky = build_safe_slip(
+        reports, lang="de", max_legs=6, bias="safe", allow_high_risk=True
+    )
+    assert risky is not None
+    assert len(risky.legs) == 6
+    assert not risky.is_plausible
+    assert len(risky.legs) > len(capped.legs)
+
+def test_high_risk_still_drops_big_underdogs() -> None:
+    from quantbot.analysis.confidence import ConfidenceLevel
+    from quantbot.analysis.engine import AnalysisResult
+    from quantbot.schemas import Match, Team, ValueMetrics, ValueSignal
+    from quantbot.schemas.enums import MatchStatus, SignalType
+
+    def _home(mid: str, odds: float, model_prob: float, fair: float) -> SignalReport:
+        kickoff = datetime(2024, 12, 20, 20, 0, tzinfo=timezone.utc)
+        match = Match(
+            match_id=mid,
+            league=League.PREMIER_LEAGUE,
+            season="2024-2025",
+            kickoff=kickoff,
+            prediction_timestamp=kickoff.replace(hour=18),
+            home_team=Team(team_id=f"{mid}_h", name=f"Home {mid}"),
+            away_team=Team(team_id=f"{mid}_a", name=f"Away {mid}"),
+            status=MatchStatus.SCHEDULED,
+        )
+        metrics = (
+            ValueMetrics(
+                outcome=MatchOutcome.HOME,
+                model_prob=model_prob,
+                fair_market_prob=fair,
+                decimal_odds=odds,
+                edge=model_prob - fair,
+                expected_value=model_prob * odds - 1.0,
+            ),
+        )
+        signal = ValueSignal(
+            match_id=mid,
+            timestamp=kickoff.replace(hour=18),
+            signal=SignalType.VALUE_HOME,
+            chosen_outcome=MatchOutcome.HOME,
+            edge=model_prob - fair,
+            expected_value=model_prob * odds - 1.0,
+            decimal_odds=odds,
+            model_confidence=70.0,
+            data_quality=80.0,
+            stake_fraction=0.01,
+            rationale="x",
+            rationale_de="x",
+            metrics=metrics,
+        )
+        analysis = AnalysisResult(
+            match_id=mid,
+            metrics=metrics,
+            best_ev=metrics[0],
+            data_quality=80.0,
+            model_confidence=70.0,
+            confidence_level=ConfidenceLevel.MEDIUM,
+            ensemble_agreement=1.0,
+            home_matches=10,
+            away_matches=10,
+        )
+        return SignalReport(match=match, signal=signal, analysis=analysis)
+
+    underdog = _home("dog", 10.0, 0.12, 0.09)
+    ok = _home("ok", 1.80, 0.58, 0.52)
+    slip = build_safe_slip(
+        [underdog, ok], lang="de", max_legs=3, bias="balanced", allow_high_risk=True
+    )
+    assert slip is not None
+    assert {leg.match_id for leg in slip.legs} == {"ok"}
+
+
+def test_slip_with_legs_high_risk_skips_retrim() -> None:
+    over = BettingSlip(
+        legs=(
+            _leg(1.7, 0.95, match_id="a"),
+            _leg(1.7, 0.95, match_id="b"),
+            _leg(1.7, 0.95, match_id="c"),
+            _leg(1.8, 0.58, match_id="d"),
+            _leg(2.0, 0.52, match_id="e"),
+        ),
+        style="safe",
+    )
+    assert not over.is_plausible
+    ids = ["a", "b", "c", "d", "e"]
+    kept = slip_with_legs(over, ids, allow_high_risk=True)
+    assert [leg.match_id for leg in kept.legs] == ids
+    assert not kept.is_plausible
+    trimmed = slip_with_legs(over, ids, allow_high_risk=False)
+    assert trimmed.is_plausible
+    assert len(trimmed.legs) < len(ids)
 
 
 def test_totals_legs_skipped_when_team_history_thin() -> None:
