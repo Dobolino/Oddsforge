@@ -1,8 +1,12 @@
-"""Dixon-Coles bivariate Poisson model with time decay and optional xG.
+"""Independent Poisson goal model with Dixon-Coles low-score correction.
 
 Estimates per-team attack/defense strengths, a home-advantage term, and the
 Dixon-Coles low-score dependence ``rho`` via weighted maximum likelihood
-(``scipy.optimize.minimize``). Two extensions over the textbook model:
+(``scipy.optimize.minimize``). The scoreline distribution is an independent
+Poisson product on an adaptive goal grid, optionally reweighted by the
+Dixon-Coles ``tau`` factors on the 0–1 cells.
+
+Extensions:
 
 * Time decay: each match contributes with weight ``w_i = exp(-xi * age_i)``
   where ``age_i`` is the age in days relative to the most recent training
@@ -12,12 +16,17 @@ Dixon-Coles low-score dependence ``rho`` via weighted maximum likelihood
   ``home_xg``/``away_xg`` (falling back to actual goals when xG is missing)
   via a quasi-Poisson likelihood, with the discrete low-score correction
   disabled (``rho = 0``) since it is meaningless on continuous xG.
+* Adaptive grid: grows ``max_goals`` until independent truncated mass is at
+  most ``rest_mass_tol`` (default ``1e-8``), up to ``max_goals_cap``. Truncation
+  is reported explicitly — never silently treated as full mass.
 """
 
 from __future__ import annotations
 
 import math
 from collections.abc import Sequence
+from dataclasses import dataclass
+from enum import Enum
 
 import numpy as np
 from scipy.optimize import minimize
@@ -32,6 +41,41 @@ logger = get_logger(__name__)
 # when a sparse-data fit returns extreme or non-finite team parameters.
 _LAM_MIN = 0.02
 _LAM_MAX = 12.0
+
+DEFAULT_REST_MASS_TOL = 1e-8
+DEFAULT_MAX_GOALS_CAP = 40
+
+
+class ScoreGridStatus(str, Enum):
+    """Outcome of building a finite scoreline grid."""
+
+    OK = "ok"
+    TAU_INVALID = "tau_invalid"
+    GRID_LIMIT = "grid_limit"
+    DEGENERATE = "degenerate"
+
+
+@dataclass(frozen=True)
+class ScoreGridResult:
+    """Normalized scoreline grid plus mass / integrity audit fields."""
+
+    grid: np.ndarray
+    max_goals: int
+    lam_home: float
+    lam_away: float
+    independent_rest_mass: float
+    status: ScoreGridStatus
+    tau_applied: bool
+    rho: float
+
+    @property
+    def mass_conserved(self) -> bool:
+        total = float(np.sum(self.grid))
+        return bool(np.isfinite(total) and abs(total - 1.0) <= 1e-9)
+
+    @property
+    def cells_valid(self) -> bool:
+        return bool(np.all(np.isfinite(self.grid)) and np.all(self.grid >= 0.0))
 
 
 def _dixon_coles_tau(
@@ -56,6 +100,58 @@ def _poisson_pmf(k: np.ndarray, lam: float) -> np.ndarray:
     return np.exp(log_pmf)
 
 
+def independent_rest_mass(lam_home: float, lam_away: float, max_goals: int) -> float:
+    """Probability mass of the independent product outside ``0..max_goals``.
+
+    ``rest = 1 - F_home(G) * F_away(G)`` where ``F`` is the truncated Poisson
+    CDF on the finite grid. This is the mass that a fixed ``max_goals`` would
+    hide if the grid were renormalized without reporting truncation.
+    """
+
+    if max_goals < 0:
+        raise ValueError("max_goals must be >= 0")
+    goals = np.arange(max_goals + 1)
+    mass_h = float(np.sum(_poisson_pmf(goals, lam_home)))
+    mass_a = float(np.sum(_poisson_pmf(goals, lam_away)))
+    retained = mass_h * mass_a
+    if not np.isfinite(retained) or retained < 0.0:
+        return 1.0
+    return float(max(0.0, 1.0 - retained))
+
+
+def choose_max_goals(
+    lam_home: float,
+    lam_away: float,
+    *,
+    min_goals: int = 10,
+    max_goals_cap: int = DEFAULT_MAX_GOALS_CAP,
+    rest_mass_tol: float = DEFAULT_REST_MASS_TOL,
+) -> tuple[int, float, ScoreGridStatus]:
+    """Grow the goal grid until independent rest mass is within tolerance.
+
+    Returns ``(max_goals, rest_mass, status)``. ``GRID_LIMIT`` means the cap
+    was hit while rest mass still exceeds ``rest_mass_tol``.
+    """
+
+    if min_goals < 1:
+        raise ValueError("min_goals must be >= 1")
+    if max_goals_cap < min_goals:
+        raise ValueError("max_goals_cap must be >= min_goals")
+    if rest_mass_tol <= 0.0:
+        raise ValueError("rest_mass_tol must be > 0")
+
+    g = int(min_goals)
+    rest = independent_rest_mass(lam_home, lam_away, g)
+    if rest <= rest_mass_tol:
+        return g, rest, ScoreGridStatus.OK
+    while g < max_goals_cap:
+        g += 1
+        rest = independent_rest_mass(lam_home, lam_away, g)
+        if rest <= rest_mass_tol:
+            return g, rest, ScoreGridStatus.OK
+    return g, rest, ScoreGridStatus.GRID_LIMIT
+
+
 def time_decay_weights(kickoffs: Sequence[object], xi: float) -> np.ndarray:
     """Weights ``exp(-xi * age_days)`` relative to the most recent kickoff.
 
@@ -72,14 +168,21 @@ def time_decay_weights(kickoffs: Sequence[object], xi: float) -> np.ndarray:
 
 
 class DixonColesModel(BaseModel):
-    """Dixon-Coles Poisson goal model.
+    """Independent Poisson + Dixon-Coles low-score correction.
 
     Args:
-        max_goals: Grid size for the scoreline matrix (0..max_goals per side).
+        max_goals: Minimum goal grid (0..max_goals). With ``adaptive_grid``
+            this is the floor; otherwise the fixed size.
         min_matches: Minimum finished matches required to fit.
         rho_init: Initial value for the dependence parameter.
         time_decay_xi: Daily decay rate for match weights (0 = equal weight).
         use_xg: Fit goal expectations to xG instead of actual goals.
+        adaptive_grid: Grow the grid until independent rest mass ``<=``
+            ``rest_mass_tol`` (recommended; default on).
+        max_goals_cap: Hard resource ceiling for adaptive growth.
+        rest_mass_tol: Allowed independent truncated mass (default ``1e-8``).
+        raise_on_grid_limit: If True, raise when the cap cannot meet the
+            rest-mass tolerance (Fehlerstatus instead of silent truncation).
     """
 
     name = "dixon_coles"
@@ -91,23 +194,37 @@ class DixonColesModel(BaseModel):
         rho_init: float = -0.05,
         time_decay_xi: float = 0.0,
         use_xg: bool = False,
+        *,
+        adaptive_grid: bool = True,
+        max_goals_cap: int = DEFAULT_MAX_GOALS_CAP,
+        rest_mass_tol: float = DEFAULT_REST_MASS_TOL,
+        raise_on_grid_limit: bool = False,
     ) -> None:
         super().__init__()
         if max_goals < 1:
             raise ValueError("max_goals must be >= 1")
         if time_decay_xi < 0.0:
             raise ValueError("time_decay_xi must be non-negative")
+        if max_goals_cap < max_goals:
+            raise ValueError("max_goals_cap must be >= max_goals")
+        if rest_mass_tol <= 0.0:
+            raise ValueError("rest_mass_tol must be > 0")
         self.max_goals = max_goals
         self.min_matches = min_matches
         self.rho_init = rho_init
         self.time_decay_xi = time_decay_xi
         self.use_xg = use_xg
+        self.adaptive_grid = bool(adaptive_grid)
+        self.max_goals_cap = int(max_goals_cap)
+        self.rest_mass_tol = float(rest_mass_tol)
+        self.raise_on_grid_limit = bool(raise_on_grid_limit)
         self._teams: list[str] = []
         self._team_index: dict[str, int] = {}
         self._attack: dict[str, float] = {}
         self._defense: dict[str, float] = {}
         self._home_adv: float = 0.0
         self._rho: float = 0.0 if use_xg else rho_init
+        self._last_grid: ScoreGridResult | None = None
 
     @property
     def rho(self) -> float:
@@ -116,6 +233,10 @@ class DixonColesModel(BaseModel):
     @property
     def home_advantage(self) -> float:
         return self._home_adv
+
+    @property
+    def last_grid_result(self) -> ScoreGridResult | None:
+        return self._last_grid
 
     def attack(self, team_id: str) -> float:
         return self._attack.get(team_id, 0.0)
@@ -280,38 +401,125 @@ class DixonColesModel(BaseModel):
         lam_away = math.exp(min(max(e_away, lo), hi))
         return lam_home, lam_away
 
-    def score_matrix(self, home_id: str, away_id: str) -> np.ndarray:
-        """Normalized ``(max_goals+1) x (max_goals+1)`` scoreline probability grid."""
+    def build_score_grid(self, home_id: str, away_id: str) -> ScoreGridResult:
+        """Build a normalized scoreline grid with explicit mass / tau status.
+
+        Truncated independent mass is reported in ``independent_rest_mass``.
+        Renormalization of the retained support never hides that figure.
+        """
 
         lam_home, lam_away = self._lambdas(home_id, away_id)
-        size = self.max_goals + 1
+        if self.adaptive_grid:
+            max_goals, rest, size_status = choose_max_goals(
+                lam_home,
+                lam_away,
+                min_goals=self.max_goals,
+                max_goals_cap=self.max_goals_cap,
+                rest_mass_tol=self.rest_mass_tol,
+            )
+        else:
+            max_goals = self.max_goals
+            rest = independent_rest_mass(lam_home, lam_away, max_goals)
+            size_status = (
+                ScoreGridStatus.OK
+                if rest <= self.rest_mass_tol
+                else ScoreGridStatus.GRID_LIMIT
+            )
+
+        if size_status is ScoreGridStatus.GRID_LIMIT:
+            logger.warning(
+                "Dixon-Coles grid hit cap max_goals=%s with independent_rest_mass=%.3e "
+                "(tol=%.3e, lam_h=%.3f, lam_a=%.3f)",
+                max_goals,
+                rest,
+                self.rest_mass_tol,
+                lam_home,
+                lam_away,
+            )
+            if self.raise_on_grid_limit:
+                raise ValueError(
+                    f"score grid rest mass {rest:.3e} exceeds tol {self.rest_mass_tol:.3e} "
+                    f"at max_goals_cap={max_goals}"
+                )
+
+        size = max_goals + 1
         goals = np.arange(size)
         p_home = _poisson_pmf(goals, lam_home)
         p_away = _poisson_pmf(goals, lam_away)
-        grid = np.outer(p_home, p_away)  # rows = home goals, cols = away goals
+        independent = np.outer(p_home, p_away)
 
         x = np.repeat(goals, size).reshape(size, size)
         y = np.tile(goals, size).reshape(size, size)
         tau = _dixon_coles_tau(x, y, lam_home, lam_away, self._rho)
-        if np.all(np.isfinite(tau)) and np.all(tau >= 0.0):
-            grid = grid * tau
-        else:
-            logger.warning("Invalid Dixon-Coles correction; using independent Poisson grid")
+        tau_ok = bool(np.all(np.isfinite(tau)) and np.all(tau >= 0.0))
+        tau_applied = False
+        status = size_status
 
-        total = grid.sum()
+        if tau_ok and abs(self._rho) > 0.0:
+            grid = independent * tau
+            # After tau, cells must stay finite and non-negative.
+            if not (np.all(np.isfinite(grid)) and np.all(grid >= 0.0)):
+                logger.warning(
+                    "Dixon-Coles tau produced invalid cells; using independent Poisson grid"
+                )
+                grid = independent
+                status = ScoreGridStatus.TAU_INVALID
+            else:
+                tau_applied = True
+        elif not tau_ok:
+            logger.warning(
+                "Invalid Dixon-Coles tau factors; using independent Poisson grid"
+            )
+            grid = independent
+            status = ScoreGridStatus.TAU_INVALID
+        else:
+            grid = independent
+
+        total = float(np.sum(grid))
         if not np.isfinite(total) or total <= 0.0:
-            # Degenerate grid: fall back to the independent Poisson product,
-            # and to a uniform grid only if that is still unusable.
-            grid = np.outer(p_home, p_away)
-            total = grid.sum()
+            grid = independent
+            total = float(np.sum(grid))
             if not np.isfinite(total) or total <= 0.0:
-                return np.full((size, size), 1.0 / (size * size))
-        grid /= total
-        return grid
+                uniform = np.full((size, size), 1.0 / (size * size))
+                result = ScoreGridResult(
+                    grid=uniform,
+                    max_goals=max_goals,
+                    lam_home=lam_home,
+                    lam_away=lam_away,
+                    independent_rest_mass=rest,
+                    status=ScoreGridStatus.DEGENERATE,
+                    tau_applied=False,
+                    rho=float(self._rho),
+                )
+                self._last_grid = result
+                return result
+            if status is ScoreGridStatus.OK:
+                status = ScoreGridStatus.DEGENERATE
+
+        # Renormalize retained support only; rest mass stays in the audit field.
+        grid = grid / total
+        result = ScoreGridResult(
+            grid=grid,
+            max_goals=max_goals,
+            lam_home=lam_home,
+            lam_away=lam_away,
+            independent_rest_mass=rest,
+            status=status,
+            tau_applied=tau_applied,
+            rho=float(self._rho),
+        )
+        self._last_grid = result
+        return result
+
+    def score_matrix(self, home_id: str, away_id: str) -> np.ndarray:
+        """Normalized scoreline probability grid (see :meth:`build_score_grid`)."""
+
+        return self.build_score_grid(home_id, away_id).grid
 
     def predict(self, match: Match) -> ModelPrediction:
         self._check_fitted()
-        grid = self.score_matrix(match.home_team.team_id, match.away_team.team_id)
+        built = self.build_score_grid(match.home_team.team_id, match.away_team.team_id)
+        grid = built.grid
 
         p_home = float(np.tril(grid, -1).sum())  # home goals > away goals
         p_draw = float(np.trace(grid))

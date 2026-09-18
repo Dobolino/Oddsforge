@@ -1,6 +1,6 @@
 # Fortschritt: CURSOR_PROMPT_QUANTBOT (P0 → P1 → P2)
 
-Stand: P0 Paket 1–3 auf Branch `cursor/p0-decision-policy-9483`.
+Stand: P0 Paket 1–3 + Dixon-Coles-Restmasse auf Branch `cursor/p0-decision-policy-9483`.
 
 ## Bestandsaufnahme (Kurz)
 
@@ -13,7 +13,7 @@ Stand: P0 Paket 1–3 auf Branch `cursor/p0-decision-policy-9483`.
 | Quoten-Integrität (stale/NaN/nach Anpfiff) | DONE (Live streng) |
 | Kalibrierungs-Artefakt / Freigabe VALID | DONE (Schema + Gate; empirische Daten fehlen) |
 | Shrinkage n_eff/(n_eff+k) | DONE (Option EFF_SAMPLE; Legacy erhalten) |
-| Dixon-Coles Restmasse | MISSING |
+| Dixon-Coles Restmasse | DONE (adaptives Gitter, Tol 1e-8) |
 | Papier-Ledger / Exposure-Caps | MISSING |
 | P1 UX | MISSING |
 | P2 CLV / AH / Run-Manifest | MISSING |
@@ -53,9 +53,16 @@ Stand: P0 Paket 1–3 auf Branch `cursor/p0-decision-policy-9483`.
    - `k` nur auf Entwicklungsdaten bestimmen; Default heuristisch, kein Überlegenheitsanspruch
    - Audit: `p_raw_*`, `shrinkage_weight`, `shrinkage_mode` auf `AnalysisResult`
 
+## Paket 3b — Dixon-Coles Restmasse
+
+1. Beschreibung: unabhängige Poisson-Basis + Niedrigscore-Korrektur (`tau`)
+2. **`build_score_grid`**: adaptives `max_goals` bis `independent_rest_mass <= 1e-8`
+3. Cap `max_goals_cap` (Default 40) → Status `GRID_LIMIT` (optional `raise_on_grid_limit`)
+4. Tau-Positivität/Endlichkeit geprüft; sonst Fallback auf unabhängiges Gitter (`TAU_INVALID`)
+5. Renormalisierung nur auf behaltenem Support; Restmasse bleibt im Audit-Feld sichtbar
+
 ## Bewusst noch offen
 
-- Dixon-Coles Restmasse / adaptives Gitter
 - Papier-Ledger / Exposure-Caps
 - P1 UX-Umbenennungen
 - P2 CLV / AH Settlement / Run-Manifest
