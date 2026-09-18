@@ -15,14 +15,20 @@ if TYPE_CHECKING:
 _FOOTBALL_KEY = "QUANTBOT_FOOTBALL_DATA_API_KEY"
 _ODDS_KEY = "QUANTBOT_THE_ODDS_API_KEY"
 _BASKETBALL_KEY = "QUANTBOT_BALLDONTLIE_API_KEY"
+_APIFOOTBALL_KEY = "QUANTBOT_API_FOOTBALL_API_KEY"
 
 
 class StoredApiKeys(NamedTuple):
-    """Persisted API keys. Football + Odds unlock live football; basketball is optional."""
+    """Persisted API keys.
+
+    Football + Odds unlock live football. Basketball and API-Football are
+    optional extras (API-Football adds Asian-handicap / totals odds).
+    """
 
     football: str
     odds: str
     basketball: str = ""
+    apifootball: str = ""
 
 
 def default_credentials_path() -> Path:
@@ -35,6 +41,7 @@ def save_api_keys(
     football_key: str,
     odds_key: str,
     basketball_key: str = "",
+    apifootball_key: str = "",
     *,
     path: Path | None = None,
 ) -> Path:
@@ -43,7 +50,11 @@ def save_api_keys(
     football = football_key.strip()
     odds = odds_key.strip()
     basketball = basketball_key.strip()
-    if any(any(char.isspace() for char in key) for key in (football, odds, basketball)):
+    apifootball = apifootball_key.strip()
+    if any(
+        any(char.isspace() for char in key)
+        for key in (football, odds, basketball, apifootball)
+    ):
         raise ValueError("API keys must not contain whitespace")
     if not football or not odds:
         raise ValueError("football and odds API keys are required")
@@ -57,6 +68,8 @@ def save_api_keys(
     ]
     if basketball:
         lines.append(f"{_BASKETBALL_KEY}={basketball}")
+    if apifootball:
+        lines.append(f"{_APIFOOTBALL_KEY}={apifootball}")
     target.write_text("\n".join(lines) + "\n", encoding="utf-8")
     try:
         target.chmod(0o600)
@@ -87,9 +100,15 @@ def load_api_keys(*, path: Path | None = None) -> StoredApiKeys | None:
     football = values.get(_FOOTBALL_KEY, "").strip()
     odds = values.get(_ODDS_KEY, "").strip()
     basketball = values.get(_BASKETBALL_KEY, "").strip()
+    apifootball = values.get(_APIFOOTBALL_KEY, "").strip()
     if not football or not odds:
         return None
-    return StoredApiKeys(football=football, odds=odds, basketball=basketball)
+    return StoredApiKeys(
+        football=football,
+        odds=odds,
+        basketball=basketball,
+        apifootball=apifootball,
+    )
 
 
 def clear_api_keys(*, path: Path | None = None) -> bool:
@@ -132,8 +151,10 @@ def resolve_api_keys(
     stored = load_api_keys(path=path) or StoredApiKeys("", "")
     football = settings.football_data_api_key
     odds = settings.the_odds_api_key
+    apifootball = settings.api_football_api_key
     return StoredApiKeys(
         (football.get_secret_value().strip() if football else "") or stored.football,
         (odds.get_secret_value().strip() if odds else "") or stored.odds,
         stored.basketball,
+        (apifootball.get_secret_value().strip() if apifootball else "") or stored.apifootball,
     )

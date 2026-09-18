@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+from quantbot.data.providers.api_football import (
+    AccountStatus,
+    ApiFootballError,
+    ApiFootballProvider,
+    MarketSummary,
+)
 from quantbot.data.providers.base_http import (
     FileCache,
     RateLimiter,
@@ -26,6 +32,10 @@ __all__ = [
     "redact_secrets",
     "FootballDataProvider",
     "TheOddsAPIProvider",
+    "ApiFootballProvider",
+    "ApiFootballError",
+    "AccountStatus",
+    "MarketSummary",
     "LiveDataProvider",
     "NameMatchIssue",
     "NameMatchReport",
