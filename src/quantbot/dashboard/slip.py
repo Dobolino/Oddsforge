@@ -236,15 +236,16 @@ def _select_plausible_legs(
     max_legs: int,
     style: str,
     max_combined_odds: float | None = None,
+    enforce_plausible: bool = True,
 ) -> BettingSlip | None:
-    """Greedily keep legs that leave the accumulator inside plausibility bounds."""
+    """Greedily keep legs; by default stay inside plausibility bounds."""
 
     chosen: list[SlipLeg] = []
     for leg in ordered:
         if len(chosen) >= max(1, max_legs):
             break
         trial = BettingSlip(legs=tuple(chosen + [leg]), style=style)
-        if not trial.is_plausible:
+        if enforce_plausible and not trial.is_plausible:
             continue
         if max_combined_odds is not None and trial.combined_odds > max_combined_odds:
             continue
@@ -281,20 +282,36 @@ def build_safe_slip(
     lang: str = "de",
     max_legs: int = 3,
     bias: str = "safe",
+    allow_high_risk: bool = False,
 ) -> BettingSlip | None:
-    """Slip built from value tips, ranked by the chosen orientation ``bias``."""
+    """Slip built from value tips, ranked by the chosen orientation ``bias``.
 
-    legs = _value_legs(reports, lang, bias=bias)
+    With ``allow_high_risk=True`` the plausibility / combined-odds caps are
+    lifted so the user can request longer slips — the UI must warn boldly.
+    Underdog legs above 8.0 stay filtered out.
+    """
+
+    # Soften only the strict "Sicher" filters so more tips can enter; keep
+    # balanced/contra ranking as chosen. Caps/plausibility lift separately.
+    filter_bias = "balanced" if (allow_high_risk and bias == "safe") else bias
+    legs = _value_legs(reports, lang, bias=filter_bias)
     if not legs:
         return None
-    legs.sort(key=_leg_sort_key(bias))
-    cap = min(max(1, max_legs), _MAX_SAFE_LEGS if bias == "safe" else max_legs)
-    combined_cap = _MAX_SAFE_COMBINED_ODDS if bias == "safe" else None
+    legs.sort(key=_leg_sort_key(filter_bias))
+    if allow_high_risk:
+        cap = max(1, max_legs)
+        combined_cap = None
+        enforce = False
+    else:
+        cap = min(max(1, max_legs), _MAX_SAFE_LEGS if bias == "safe" else max_legs)
+        combined_cap = _MAX_SAFE_COMBINED_ODDS if bias == "safe" else None
+        enforce = True
     return _select_plausible_legs(
         legs,
         max_legs=cap,
         style="safe",
         max_combined_odds=combined_cap,
+        enforce_plausible=enforce,
     )
 
 
@@ -306,19 +323,22 @@ def build_boosted_slip(
     boost_legs: int = 2,
     min_boost_odds: float = 2.2,
     bias: str = "safe",
+    allow_high_risk: bool = False,
 ) -> BettingSlip | None:
     """Safer core tips plus higher-odds legs to lift the combined price."""
 
-    legs = _value_legs(reports, lang, bias=bias)
+    filter_bias = "balanced" if (allow_high_risk and bias == "safe") else bias
+    legs = _value_legs(reports, lang, bias=filter_bias)
     if not legs:
         return None
 
-    by_prob = sorted(legs, key=_leg_sort_key(bias))
+    by_prob = sorted(legs, key=_leg_sort_key(filter_bias))
     core_n = max(1, min(core_legs, len(by_prob)))
     core_slip = _select_plausible_legs(
         [_copy_leg(leg, role="core") for leg in by_prob[: max(core_n * 2, core_n)]],
         max_legs=core_n,
         style="boosted",
+        enforce_plausible=not allow_high_risk,
     )
     if core_slip is None:
         return None
@@ -330,24 +350,30 @@ def build_boosted_slip(
         for leg in sorted(by_prob, key=lambda leg: (-leg.odds, -leg.edge))
         if leg.match_id not in used and leg.odds >= min_boost_odds
     ]
-    # Add boosters only while the combo stays plausible.
     chosen = list(core)
     for booster in boosters:
         if len([leg for leg in chosen if leg.role == "boost"]) >= max(0, boost_legs):
             break
         trial = BettingSlip(legs=tuple(chosen + [booster]), style="boosted")
-        if trial.is_plausible:
+        if allow_high_risk or trial.is_plausible:
             chosen.append(booster)
 
     return BettingSlip(legs=tuple(chosen), style="boosted")
 
 
-def slip_with_legs(slip: BettingSlip, match_ids: Sequence[str]) -> BettingSlip:
+def slip_with_legs(
+    slip: BettingSlip,
+    match_ids: Sequence[str],
+    *,
+    allow_high_risk: bool = False,
+) -> BettingSlip:
     """Keep only selected legs (order preserved); empty selection → empty slip."""
 
     wanted = set(match_ids)
     kept = tuple(leg for leg in slip.legs if leg.match_id in wanted)
     trimmed = BettingSlip(legs=kept, style=slip.style)
+    if allow_high_risk:
+        return trimmed
     # Manual edits can reintroduce overconfidence — re-trim if needed.
     return make_plausible_slip(trimmed) or trimmed
 
