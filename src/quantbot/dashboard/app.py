@@ -1526,8 +1526,6 @@ def _slip_paper_reserve(lang, mode, slip, stake) -> None:  # type: ignore[no-unt
 def _paper_page(lang, mode) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
     """Paper-simulation ledger: units, caps, open reservations, manual settle."""
 
-    from quantbot.dashboard.paper import format_booking_leg_line
-
     st.markdown(
         f"""
         <div style="margin:0 0 1rem 0;padding:1.1rem 1.25rem;border-radius:12px;
@@ -1569,44 +1567,35 @@ def _paper_page(lang, mode) -> None:  # type: ignore[no-untyped-def]  # pragma: 
         st.info(t("paper.empty", lang))
         return
 
+    from quantbot.dashboard.paper import booking_ticket_html
+
     for booking in bookings:
-        with st.container(border=True):
-            st.markdown(
-                "**"
-                + t("paper.booking_meta", lang).format(
-                    stake=booking.stake,
-                    odds=booking.decimal_odds,
-                    id=booking.booking_id[:8],
-                )
-                + "**"
-            )
-            for i, leg in enumerate(booking.legs, start=1):
-                st.caption(format_booking_leg_line(leg, index=i, lang=lang))
-            b1, b2, b3, b4 = st.columns(4)
-            if b1.button(
-                t("paper.settle_win", lang),
-                key=f"paper_win::{booking.booking_id}",
-            ):
-                ledger.settle(booking.booking_id, won=True)
-                st.rerun()
-            if b2.button(
-                t("paper.settle_loss", lang),
-                key=f"paper_loss::{booking.booking_id}",
-            ):
-                ledger.settle(booking.booking_id, won=False)
-                st.rerun()
-            if b3.button(
-                t("paper.settle_void", lang),
-                key=f"paper_void::{booking.booking_id}",
-            ):
-                ledger.settle(booking.booking_id, void=True)
-                st.rerun()
-            if b4.button(
-                t("paper.cancel", lang),
-                key=f"paper_cancel::{booking.booking_id}",
-            ):
-                ledger.cancel(booking.booking_id)
-                st.rerun()
+        st.html(booking_ticket_html(booking, lang=lang))
+        b1, b2, b3, b4 = st.columns(4)
+        if b1.button(
+            t("paper.settle_win", lang),
+            key=f"paper_win::{booking.booking_id}",
+        ):
+            ledger.settle(booking.booking_id, won=True)
+            st.rerun()
+        if b2.button(
+            t("paper.settle_loss", lang),
+            key=f"paper_loss::{booking.booking_id}",
+        ):
+            ledger.settle(booking.booking_id, won=False)
+            st.rerun()
+        if b3.button(
+            t("paper.settle_void", lang),
+            key=f"paper_void::{booking.booking_id}",
+        ):
+            ledger.settle(booking.booking_id, void=True)
+            st.rerun()
+        if b4.button(
+            t("paper.cancel", lang),
+            key=f"paper_cancel::{booking.booking_id}",
+        ):
+            ledger.cancel(booking.booking_id)
+            st.rerun()
 
 
 def _diagnostics_page(lang, C, provider, mode, league, season) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover

@@ -61,6 +61,37 @@ def test_format_selection_and_leg_line() -> None:
     assert "1.88" in line
 
 
+def test_booking_ticket_html_shows_tip_badge() -> None:
+    from datetime import datetime, timezone
+
+    from quantbot.dashboard.paper import booking_ticket_html
+    from quantbot.ledger import Booking, BookingStatus
+
+    booking = Booking(
+        booking_id="abcdef12-zzzz",
+        client_key="k",
+        mode="demo",
+        status=BookingStatus.RESERVED,
+        stake=10.0,
+        decimal_odds=3.87,
+        legs=(
+            BookingLeg(match_id="564689", selection="under", decimal_odds=1.88),
+            BookingLeg(match_id="564693", selection="over", decimal_odds=2.06),
+        ),
+        tip_id=None,
+        reserved_at=datetime(2026, 9, 18, tzinfo=timezone.utc),
+        settled_at=None,
+        payout=None,
+        pnl=None,
+    )
+    html = booking_ticket_html(booking, lang="de")
+    assert "PAPIER-RESERVIERUNG" in html
+    assert "Unter" in html
+    assert "Über" in html
+    assert "1.88" in html
+    assert "3.87" in html
+
+
 def test_slip_client_key_stable(tmp_path: Path) -> None:
     slip = _slip(2.0)
     a = slip_client_key(slip, mode="demo")
