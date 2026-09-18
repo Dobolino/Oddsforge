@@ -203,6 +203,15 @@ _STRINGS: dict[str, dict[str, str]] = {
         "en": "Colors: 🟢 home win · 🟡 draw · 🔵 away win",
     },
     "sig.range_summary": {"de": "Zeitraum {start}–{end}: {n} Spiele, {k} klare Tipps.", "en": "Window {start}–{end}: {n} matches, {k} clear tips."},
+    "sig.value_rate": {
+        "de": "Value-Anteil: {k} von {n} Spielen ({pct}%). Bei sehr hohem Anteil oft zu wenig Daten — vorsichtig bleiben.",
+        "en": "Value share: {k} of {n} matches ({pct}%). A very high share often means thin data — stay cautious.",
+    },
+    "sig.value_share": {"de": "Value-Anteil", "en": "Value share"},
+    "sig.top_n_note": {
+        "de": "Hauptliste: Top {n} nach Edge (von {total} Value-Tipps). Rest unter „Alle Spiele“.",
+        "en": "Main list: top {n} by edge (of {total} value tips). Rest under “All matches”.",
+    },
     "sig.all_leagues_intro": {"de": "Tipps nach Liga unterteilt. Der Tippschein kann alle Ligen im Zeitraum mischen.", "en": "Tips grouped by league. The tip slip can mix all leagues in the date window."},
     "page.insights": {"de": "Modell-Einblicke", "en": "Model insights"},
     "page.backtest": {"de": "Backtest", "en": "Backtest"},
@@ -374,6 +383,31 @@ _STRINGS: dict[str, dict[str, str]] = {
         "de": "Schlüssel kannst du in der Seitenleiste unter API-Schlüssel speichern oder ändern.",
         "en": "Save or change keys in the sidebar under API keys.",
     },
+    "settings.ollama": {"de": "Ollama (lokal, optional)", "en": "Ollama (local, optional)"},
+    "settings.ollama_intro": {
+        "de": "Lokale KI nur zur Erklärung des Tippscheins — sie ändert keine Tipps. "
+              "Voraussetzung: Ollama installiert und ein Modell geladen (z. B. ollama pull llama3.2).",
+        "en": "Local AI only explains the tip slip — it does not change tips. "
+              "Requires Ollama installed and a model pulled (e.g. ollama pull llama3.2).",
+    },
+    "settings.ollama_enabled": {"de": "Ollama-Erklärung aktivieren", "en": "Enable Ollama explanation"},
+    "settings.ollama_url": {"de": "Ollama-URL", "en": "Ollama URL"},
+    "settings.ollama_model": {"de": "Modell", "en": "Model"},
+    "settings.ollama_save": {"de": "Ollama-Einstellungen speichern", "en": "Save Ollama settings"},
+    "settings.ollama_test": {"de": "Verbindung testen", "en": "Test connection"},
+    "settings.ollama_ok": {"de": "Ollama erreichbar. Modelle: {models}", "en": "Ollama reachable. Models: {models}"},
+    "settings.ollama_fail": {"de": "Ollama nicht erreichbar: {error}", "en": "Ollama unreachable: {error}"},
+    "settings.ollama_saved": {"de": "Ollama-Einstellungen gespeichert.", "en": "Ollama settings saved."},
+    "slip.ollama_explain": {"de": "Erklärung mit Ollama", "en": "Explain with Ollama"},
+    "slip.ollama_hint": {
+        "de": "Optionale lokale KI-Zusammenfassung. Tipps bleiben unverändert.",
+        "en": "Optional local AI summary. Tips stay unchanged.",
+    },
+    "slip.ollama_disabled": {
+        "de": "Ollama ist aus. Unter Einstellungen aktivieren und Verbindung testen.",
+        "en": "Ollama is off. Enable it under Settings and test the connection.",
+    },
+    "slip.ollama_title": {"de": "KI-Erklärung (Ollama)", "en": "AI explanation (Ollama)"},
     "keys.basketball": {"de": "BallDontLie / NBA Schlüssel (optional)", "en": "BallDontLie / NBA key (optional)"},
     "keys.basketball_missing": {"de": "BallDontLie / NBA: nicht hinterlegt (Demo-NBA aktiv)", "en": "BallDontLie / NBA: not set (demo NBA active)"},
     "keys.basketball_optional": {"de": "NBA: Demodaten — noch keine Live-Anbindung, kein Schlüssel erforderlich.", "en": "NBA: demo data — live integration is not available yet; no key required."},
@@ -517,12 +551,18 @@ _STRINGS: dict[str, dict[str, str]] = {
     "slip.orient_balanced": {"de": "Ausgewogen", "en": "Balanced"},
     "slip.orient_contra": {"de": "Gegen den Markt", "en": "Against the market"},
     "slip.orient_hint": {
-        "de": "Sicher bevorzugt Favoriten mit hoher Modell-Wahrscheinlichkeit. "
-              "Gegen den Markt bevorzugt Tipps mit dem grössten Vorteil, oft "
-              "unwahrscheinlichere Seiten mit höherer Quote und mehr Risiko.",
-        "en": "Safe prefers favorites with high model probability. Against the "
-              "market prefers the biggest edge, often less likely sides with "
-              "higher odds and more risk.",
+        "de": "Sicher = nur Mit-Markt-Favoriten, kurze Quoten (≤2.60), kein Über/Unter, "
+              "Kombi-Quote max. ca. 8. Gegen den Markt = bewusste Risiko-Ausrichtung.",
+        "en": "Safe = with-market favorites only, short odds (≤2.60), no over/under, "
+              "combined odds capped near 8. Against the market = deliberate risk.",
+    },
+    "slip.orient_safe_default": {
+        "de": "Standard: Mit dem Markt. Gegen den Markt erst bewusst wählen.",
+        "en": "Default: with the market. Choose against the market deliberately.",
+    },
+    "slip.active_orient": {
+        "de": "Aktive Ausrichtung: {orient}",
+        "en": "Active orientation: {orient}",
     },
     "slip.style_safe": {"de": "Hohe Modell-P", "en": "High model-P"},
     "slip.style_boosted": {
@@ -564,6 +604,10 @@ _STRINGS: dict[str, dict[str, str]] = {
               "Auch eine Einzelquote über 8,0 wird als riskant markiert.",
         "en": "Model values too high, usually too little data. Not reliable. "
               "A single price above 8.0 is also flagged as risky.",
+    },
+    "slip.trimmed_note": {
+        "de": "Schein wurde gekürzt, damit die Kombi-Chance glaubwürdig bleibt.",
+        "en": "Slip was shortened so the combined chance stays believable.",
     },
     "slip.legs": {"de": "Tipps im Schein", "en": "Legs on the slip"},
     "slip.role": {"de": "Rolle", "en": "Role"},

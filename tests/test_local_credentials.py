@@ -7,18 +7,26 @@ from pathlib import Path
 from quantbot.local_credentials import StoredApiKeys, clear_api_keys, load_api_keys, save_api_keys
 
 
-def test_save_and_load_api_keys(tmp_path: Path) -> None:
-    path = tmp_path / "credentials.env"
-    # Deliberately fake placeholder values — not real secrets.
-    save_api_keys("test-football-key", "test-odds-key", path=path)
+def test_dashboard_unpacks_four_credential_fields() -> None:
+    """Regression: StoredApiKeys gained apifootball; 3-way unpack crashed startup."""
+    from quantbot.dashboard import app_path
+    from quantbot.local_credentials import StoredApiKeys
 
-    loaded = load_api_keys(path=path)
-    assert loaded is not None
-    assert isinstance(loaded, StoredApiKeys)
-    assert loaded.football == "test-football-key"
-    assert loaded.odds == "test-odds-key"
-    assert loaded.basketball == ""
-    assert "test-football-key" in path.read_text(encoding="utf-8")
+    keys = StoredApiKeys("fb", "odds", "bb", "apif")
+    assert len(keys) == 4
+    fd_key, odds_key, bball_key, apif_key = (
+        keys.football,
+        keys.odds,
+        keys.basketball,
+        keys.apifootball,
+    )
+    assert (fd_key, odds_key, bball_key, apif_key) == ("fb", "odds", "bb", "apif")
+
+    source = app_path().read_text(encoding="utf-8")
+    assert "fd_key, odds_key, bball_key = credential_controls" not in source
+    assert "keys.apifootball" in source or "keys.apifootball" in source
+    assert "keys.football" in source
+    assert "apif_key" in source
 
 
 def test_load_missing_file_returns_none(tmp_path: Path) -> None:
