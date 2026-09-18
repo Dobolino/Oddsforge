@@ -13,7 +13,7 @@ from pydantic import Field, model_validator
 
 from quantbot.schemas.base import PROB_SUM_TOLERANCE, QuantBotModel
 from quantbot.schemas.enums import MatchOutcome, TotalsSide
-from quantbot.schemas.lines import require_half_line
+from quantbot.schemas.lines import require_half_line, require_handicap_half_line
 
 
 class ScoreMatrix(QuantBotModel):
@@ -84,6 +84,30 @@ class ScoreMatrix(QuantBotModel):
             TotalsSide.OVER: over / mass,
             TotalsSide.UNDER: under / mass,
         }
+
+    def handicap_probabilities(self, line: float = -0.5) -> tuple[float, float]:
+        """Asian-handicap cover probabilities ``(home_cover, away_cover)``.
+
+        ``line`` is the signed half-line handicap applied to the home team.
+        Home covers when ``home_goals + line > away_goals``, i.e. the goal
+        margin ``i - j`` exceeds ``-line``. Half-lines have no push, so the two
+        probabilities sum to 1.0. Matches the ``(home, away)`` tuple shape used
+        by the basketball spread model.
+        """
+
+        require_handicap_half_line(line)
+        threshold = -line  # home covers when (i - j) > threshold
+        home = away = 0.0
+        for i, row in enumerate(self.matrix):
+            for j, cell in enumerate(row):
+                if (i - j) > threshold:
+                    home += cell
+                else:
+                    away += cell
+        mass = home + away
+        if mass <= 0.0:
+            return 0.5, 0.5
+        return home / mass, away / mass
 
 class Prediction(QuantBotModel):
     """A model's probabilistic forecast for one match.

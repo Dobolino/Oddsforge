@@ -209,3 +209,19 @@ def test_dixon_coles_score_matrix_never_nan(monkeypatch) -> None:
     grid = model.score_matrix("a", "b")
     assert np.isfinite(grid).all()
     assert abs(float(grid.sum()) - 1.0) < 1e-9
+
+
+def test_score_matrix_handicap_probabilities() -> None:
+    from quantbot.schemas.prediction import ScoreMatrix
+
+    m = ScoreMatrix(matrix=[[0.10, 0.05, 0.02], [0.30, 0.10, 0.03], [0.20, 0.08, 0.12]])
+    home_m05, away_m05 = m.handicap_probabilities(-0.5)
+    assert abs(home_m05 + away_m05 - 1.0) < 1e-9
+    # A head start (+0.5) can only help the home cover vs giving a start (-0.5).
+    home_p05, _ = m.handicap_probabilities(0.5)
+    assert home_p05 >= home_m05
+    # Whole lines are rejected (push not modeled).
+    import pytest
+
+    with pytest.raises(ValueError):
+        m.handicap_probabilities(-1.0)

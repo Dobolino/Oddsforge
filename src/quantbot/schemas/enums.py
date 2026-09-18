@@ -120,6 +120,9 @@ TOTALS_ORDER: tuple[TotalsSide, ...] = (
 # Default totals lines by sport.
 DEFAULT_TOTALS_LINE = 2.5
 DEFAULT_NBA_TOTALS_LINE = 225.5
+# Default Asian-handicap line (home slightly favored). Negative = home gives
+# a start; positive = home receives one.
+DEFAULT_HANDICAP_LINE = -0.5
 
 # League → sport mapping (football leagues default when omitted).
 LEAGUE_SPORT: dict[League, Sport] = {
