@@ -1204,21 +1204,11 @@ def _slip_page(
                 f'{t("slip.high_risk_warn", lang)}</p>',
                 unsafe_allow_html=True,
             )
-        bankroll_local = st.number_input(
-            t("slip.bankroll", lang),
-            min_value=1.0,
-            value=1000.0,
-            step=100.0,
-            key="slip_bankroll_input",
-        )
-        max_stake = float(bankroll_local) * 0.05
-        if float(st.session_state.get("slip_stake_input", 0.0) or 0.0) > max_stake:
-            st.session_state["slip_stake_input"] = max_stake
         stake_local = st.number_input(
             t("slip.stake", lang),
             min_value=0.0,
-            max_value=max_stake,
-            value=min(10.0, max_stake),
+            max_value=10_000.0,
+            value=10.0,
             step=0.01,
             key="slip_stake_input",
         )
@@ -1312,10 +1302,7 @@ def _slip_page(
         st.info(t("slip.empty", lang))
         return
 
-    from quantbot.dashboard.slip import cap_example_stake
-
-    bankroll = max(0.0, float(st.session_state.get("slip_bankroll_input", 1000.0)))
-    stake = cap_example_stake(stake, bankroll)
+    stake = max(0.0, float(stake))
 
     st.subheader(t("slip.ticket_title", lang))
     st.caption(t("slip.range_note", lang).format(start=start_d.isoformat(), end=end_d.isoformat()))

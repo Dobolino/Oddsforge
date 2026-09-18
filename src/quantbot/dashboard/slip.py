@@ -36,14 +36,6 @@ _MAX_SAFE_COMBINED_ODDS = 8.0
 _MAX_SAFE_LEGS = 4
 
 
-def cap_example_stake(stake: float, bankroll: float) -> float:
-    """Keep a simulated slip stake within five percent of example bankroll."""
-
-    if not isfinite(stake) or not isfinite(bankroll) or stake < 0 or bankroll < 0:
-        raise ValueError("stake and bankroll must be finite and non-negative")
-    return min(stake, 0.05 * bankroll)
-
-
 @dataclass(frozen=True)
 class SlipLeg:
     match_id: str

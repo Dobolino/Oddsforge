@@ -9,7 +9,6 @@ from pydantic import ValidationError
 
 from quantbot.data.base import BaseDataProvider
 from quantbot.data.basketball import BasketballDataProvider
-from quantbot.dashboard.slip import cap_example_stake
 from quantbot.decision import KellySizer, NoBetRules
 from quantbot.features import FeatureExtractor
 from quantbot.markets.odds import MarketEngine
@@ -125,7 +124,6 @@ def test_integer_totals_rejected_before_pricing_or_settlement() -> None:
 def test_hard_stake_cap_and_unrealistic_ev_gate() -> None:
     sizer = KellySizer(kelly_fraction=1.0, max_fraction=1.0)
     assert sizer.stake_fraction(0.9, 2.0) == 0.05
-    assert cap_example_stake(1000.0, 100.0) == 5.0
     with pytest.raises(ValueError, match="finite"):
         sizer.stake_fraction(float("nan"), 2.0)
     metric = ValueMetrics(

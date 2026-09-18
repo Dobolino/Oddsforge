@@ -193,7 +193,6 @@ _STRINGS: dict[str, dict[str, str]] = {
     "slip.range_note": {"de": "Spieltage {start} bis {end}.", "en": "Match days {start} to {end}."},
     "slip.copy_title": {"de": "Als Text zum Kopieren", "en": "As text to copy"},
     "slip.ticket_title": {"de": "Kombi-Simulation", "en": "Accumulator scenario"},
-    "slip.bankroll": {"de": "Beispiel-Bankroll", "en": "Example bankroll"},
     "slip.stake": {"de": "Denkbarer Einsatz (€)", "en": "Notional stake"},
     "slip.all_leagues": {"de": "Der Schein holt Value-Tipps aus allen gewählten Ligen im Datumsbereich.", "en": "The slip pulls value tips from all selected leagues in the date window."},
     "sig.open_slip_hint": {"de": "Willst du daraus einen Tippschein? Button darunter oder links unter Seiten „Tippschein“.", "en": "Want a tip slip from this? Use the button below or Tip slip under Pages."},
