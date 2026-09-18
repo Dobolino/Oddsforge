@@ -193,7 +193,15 @@ def _clear_local_cache() -> list[str]:
 
 
 
-def _api_status_badges(lang: str, *, fd_key: str, odds_key: str, bball_key: str, live: bool) -> None:
+def _api_status_badges(
+    lang: str,
+    *,
+    fd_key: str,
+    odds_key: str,
+    bball_key: str,
+    apif_key: str = "",
+    live: bool,
+) -> None:
     """Compact header badges with masked key tails and active/missing dots."""
 
     def _badge(label: str, key: str, active: bool) -> str:
@@ -205,6 +213,9 @@ def _api_status_badges(lang: str, *, fd_key: str, odds_key: str, bball_key: str,
     bits = [
         _badge("Football-Data", fd_key, bool(fd_key)),
         _badge("The Odds API", odds_key, bool(odds_key)),
+        _badge("API-Football", apif_key, bool(apif_key))
+        if apif_key
+        else t("keys.apifootball_optional", lang),
         t("keys.basketball_optional", lang),
     ]
     mode = t("mode.live", lang) if live else t("mode.demo", lang)
@@ -314,7 +325,15 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
 
     from quantbot.dashboard.credentials import credential_controls
 
-    fd_key, odds_key, bball_key = credential_controls(lang)
+    # StoredApiKeys is a 4-field named tuple (football, odds, basketball, apifootball).
+    # Unpack by attribute so a new optional key cannot crash startup again.
+    keys = credential_controls(lang)
+    fd_key, odds_key, bball_key, apif_key = (
+        keys.football,
+        keys.odds,
+        keys.basketball,
+        keys.apifootball,
+    )
 
     with st.sidebar.expander(t("cache.title", lang), expanded=False):
         if st.session_state.pop("cache_cleared", False):
@@ -408,7 +427,14 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     mode = "live" if live else "demo"
     C = _install_cache()
 
-    _api_status_badges(lang, fd_key=fd_key, odds_key=odds_key, bball_key=bball_key, live=live)
+    _api_status_badges(
+        lang,
+        fd_key=fd_key,
+        odds_key=odds_key,
+        bball_key=bball_key,
+        apif_key=apif_key,
+        live=live,
+    )
 
     # Thin safety line once onboarding is done; full banner only on first visit.
     if st.session_state.get("welcome_dismissed"):
@@ -434,7 +460,14 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     # merge the picker was hidden behind the empty-season early return, so users
 
     if page == "settings":
-        _settings_page(lang, fd_key=fd_key, odds_key=odds_key, bball_key=bball_key, live=live)
+        _settings_page(
+            lang,
+            fd_key=fd_key,
+            odds_key=odds_key,
+            bball_key=bball_key,
+            apif_key=apif_key,
+            live=live,
+        )
         return
     # lost date + range selection whenever Football-Data returned no games.
     # Match card previously had no date UI and defaulted to mid-season as_of,
@@ -900,15 +933,24 @@ def _signals_page(
 
 
 
-def _settings_page(lang, *, fd_key: str, odds_key: str, bball_key: str, live: bool) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
+def _settings_page(
+    lang, *, fd_key: str, odds_key: str, bball_key: str, apif_key: str = "", live: bool
+) -> None:  # type: ignore[no-untyped-def]  # pragma: no cover
     """Dedicated API settings / connection status page."""
 
     st.header(t("page.settings", lang))
     st.caption(t("settings.intro", lang))
-    _api_status_badges(lang, fd_key=fd_key, odds_key=odds_key, bball_key=bball_key, live=live)
+    _api_status_badges(
+        lang,
+        fd_key=fd_key,
+        odds_key=odds_key,
+        bball_key=bball_key,
+        apif_key=apif_key,
+        live=live,
+    )
 
     st.subheader(t("settings.validate", lang))
-    c1, c2, c3 = st.columns(3)
+    c1, c2, c3, c4 = st.columns(4)
     with c1:
         st.markdown(f"**Football-Data.org**")
         st.write(_mask_key(fd_key) if fd_key else t("status.missing", lang))
@@ -926,6 +968,10 @@ def _settings_page(lang, *, fd_key: str, odds_key: str, bball_key: str, live: bo
             status = test_connection("the_odds_api", odds_key)
             (st.success if status == "active" else st.warning)(t(f"settings.connection_{status}", lang))
     with c3:
+        st.markdown(f"**API-Football**")
+        st.write(_mask_key(apif_key) if apif_key else t("status.missing", lang))
+        st.info(t("keys.apifootball_optional", lang))
+    with c4:
         st.markdown(f"**BallDontLie / NBA**")
         st.write(_mask_key(bball_key) if bball_key else t("status.missing", lang))
         st.info(t("keys.basketball_optional", lang))
