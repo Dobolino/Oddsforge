@@ -865,7 +865,8 @@ def _signals_page(
     else:
         st.caption(t("sig.intro", lang))
         if ux_mode is UXMode.ADVANCED:
-            st.caption(f"{t('term.edge', lang)} · {t('term.ev', lang)} · {t('term.stake', lang)}")
+            st.caption(f"{t('term.edge', lang)} · {t('term.ev', lang)} · {t('term.forecast_quality', lang)}")
+            st.caption(t("term.stake", lang))
 
     reports = _filter_by_kickoff(
         _predict_leagues(C, orchestrator, mode, leagues, season, _as_of_cache_key(as_of)),
@@ -1194,9 +1195,9 @@ def _slip_page(
         stake_local = st.number_input(
             t("slip.stake", lang),
             min_value=0.0,
-            max_value=10_000.0,
-            value=10.0,
-            step=0.01,
+            max_value=100.0,
+            value=1.0,
+            step=0.1,
             key="slip_stake_input",
         )
         max_available = max(1, min(8, available or 1))
@@ -1263,7 +1264,7 @@ def _slip_page(
             slip = build_smart_cross_sport_slip(
                 reports, lang=lang, max_legs=len(smart_ids), min_edge=0.02, min_data_quality=70.0
             )
-            stake = float(st.session_state.get("slip_stake_input", 10.0))
+            stake = float(st.session_state.get("slip_stake_input", 1.0))
             _style = "safe"
             if slip is not None:
                 slip = slip_with_legs(slip, smart_ids)
@@ -1477,7 +1478,15 @@ def _card_page(
             ),
         } for o in outcomes]
         st.dataframe(pd.DataFrame(frows), width="stretch", hide_index=True)
-        st.markdown(f"**{t('card.decision', lang)}**: {c.signal}  ·  {t('card.stake', lang)}: {c.stake_fraction:.2f}%")
+        # Prefer decision/validation fields from the live signal when present.
+        decision_line = f"**{t('card.decision', lang)}**: {c.signal}"
+        stake_txt = f"{c.stake_fraction:.2f}%"
+        if getattr(c, "sizing_allowed", True) is False or c.stake_fraction <= 0.0:
+            stake_txt = "—" if lang.startswith("de") else "—"
+            decision_line += f" · {t('sig.exploratory', lang)}"
+        else:
+            decision_line += f" · {t('card.stake', lang)}: {stake_txt}"
+        st.markdown(decision_line)
 
     st.markdown(f"**{t('card.why', lang)}**")
     for r in c.reasons:

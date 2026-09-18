@@ -177,9 +177,9 @@ def _stance_text(stance: str, de: bool) -> str:
     """Plain-text market-stance label for a slip leg (no emoji, box-safe)."""
 
     if stance == "with":
-        return "Mit Markt" if de else "With market"
+        return "Näher am Markt" if de else "Closer to market"
     if stance == "against":
-        return "Gegen Markt" if de else "Against market"
+        return "Größere Abweichung" if de else "Larger deviation"
     return ""
 
 
@@ -508,18 +508,20 @@ def format_ticket(
     lines.append("╠══════════════════════════════════════╣")
     payout = stake * slip.combined_odds
     if de:
-        lines.append(f"║  Einsatz:           {stake:>8.2f} €       ║")
+        lines.append(f"║  Einheiten:         {stake:>8.2f}         ║")
         lines.append(f"║  Gesamtquote:       {slip.combined_odds:>8.2f}         ║")
-        lines.append(f"║  Möglicher Gewinn:  {payout:>8.2f} €       ║")
-        lines.append("║  Kombi-Chance:      nicht belastbar   ║")
+        lines.append(f"║  Sim. Auszahlungsf.:{payout:>8.2f}         ║")
+        lines.append("║  Kombi-P: nicht belastbar (keine      ║")
+        lines.append("║           freigegebene Wahrscheinlichkeit)║")
         scen = slip.independence_scenario_pct
         if scen is not None:
             lines.append(f"║  Unabh.-Szenario*:  {scen:>7.1f} %        ║")
     else:
-        lines.append(f"║  Stake:             {stake:>8.2f}          ║")
+        lines.append(f"║  Units:             {stake:>8.2f}         ║")
         lines.append(f"║  Combined odds:     {slip.combined_odds:>8.2f}         ║")
-        lines.append(f"║  Potential return:  {payout:>8.2f}          ║")
-        lines.append("║  Combo chance:      not reliable      ║")
+        lines.append(f"║  Sim. payout factor:{payout:>8.2f}         ║")
+        lines.append("║  Combo P: not reliable (no released   ║")
+        lines.append("║           accumulator probability)    ║")
         scen = slip.independence_scenario_pct
         if scen is not None:
             lines.append(f"║  Indep. scenario*:  {scen:>7.1f} %        ║")
@@ -607,21 +609,26 @@ def ticket_html(
             f'font-size:1.15rem;font-weight:700;">{leg.odds:.2f}</td>'
             "</tr>"
         )
-    stake_lbl = "Einsatz" if de else "Stake"
+    stake_lbl = "Einheiten" if de else "Units"
     odds_lbl = "Gesamtquote" if de else "Combined odds"
-    win_lbl = "Möglicher Gewinn" if de else "Potential return"
-    chance_lbl = "Kombi-Chance" if de else "Combo chance"
+    win_lbl = "Sim. Auszahlungsfaktor" if de else "Sim. payout factor"
+    chance_lbl = "Kombi-Wahrscheinlichkeit" if de else "Accumulator probability"
     title = "KOMBI-SIMULATION" if de else "ACCUMULATOR SCENARIO"
     sub = (
         "Nur ein Vorschlag zum Abschreiben — QuantBot setzt nichts."
         if de
         else "Suggestion only — QuantBot places nothing."
     )
-    currency = "€" if de else ""
     scen = slip.independence_scenario_pct
+    chance_txt = (
+        "Keine belastbare Kombi-Wahrscheinlichkeit verfügbar"
+        if de
+        else "No reliable accumulator probability available"
+    )
     chance_row = (
-        f'<div style="display:flex;justify-content:space-between;margin:0.25rem 0;"><span>{chance_lbl}</span>'
-        f'<b>{"nicht belastbar" if de else "not reliable"}</b></div>'
+        f'<div style="display:flex;justify-content:space-between;margin:0.25rem 0;gap:0.5rem;">'
+        f"<span>{chance_lbl}</span>"
+        f'<b style="text-align:right;">{chance_txt}</b></div>'
     )
     if scen is not None:
         scen_lbl = "Unabh.-Szenario (Diagnostik)" if de else "Indep. scenario (diagnostic)"
@@ -650,11 +657,11 @@ def ticket_html(
         f'<table style="width:100%;border-collapse:collapse;">{"".join(rows)}</table>'
         '<div style="margin-top:1rem;padding-top:0.75rem;border-top:2px solid #222;">'
         f'<div style="display:flex;justify-content:space-between;margin:0.25rem 0;"><span>{stake_lbl}</span>'
-        f"<b>{stake:.2f} {currency}</b></div>"
+        f"<b>{stake:.2f}</b></div>"
         f'<div style="display:flex;justify-content:space-between;margin:0.25rem 0;"><span>{odds_lbl}</span>'
         f"<b>{slip.combined_odds:.2f}</b></div>"
         f'<div style="display:flex;justify-content:space-between;margin:0.25rem 0;font-size:1.15rem;">'
-        f"<span>{win_lbl}</span><b>{payout:.2f} {currency}</b></div>"
+        f"<span>{win_lbl}</span><b>{payout:.2f}</b></div>"
         f"{chance_row}"
         "</div>"
         f'<div style="margin-top:0.9rem;text-align:center;font-size:0.8rem;opacity:0.8;">{sub}</div>'

@@ -46,8 +46,8 @@ def test_plain_signal_labels() -> None:
     assert plain_signal_label(SignalType.VALUE_HOME, "de").startswith("Value erkannt")
     assert "Value spotted" in plain_signal_label(SignalType.VALUE_HOME, "en")
     assert "home" in plain_signal_label(SignalType.VALUE_HOME, "en").lower()
-    assert "Kein Value" in plain_signal_label(SignalType.NO_BET, "de")
-    assert "No value" in plain_signal_label(SignalType.NO_BET, "en")
+    assert "Kein Signal" in plain_signal_label(SignalType.NO_BET, "de")
+    assert "No signal" in plain_signal_label(SignalType.NO_BET, "en")
 
 
 def test_tone_colors_for_signed_and_confidence() -> None:

@@ -1,6 +1,6 @@
 # Fortschritt: CURSOR_PROMPT_QUANTBOT (P0 → P1 → P2)
 
-Stand: P0 Paket 1–4 (Ledger) auf Branch `cursor/p0-decision-policy-9483`.
+Stand: P0 fertig; P1 UX (Begriffsklarheit) gestartet auf Branch `cursor/p0-decision-policy-9483`.
 
 ## Bestandsaufnahme (Kurz)
 
@@ -15,50 +15,38 @@ Stand: P0 Paket 1–4 (Ledger) auf Branch `cursor/p0-decision-policy-9483`.
 | Shrinkage n_eff/(n_eff+k) | DONE (Option EFF_SAMPLE; Legacy erhalten) |
 | Dixon-Coles Restmasse | DONE (adaptives Gitter, Tol 1e-8) |
 | Papier-Ledger / Exposure-Caps | DONE (SQLite; Caps heuristisch) |
-| P1 UX | MISSING |
+| P1 UX | IN PROGRESS (Begriffe/Gating) |
 | P2 CLV / AH / Run-Manifest | MISSING |
 
-## Paket 1 — DecisionPolicy
+## Verbleibende Arbeitspakete (grob)
 
-1. **DecisionPolicy** (`decision/policy.py`, Version `1.0.0`)
-2. Status: `INVALID_DATA` · `NO_BET` · `VALUE_EXPLORATORY` · `VALUE_RELEASED`
-3. `UNVALIDATED` → kein Kelly-Sizing
-4. High-Risk entfernt; Slip: 1 Bein/Match; Kombi-Chance nicht belastbar
+1. **P1 UX** (dieses Paket) — Begriffsklarheit, Validierung sichtbar, kein € in Kombi-Analyse
+2. **P2 Tracking / CLV / Run-Manifest**
+3. **P2 AH Settlement** (experimental, nach P1)
+4. **Datenblocker** — echte chronologische VALID-Artefakte (nicht synthetisch)
 
-## Paket 2 — Snapshots & Integrität
+≈ **2 Hauptphasen** (P1 + P2) plus Datenblocker.
 
-1. **`SnapshotRepository`** (`data/snapshot_repo.py`) — SQLite unter `data/snapshots/`
-2. **`markets/integrity.py`** — Prematch-Checks → `INVALID_DATA_*`
-3. Orchestrator optional: `persist_snapshots=True`
+## Paket 1–4 — P0 (DONE)
 
-## Paket 3 — Validierungsartefakt & Shrinkage
+DecisionPolicy · Snapshots/Integrität · ValidationArtifact/Shrinkage · Dixon-Coles-Gitter · PaperLedger
 
-1. **`ValidationArtifact`** (`analysis/validation.py`) — VALID nur mit expliziten Kriterien
-2. **`ShrinkageMode`**: `OFF` | `LEGACY_DEPTH` | `EFF_SAMPLE`
+## Paket 5 — P1 UX (teilweise)
 
-## Paket 3b — Dixon-Coles Restmasse
-
-1. Adaptives Gitter bis `independent_rest_mass <= 1e-8`
-2. Status `GRID_LIMIT` / `TAU_INVALID`; Restmasse im Audit sichtbar
-
-## Paket 4 — Papier-Ledger & Exposure-Caps
-
-1. **`PaperLedger`** (`ledger/__init__.py`) — SQLite unter `data/ledger/{mode}.sqlite3`
-2. Caps vs Papierkapitalbasis (Default 1000): ≤5 % pro Match, ≤10 % offen gesamt
-3. Kombi: Einsatz einmal im Open-Total, voll je Match für Event-Cap
-4. `preview` schreibt nicht; `commit` idempotent über `client_key` (keine Doppelbuchung bei Reruns)
-5. Settlement/Cancel/Void; Turnover getrennt messbar; keine Reinvestition unabgerechneter Gewinne
-6. Tip-History bleibt getrennt (Hit-Rate ≠ Geld)
+1. „Tipp“ → Modellsignal; „Sicher“ entfernt; NO_BET → „Kein Signal“ / „Warum kein Signal?“
+2. „Faire Wahrscheinlichkeit“ → Marktschätzung ohne Marge
+3. „Gegen Markt“ → größere Abweichung (kein Vorteil)
+4. Validierungs-Spalte; Stake nur bei Freigabe / sonst „—“
+5. Kombi-Analyse: Einheiten statt €; volle „Keine belastbare Kombi-Wahrscheinlichkeit…“
+6. Beginner ohne Kombi-Nav (bereits zuvor)
 
 ## Bewusst noch offen
 
-- P1 UX-Umbenennungen / Ledger-UI-Verdrahtung
+- P1 Rest: Ledger-UI-Verdrahtung, Help-Nav-Feinschliff
 - P2 CLV / AH Settlement / Run-Manifest
-- Live-Dashboard standardmäßig Snapshots persistieren (Flag noch opt-in)
-- Chronologische Walk-Forward-Läufe für echte VALID-Artefakte (Datenblocker)
+- Live-Dashboard Snapshots opt-in → default
+- Chronologische Walk-Forward-Läufe für echte VALID-Artefakte
 
 ## Blocker
 
-Ohne chronologische Validierungsdaten bleibt Live-Sizing gesperrt (`UNVALIDATED`).  
-Historische Provider-Dumps (`historical_import`) sind kein stilles Live-Replay.  
-Synthetische Fixtures erzeugen **kein** VALID-Artefakt für den Live-Pfad.
+Ohne chronologische Validierungsdaten bleibt Live-Sizing gesperrt (`UNVALIDATED`).

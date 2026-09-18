@@ -3,8 +3,8 @@
 Three levels so a complete beginner can open the app without drowning in
 metrics, while experts still get the full toolkit.
 
-- beginner: one tip, one reason, safety first. Few pages.
-- advanced: probabilities, edge, stake, match card, backtest.
+- beginner: one model signal, one reason, safety first. Few pages.
+- advanced: probabilities, edge, stake (when released), match card, backtest.
 - expert: every page and every metric.
 """
 
@@ -45,9 +45,19 @@ PAGES_BY_MODE: dict[UXMode, tuple[str, ...]] = {
 # Signal table columns by depth (keys match tables.signals_dataframe output).
 # Internal keys stay English; display labels are localized in the table builder.
 SIGNAL_COLUMNS_BY_MODE: dict[UXMode, tuple[str, ...]] = {
-    UXMode.BEGINNER: ("Match", "Tipp", "Markt", "Spiele", "Begründung"),
+    UXMode.BEGINNER: ("Match", "Tipp", "Markt", "Spiele", "Validierung", "Begründung"),
     UXMode.ADVANCED: (
-        "Match", "Signal", "Markt", "Model P", "Odds", "Edge", "EV", "Stake %", "Spiele", "Reason",
+        "Match",
+        "Signal",
+        "Markt",
+        "Model P",
+        "Odds",
+        "Edge",
+        "EV",
+        "Stake %",
+        "Validierung",
+        "Spiele",
+        "Reason",
     ),
     UXMode.EXPERT: (
         "Match",
@@ -60,6 +70,7 @@ SIGNAL_COLUMNS_BY_MODE: dict[UXMode, tuple[str, ...]] = {
         "Stake %",
         "Confidence",
         "Data quality",
+        "Validierung",
         "Spiele",
         "Reason",
     ),
@@ -73,12 +84,13 @@ _COLUMN_LABELS: dict[str, dict[str, str]] = {
     "Model P": {"de": "Modell-P", "en": "Model P"},
     "Odds": {"de": "Quote", "en": "Odds"},
     "Edge": {"de": "Statistische Abweichung (pp)", "en": "Model-market gap (pp)"},
-    "EV": {"de": "Erwartete Rendite", "en": "Expected return"},
-    "Stake %": {"de": "Einsatz %", "en": "Stake %"},
-    "Confidence": {"de": "Prognosequalität", "en": "Forecast quality"},
-    "Data quality": {"de": "Datenqualität", "en": "Data quality"},
+    "EV": {"de": "Geschätzter Nettoertrag", "en": "Estimated net return"},
+    "Stake %": {"de": "Papier-Einsatz %", "en": "Paper stake %"},
+    "Confidence": {"de": "Modellübereinstimmung", "en": "Model agreement"},
+    "Data quality": {"de": "Datenabdeckung", "en": "Data coverage"},
+    "Validierung": {"de": "Validierung", "en": "Validation"},
     "Spiele": {"de": "Spiele (H/A)", "en": "Games (H/A)"},
-    "Markt": {"de": "Markt", "en": "Market"},
+    "Markt": {"de": "Marktbezug", "en": "Market stance"},
     "Reason": {"de": "Begründung", "en": "Reason"},
 }
 
@@ -91,8 +103,11 @@ def column_label(key: str, lang: str = "de") -> str:
 
 
 _STANCE_LABELS: dict[str, dict[str, str]] = {
-    "with": {"de": "Mit Markt", "en": "With market"},
-    "against": {"de": "Gegen Markt", "en": "Against market"},
+    "with": {"de": "Näher am Markt", "en": "Closer to market"},
+    "against": {
+        "de": "Größere Abweichung (kein Vorteil)",
+        "en": "Larger deviation (not an edge)",
+    },
 }
 
 
@@ -117,14 +132,43 @@ def market_stance(signal: ValueSignal) -> str | None:
 
 
 def market_stance_label(signal: ValueSignal, lang: str = "de") -> str:
-    """Human label for the market stance (with emoji cue), or ``—`` for no-bet."""
+    """Human label for the market stance, or ``—`` for no-bet."""
 
     stance = market_stance(signal)
     if stance is None:
         return "—"
-    cue = "🟢" if stance == "with" else "🟠"
     entry = _STANCE_LABELS[stance]
-    return f"{cue} {entry.get(lang) or entry['de']}"
+    return entry.get(lang) or entry["de"]
+
+
+def validation_label(signal: ValueSignal, lang: str = "de") -> str:
+    """Short validation / decision-status label for tables and cards."""
+
+    status = (signal.validation_status or "unvalidated").lower()
+    decision = (signal.decision_status or "").lower()
+    if decision == "value_exploratory" or (
+        signal.is_bet and not signal.sizing_allowed
+    ):
+        return "explorativ" if lang.startswith("de") else "exploratory"
+    labels = {
+        "unvalidated": ("unvalidiert", "unvalidated"),
+        "valid": ("freigegeben", "released"),
+        "degraded": ("eingeschränkt", "degraded"),
+        "expired": ("abgelaufen", "expired"),
+    }
+    de, en = labels.get(status, (status, status))
+    return de if lang.startswith("de") else en
+
+
+def stake_display(signal: ValueSignal, lang: str = "de") -> str:
+    """Stake % only when sizing is released; otherwise an honest placeholder."""
+
+    if signal.sizing_allowed and signal.stake_fraction > 0.0:
+        return f"{signal.stake_fraction * 100.0:.2f}"
+    if signal.is_bet:
+        return "—" if lang.startswith("de") else "—"
+    return "0.00"
+
 
 _SIGNAL_PLAIN: dict[SignalType, dict[str, str]] = {
     # Claude review: avoid “Empfehlung”; prefer neutral value language.
@@ -133,7 +177,7 @@ _SIGNAL_PLAIN: dict[SignalType, dict[str, str]] = {
     SignalType.VALUE_AWAY: {"de": "Value erkannt: Auswärtssieg", "en": "Value spotted: away win"},
     SignalType.VALUE_OVER: {"de": "Value erkannt: Über 2,5 Tore", "en": "Value spotted: over 2.5 goals"},
     SignalType.VALUE_UNDER: {"de": "Value erkannt: Unter 2,5 Tore", "en": "Value spotted: under 2.5 goals"},
-    SignalType.NO_BET: {"de": "Kein Value", "en": "No value"},
+    SignalType.NO_BET: {"de": "Kein Signal", "en": "No signal"},
 }
 
 # Clear beginner colors: home = green, draw = amber, away = blue,
