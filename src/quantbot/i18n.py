@@ -543,6 +543,17 @@ _STRINGS: dict[str, dict[str, str]] = {
     "keys.use_saved": {"de": "Gespeicherte Schlüssel verwenden", "en": "Use saved keys"},
     "mode.demo": {"de": "Modus: Demodaten", "en": "Mode: demo data"},
     "mode.live": {"de": "Modus: echte Daten", "en": "Mode: real data"},
+    "mode.live_toggle": {"de": "Live-Daten aktivieren", "en": "Enable live data"},
+    "mode.live_toggle_help": {
+        "de": "Aus = Demodaten (kein API-Verbrauch). An = echte Fixtures/Quoten; "
+              "braucht Football-Data + The Odds API und verbraucht Abrufe.",
+        "en": "Off = demo data (no API usage). On = real fixtures/odds; "
+              "needs Football-Data + The Odds API and uses request quota.",
+    },
+    "mode.live_needs_keys": {
+        "de": "Live braucht beide Schlüssel (Football-Data + The Odds API) unter API-Schlüssel.",
+        "en": "Live needs both keys (Football-Data + The Odds API) under API keys.",
+    },
     "mode.live_failed": {"de": "Echte Daten nicht erreichbar, nutze Demodaten.", "en": "Real data unavailable, using demo data."},
     "mode.load_errors": {
         "de": "{n} Liga(en) konnten nicht vollständig geladen werden (siehe Details).",

@@ -98,3 +98,37 @@ def save_ollama_settings(settings: OllamaSettings, *, path: Path | None = None) 
     }
     target.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return target
+
+
+def live_enabled_path() -> Path:
+    return _quantbot_home() / "live_enabled"
+
+
+def load_live_enabled(*, path: Path | None = None) -> bool:
+    """Whether the user opted into live API data (default: off / demo)."""
+
+    target = Path(path) if path is not None else live_enabled_path()
+    if not target.exists():
+        return False
+    try:
+        raw = target.read_text(encoding="utf-8").strip().lower()
+    except OSError:
+        return False
+    return raw in {"1", "true", "yes", "on"}
+
+
+def save_live_enabled(enabled: bool, *, path: Path | None = None) -> Path:
+    target = Path(path) if path is not None else live_enabled_path()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("1\n" if enabled else "0\n", encoding="utf-8")
+    return target
+
+
+def resolve_live_activation(*, want_live: bool, has_keys: bool) -> tuple[bool, str | None]:
+    """Decide if live providers may run. Returns ``(active, warning_i18n_key)``."""
+
+    if not want_live:
+        return False, None
+    if not has_keys:
+        return False, "mode.live_needs_keys"
+    return True, None

@@ -355,9 +355,35 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
             st.session_state["cache_cleared"] = True
             st.rerun()
 
+    from quantbot.preferences import (
+        load_live_enabled,
+        resolve_live_activation,
+        save_live_enabled,
+    )
+
+    has_live_keys = bool(fd_key and odds_key)
+    if "live_mode_toggle" not in st.session_state:
+        st.session_state["live_mode_toggle"] = bool(load_live_enabled() and has_live_keys)
+    if not has_live_keys:
+        st.session_state["live_mode_toggle"] = False
+    want_live = st.sidebar.toggle(
+        t("mode.live_toggle", lang),
+        key="live_mode_toggle",
+        disabled=not has_live_keys,
+        help=t("mode.live_toggle_help", lang),
+    )
+    if has_live_keys:
+        save_live_enabled(bool(want_live))
+    else:
+        st.sidebar.caption(t("mode.live_needs_keys", lang))
+
+    live_ok, live_warn = resolve_live_activation(want_live=bool(want_live), has_keys=has_live_keys)
+    if live_warn:
+        st.sidebar.warning(t(live_warn, lang))
+
     provider = None
     live = False
-    if fd_key and odds_key:
+    if live_ok:
         try:
             from quantbot.data.providers import build_live_provider
 
@@ -402,6 +428,7 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
         except Exception:  # noqa: BLE001
             st.sidebar.warning(t("mode.live_failed", lang))
             provider = None
+            live = False
     else:
         st.sidebar.markdown(f"**[{t('safety.demo_badge', lang)}]**")
         st.sidebar.info(t("mode.demo", lang))
