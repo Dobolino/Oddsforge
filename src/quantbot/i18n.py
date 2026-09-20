@@ -601,6 +601,14 @@ _STRINGS: dict[str, dict[str, str]] = {
         "de": "Noch keine abgeschlossenen Spiele lokal gespeichert.",
         "en": "No finished matches stored locally yet.",
     },
+    "mode.odds_archive": {
+        "de": "Lokales Quoten-Archiv: {n} Snapshots (~/.quantbot/snapshots). Odds-API-Cache ~2 h.",
+        "en": "Local odds archive: {n} snapshots (~/.quantbot/snapshots). Odds API cache ~2 h.",
+    },
+    "mode.odds_archive_empty": {
+        "de": "Lokales Quoten-Archiv leer — Live-Läufe speichern Quoten kostenlos (~2 h Cache).",
+        "en": "Local odds archive empty — live runs store quotes for free (~2 h cache).",
+    },
     "no_matches": {
         "de": "Keine Spiele für {league} {season} gefunden.",
         "en": "No matches found for {league} {season}.",

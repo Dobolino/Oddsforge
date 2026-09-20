@@ -420,6 +420,17 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
                 st.sidebar.caption(t("mode.finished_cache", lang).format(when=when))
             else:
                 st.sidebar.caption(t("mode.finished_cache_never", lang))
+            if live:
+                try:
+                    from quantbot.data.snapshot_repo import DataMode, SnapshotRepository
+
+                    n_snap = SnapshotRepository().count(data_mode=DataMode.LIVE_REPLAY)
+                    if n_snap:
+                        st.sidebar.caption(t("mode.odds_archive", lang).format(n=n_snap))
+                    else:
+                        st.sidebar.caption(t("mode.odds_archive_empty", lang))
+                except Exception:  # noqa: BLE001
+                    pass
             errs = getattr(provider, "load_errors", None) or []
             if errs:
                 st.sidebar.warning(t("mode.load_errors", lang).format(n=len(errs)))

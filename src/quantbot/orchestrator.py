@@ -72,7 +72,7 @@ class QuantBotOrchestrator:
         decision_policy: DecisionPolicy | None = None,
         live: bool = False,
         snapshot_repo: SnapshotRepository | None = None,
-        persist_snapshots: bool = False,
+        persist_snapshots: bool | None = None,
         validation_artifact: ValidationArtifact | None = None,
     ) -> None:
         policy = decision_policy or policy_for_mode(live=live)
@@ -113,7 +113,9 @@ class QuantBotOrchestrator:
         self._live = bool(live)
         self._data_mode = DataMode.LIVE_REPLAY if live else DataMode.DEMO
         self.snapshot_repo = snapshot_repo
-        self.persist_snapshots = bool(persist_snapshots)
+        # Live runs archive every pulled quote into SQLite (local "historical
+        # odds") so free API credits build a reusable archive over time.
+        self.persist_snapshots = bool(live) if persist_snapshots is None else bool(persist_snapshots)
         if self.persist_snapshots and self.snapshot_repo is None:
             self.snapshot_repo = SnapshotRepository()
         self._last_run_manifest = None
@@ -246,19 +248,6 @@ class QuantBotOrchestrator:
             entry = self.provider.get_latest_odds(match.match_id, as_of)
             if entry is None:
                 continue
-            if self.persist_snapshots and self.snapshot_repo is not None:
-                try:
-                    self.snapshot_repo.put_odds(
-                        entry,
-                        provider=getattr(self.provider, "provider_name", "unknown"),
-                        endpoint=f"provider://{getattr(self.provider, 'provider_name', 'unknown')}/odds",
-                        data_mode=self._data_mode,
-                        fetched_at=datetime.now(timezone.utc),
-                        available_at=entry.timestamp,
-                    )
-                except Exception:  # noqa: BLE001 — persistence must not break predict
-                    logger.warning("Failed to persist odds snapshot for %s", match.match_id)
-
             from datetime import timedelta
 
             from quantbot.markets.integrity import DEFAULT_MAX_QUOTE_AGE, check_1x2_odds
@@ -271,6 +260,31 @@ class QuantBotOrchestrator:
             )
             prediction = model.predict(match)
             snapshots = self.provider.get_odds(match.match_id, as_of)
+            if self.persist_snapshots and self.snapshot_repo is not None:
+                provider_name = getattr(self.provider, "provider_name", "unknown")
+                endpoint = f"provider://{provider_name}/odds"
+                fetched_at = datetime.now(timezone.utc)
+                try:
+                    for quote in snapshots or (entry,):
+                        self.snapshot_repo.put_odds(
+                            quote,
+                            provider=provider_name,
+                            endpoint=endpoint,
+                            data_mode=self._data_mode,
+                            fetched_at=fetched_at,
+                            available_at=quote.timestamp,
+                        )
+                    for totals in self.provider.get_totals_odds(match.match_id, as_of):
+                        self.snapshot_repo.put_totals(
+                            totals,
+                            provider=provider_name,
+                            endpoint=f"provider://{provider_name}/totals",
+                            data_mode=self._data_mode,
+                            fetched_at=fetched_at,
+                            available_at=totals.timestamp,
+                        )
+                except Exception:  # noqa: BLE001 — persistence must not break predict
+                    logger.warning("Failed to persist odds snapshot for %s", match.match_id)
             quality = DataQualitySignals(
                 home_matches=counts.get(match.home_team.team_id, 0),
                 away_matches=counts.get(match.away_team.team_id, 0),

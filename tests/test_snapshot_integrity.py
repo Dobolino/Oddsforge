@@ -153,3 +153,38 @@ def test_orchestrator_can_persist_demo_snapshots(tmp_path: Path) -> None:
             found = True
             break
     assert found
+
+
+def test_live_mode_enables_snapshot_persist_by_default(tmp_path: Path) -> None:
+    from quantbot.data.dummy import DummyDataProvider
+    from quantbot.orchestrator import QuantBotOrchestrator
+
+    repo = SnapshotRepository(path=tmp_path / "live.sqlite3")
+    orch = QuantBotOrchestrator(
+        provider=DummyDataProvider(),
+        snapshot_repo=repo,
+        live=True,
+        min_team_matches=0,
+    )
+    assert orch.persist_snapshots is True
+    assert orch.snapshot_repo is repo
+
+
+def test_snapshot_db_defaults_under_home_quantbot() -> None:
+    from quantbot.data.snapshot_repo import snapshot_db_path
+
+    path = snapshot_db_path()
+    assert path.name == "snapshots.sqlite3"
+    assert ".quantbot" in path.parts
+    assert "snapshots" in path.parts
+
+
+def test_odds_cache_ttl_defaults_protect_credits() -> None:
+    from quantbot.data.providers.live import (
+        DEFAULT_FIXTURE_CACHE_TTL_SECONDS,
+        DEFAULT_ODDS_CACHE_TTL_SECONDS,
+    )
+
+    assert DEFAULT_ODDS_CACHE_TTL_SECONDS >= 3600.0
+    assert DEFAULT_ODDS_CACHE_TTL_SECONDS <= 7200.0
+    assert DEFAULT_FIXTURE_CACHE_TTL_SECONDS >= 1800.0

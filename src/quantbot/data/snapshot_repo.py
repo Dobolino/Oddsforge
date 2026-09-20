@@ -24,7 +24,6 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from quantbot.config import DATA_DIR
 from quantbot.schemas import Odds, TotalsOdds
 
 SCHEMA_VERSION = 1
@@ -37,7 +36,9 @@ class DataMode(str, Enum):
 
 
 def snapshot_db_path(*, base: Path | None = None) -> Path:
-    root = Path(base) if base is not None else DATA_DIR / "snapshots"
+    """Default under ``~/.quantbot/snapshots`` so archives survive app updates."""
+
+    root = Path(base) if base is not None else Path.home() / ".quantbot" / "snapshots"
     return root / "snapshots.sqlite3"
 
 
@@ -289,6 +290,19 @@ class SnapshotRepository:
                 (snapshot_id,),
             ).fetchone()
         return None if raw is None else self._row_to_snapshot(raw)
+
+    def count(self, *, data_mode: DataMode | None = None) -> int:
+        """Number of stored rows (optional filter by :class:`DataMode`)."""
+
+        with self._connect() as conn:
+            if data_mode is None:
+                row = conn.execute("SELECT COUNT(*) AS n FROM market_snapshots").fetchone()
+            else:
+                row = conn.execute(
+                    "SELECT COUNT(*) AS n FROM market_snapshots WHERE data_mode = ?",
+                    (data_mode.value,),
+                ).fetchone()
+        return int(row["n"]) if row is not None else 0
 
     def list_for_match(
         self,
