@@ -834,6 +834,18 @@ def _as_of_cache_key(as_of: datetime) -> str:
     return as_of.replace(second=0, microsecond=0).isoformat()
 
 
+def _apply_window_input_sync(session_state, input_key: str, sync_key: str, draft) -> None:  # type: ignore[no-untyped-def]
+    """Seed ``date_input`` from draft before the widget mounts.
+
+    Call only *before* instantiating the widget with ``key=input_key``.
+    Preset/agenda clicks set ``sync_key`` and rerun; blindly writing the
+    widget key after mount raises StreamlitWidgetAlreadyInstantiatedError.
+    """
+
+    if session_state.pop(sync_key, False) or input_key not in session_state:
+        session_state[input_key] = draft
+
+
 def _pick_window(
     lang,
     orchestrator,
@@ -864,12 +876,14 @@ def _pick_window(
     committed = st.session_state[store]
     draft = st.session_state[draft_store]
     input_key = f"{draft_store}::input"
-    if input_key not in st.session_state:
-        st.session_state[input_key] = draft
+    sync_key = f"{draft_store}::sync_input"
 
     def _set_draft(start: date, end: date) -> None:
+        # Never write ``input_key`` here: agenda buttons run *after* date_input
+        # is instantiated and Streamlit rejects mutating a widget key then.
+        # Flag a sync so the next run seeds date_input before it mounts.
         st.session_state[draft_store] = (start, end)
-        st.session_state[input_key] = (start, end)
+        st.session_state[sync_key] = True
 
     presets = ui.columns(3)
     if presets[0].button(t("ctrl.range_today", lang), width="stretch", key=f"{draft_store}::today"):
@@ -881,6 +895,8 @@ def _pick_window(
     if presets[2].button(t("ctrl.range_7d", lang), width="stretch", key=f"{draft_store}::7d"):
         _set_draft(start_default, start_default + timedelta(days=6))
         st.rerun()
+
+    _apply_window_input_sync(st.session_state, input_key, sync_key, st.session_state[draft_store])
 
     raw = ui.date_input(
         t("ctrl.date_range", lang),

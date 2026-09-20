@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from datetime import date, datetime, timezone
 
-from quantbot.dashboard.app import _fixture_days, _window_draft_key, _window_key
+from quantbot.dashboard.app import (
+    _apply_window_input_sync,
+    _fixture_days,
+    _window_draft_key,
+    _window_key,
+)
 from quantbot.dashboard.slip import build_safe_slip
 from quantbot.orchestrator import SignalReport
 from quantbot.schemas import (
@@ -130,3 +135,35 @@ def test_fixture_days_groups_by_kickoff() -> None:
     assert len(days) == 1
     assert days[0][0] == date(2026, 9, 20)
     assert len(days[0][1]) == 2
+
+
+def test_apply_window_input_sync_seeds_missing_and_forced() -> None:
+    draft = (date(2026, 9, 21), date(2026, 9, 21))
+    state: dict = {}
+    _apply_window_input_sync(state, "win::input", "win::sync", draft)
+    assert state["win::input"] == draft
+    assert "win::sync" not in state
+
+    # Manual date_input edit must not be overwritten without sync flag.
+    state["win::input"] = (date(2026, 9, 25), date(2026, 9, 25))
+    _apply_window_input_sync(state, "win::input", "win::sync", draft)
+    assert state["win::input"] == (date(2026, 9, 25), date(2026, 9, 25))
+
+    # Agenda/preset: sync flag pushes draft into the widget key on next run.
+    state["win::sync"] = True
+    _apply_window_input_sync(state, "win::input", "win::sync", draft)
+    assert state["win::input"] == draft
+    assert "win::sync" not in state
+
+
+def test_set_draft_must_not_write_input_key_inline() -> None:
+    """Regression: agenda clicks after date_input must not assign the widget key."""
+
+    import inspect
+
+    from quantbot.dashboard import app as app_mod
+
+    source = inspect.getsource(app_mod._pick_window)
+    assert "st.session_state[input_key] = (start, end)" not in source
+    assert "sync_key" in source
+    assert "_apply_window_input_sync" in source
