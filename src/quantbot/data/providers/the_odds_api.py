@@ -56,7 +56,7 @@ class TheOddsAPIProvider:
         api_key: str,
         cache_dir: Path,
         client: httpx.Client | None = None,
-        ttl_seconds: float = 3600.0,
+        ttl_seconds: float = 7200.0,
         min_interval: float = 0.0,
         cache: FileCache | None = None,
         rate_limiter: RateLimiter | None = None,

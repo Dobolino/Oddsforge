@@ -384,22 +384,38 @@ class LiveDataProvider(BaseDataProvider):
         return self._totals_for_league(league).get(match_id, ())
 
 
+# Odds API free credits burn fast on every dashboard refresh. Keep quotes on
+# disk for ~2h; fixture metadata can refresh a bit more often.
+DEFAULT_ODDS_CACHE_TTL_SECONDS = 7200.0
+DEFAULT_FIXTURE_CACHE_TTL_SECONDS = 3600.0
+
+
 def build_live_provider(
     football_api_key: str,
     the_odds_api_key: str,
     leagues: Sequence[League],
     cache_dir: Path,
-    ttl_seconds: float = 1800.0,
+    ttl_seconds: float | None = None,
+    *,
+    odds_ttl_seconds: float = DEFAULT_ODDS_CACHE_TTL_SECONDS,
+    fixture_ttl_seconds: float = DEFAULT_FIXTURE_CACHE_TTL_SECONDS,
     min_interval: float = 1.0,
     regions: str = "eu,uk",
 ) -> LiveDataProvider:
-    """Build a :class:`LiveDataProvider` from API keys and a cache directory."""
+    """Build a :class:`LiveDataProvider` from API keys and a cache directory.
+
+    ``ttl_seconds`` (if set) overrides both odds and fixture TTLs for tests /
+    callers that want a single value. Otherwise odds default to 2h and fixtures
+    to 1h so repeated Live predicts do not re-hit The Odds API every refresh.
+    """
 
     cache_dir = Path(cache_dir)
+    fixture_ttl = float(ttl_seconds) if ttl_seconds is not None else float(fixture_ttl_seconds)
+    odds_ttl = float(ttl_seconds) if ttl_seconds is not None else float(odds_ttl_seconds)
     football_inner = FootballDataProvider(
         football_api_key,
         cache_dir=cache_dir / "football_data",
-        ttl_seconds=ttl_seconds,
+        ttl_seconds=fixture_ttl,
         min_interval=min_interval,
     )
     football = CachingMatchProvider(
@@ -409,7 +425,7 @@ def build_live_provider(
     odds = TheOddsAPIProvider(
         the_odds_api_key,
         cache_dir=cache_dir / "the_odds_api",
-        ttl_seconds=ttl_seconds,
+        ttl_seconds=odds_ttl,
         min_interval=min_interval,
     )
     return LiveDataProvider(football, odds, leagues, regions=regions)

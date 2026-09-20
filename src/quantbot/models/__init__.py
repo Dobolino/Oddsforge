@@ -7,7 +7,14 @@ from quantbot.models.calibrated import CalibratedModel
 from quantbot.models.basketball import BasketballModel
 from quantbot.models.elo import EloModel
 from quantbot.models.ensemble import EnsembleModel, multiclass_brier
-from quantbot.models.dixon_coles import DixonColesModel, time_decay_weights
+from quantbot.models.dixon_coles import (
+    DixonColesModel,
+    ScoreGridResult,
+    ScoreGridStatus,
+    choose_max_goals,
+    independent_rest_mass,
+    time_decay_weights,
+)
 from quantbot.models.ml import GradientBoostingModel, LogisticRegressionModel
 
 __all__ = [
@@ -17,6 +24,10 @@ __all__ = [
     "BasketballModel",
     "EloModel",
     "DixonColesModel",
+    "ScoreGridResult",
+    "ScoreGridStatus",
+    "choose_max_goals",
+    "independent_rest_mass",
     "LogisticRegressionModel",
     "GradientBoostingModel",
     "EnsembleModel",

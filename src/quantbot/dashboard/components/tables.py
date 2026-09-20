@@ -18,9 +18,12 @@ from quantbot.dashboard.ux import (
     market_stance_label,
     plain_signal_label,
     reason_for_mode,
+    signal_display_line,
+    stake_display,
     tip_badge_html,
     tone_color_for_confidence,
     tone_color_for_signed,
+    validation_label,
 )
 from quantbot.orchestrator import SignalReport
 
@@ -35,6 +38,7 @@ SIGNAL_COLUMNS = [
     "Stake %",
     "Confidence",
     "Data quality",
+    "Validierung",
     "Spiele",
     "Reason",
 ]
@@ -61,7 +65,7 @@ def signals_dataframe(
     for report in reports:
         s = report.signal
         m = report.match
-        tip = plain_signal_label(s.signal, lang, line=s.totals_line)
+        tip = plain_signal_label(s.signal, lang, line=signal_display_line(s))
         if mode is UXMode.BEGINNER:
             # Emoji prefix so the table tip column is scannable without HTML.
             prefix = {
@@ -70,6 +74,8 @@ def signals_dataframe(
                 "value_away": "🔵 ",
                 "value_over": "🟢 ",
                 "value_under": "⚪ ",
+                "value_ah_home": "🟢 ",
+                "value_ah_away": "🔵 ",
                 "no_bet": "⚪ ",
             }.get(s.signal.value, "")
             tip = f"{prefix}{tip}"
@@ -89,9 +95,10 @@ def signals_dataframe(
                     ensemble_agreement=getattr(report.analysis, "ensemble_agreement", None),
                 ),
                 "EV": format_ev_pct(s.expected_value),
-                "Stake %": f"{s.stake_fraction * 100.0:.2f}",
+                "Stake %": stake_display(s, lang),
                 "Confidence": f"◆ {s.model_confidence:.0f}",
                 "Data quality": f"{s.data_quality:.0f}",
+                "Validierung": validation_label(s, lang),
                 "Spiele": (
                     f"{getattr(report.analysis, 'home_matches', 0)}"
                     f"/{getattr(report.analysis, 'away_matches', 0)}"
@@ -158,7 +165,7 @@ def colored_signals_table_html(
         tip_text = (
             s.signal.value
             if mode is UXMode.EXPERT
-            else plain_signal_label(s.signal, lang, line=s.totals_line)
+            else plain_signal_label(s.signal, lang, line=signal_display_line(s))
         )
         tip_cell = tip_badge_html(s.signal, lang, text=tip_text)
         why = reason_for_mode(s, mode, lang)
@@ -182,12 +189,13 @@ def colored_signals_table_html(
             "Odds": escape("—" if s.decimal_odds is None else f"{s.decimal_odds:.2f}"),
             "Edge": colored_text_html(edge_txt, tone_color_for_signed(s.edge)),
             "EV": colored_text_html(ev_txt, tone_color_for_signed(s.expected_value)),
-            "Stake %": escape(f"{s.stake_fraction * 100.0:.2f}"),
+            "Stake %": escape(stake_display(s, lang)),
             "Confidence": colored_text_html(
                 f"◆ {s.model_confidence:.0f}",
                 tone_color_for_confidence(s.model_confidence),
             ),
             "Data quality": escape(f"{s.data_quality:.0f}"),
+            "Validierung": escape(validation_label(s, lang)),
             "Spiele": escape(
                 f"{getattr(report.analysis, 'home_matches', 0)}"
                 f"/{getattr(report.analysis, 'away_matches', 0)}"
@@ -256,12 +264,12 @@ def beginner_tip_cards(
         cards.append(
             {
                 "match": f"{m.home_team.name} vs {m.away_team.name}",
-                "tip": plain_signal_label(s.signal, lang, line=s.totals_line),
+                "tip": plain_signal_label(s.signal, lang, line=signal_display_line(s)),
                 "tip_html": tip_badge_html(
-                    s.signal, lang, large=True, text=plain_signal_label(s.signal, lang, line=s.totals_line)
+                    s.signal, lang, large=True, text=plain_signal_label(s.signal, lang, line=signal_display_line(s))
                 ),
                 "tip_html_small": tip_badge_html(
-                    s.signal, lang, large=False, text=plain_signal_label(s.signal, lang, line=s.totals_line)
+                    s.signal, lang, large=False, text=plain_signal_label(s.signal, lang, line=signal_display_line(s))
                 ),
                 "why": reason_for_mode(s, UXMode.BEGINNER, lang),
                 "is_bet": "1" if s.is_bet else "0",
@@ -274,6 +282,7 @@ def beginner_tip_cards(
                     digits=1,
                 ),
                 "quality": quality_lbl,
+                "validation": validation_label(s, lang),
                 "reason_codes": ", ".join(s.reason_codes),
             }
         )

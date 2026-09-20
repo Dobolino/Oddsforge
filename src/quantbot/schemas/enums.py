@@ -31,25 +31,6 @@ class TotalsSide(str, Enum):
     UNDER = "under"
 
 
-class HandicapSide(str, Enum):
-    """Side backed on an Asian-handicap (spread) market.
-
-    Values are deliberately prefixed so a handicap side never equals a 1X2
-    :class:`MatchOutcome` (both are string enums): equal string values would
-    collide in signal maps and misparse when reloaded from history. ``team``
-    gives the plain "home"/"away" side for display and settlement.
-    """
-
-    HOME = "handicap_home"
-    AWAY = "handicap_away"
-
-    @property
-    def team(self) -> str:
-        """The plain side ("home" or "away") without the handicap prefix."""
-
-        return "home" if self is HandicapSide.HOME else "away"
-
-
 class MarketKind(str, Enum):
     """Settlement and pricing rules for a bookmaker market."""
 
@@ -60,9 +41,20 @@ class MarketKind(str, Enum):
 
 
 class SettlementStatus(str, Enum):
+    """Gross settlement outcome for a unit stake.
+
+    Payoff factors: WIN=o, LOSS=0, PUSH/VOID=1, HALF_WIN=(o+1)/2, HALF_LOSS=0.5.
+    PENDING / UNSUPPORTED never invent a refund.
+    """
+
     WON = "won"
     LOST = "lost"
     VOID = "void"
+    PUSH = "push"
+    HALF_WIN = "half_win"
+    HALF_LOSS = "half_loss"
+    PENDING = "pending"
+    UNSUPPORTED = "unsupported"
 
 
 class League(str, Enum):
@@ -108,8 +100,8 @@ class SignalType(str, Enum):
     VALUE_AWAY = "value_away"
     VALUE_OVER = "value_over"
     VALUE_UNDER = "value_under"
-    VALUE_HANDICAP_HOME = "value_handicap_home"
-    VALUE_HANDICAP_AWAY = "value_handicap_away"
+    VALUE_AH_HOME = "value_ah_home"
+    VALUE_AH_AWAY = "value_ah_away"
     NO_BET = "no_bet"
 
 
@@ -136,11 +128,6 @@ MONEYLINE_ORDER: tuple[MatchOutcome, ...] = (
 TOTALS_ORDER: tuple[TotalsSide, ...] = (
     TotalsSide.OVER,
     TotalsSide.UNDER,
-)
-
-HANDICAP_ORDER: tuple[HandicapSide, ...] = (
-    HandicapSide.HOME,
-    HandicapSide.AWAY,
 )
 
 # Default totals lines by sport.

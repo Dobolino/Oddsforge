@@ -43,6 +43,7 @@ def test_slip_with_legs_filters_and_recomputes() -> None:
     assert empty.legs == ()
 
 
+
 def test_default_leg_count_beginner_is_short() -> None:
     assert default_leg_count(beginner=True, span_days=7, available=10) == 3
     assert default_leg_count(beginner=True, span_days=1, available=2) == 2

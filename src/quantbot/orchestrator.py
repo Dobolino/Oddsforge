@@ -15,19 +15,20 @@ from datetime import datetime, timezone
 from quantbot.analysis.calibration import BaseCalibrator
 from quantbot.analysis.confidence import DataQualitySignals
 from quantbot.analysis.engine import AnalysisEngine, AnalysisResult
+from quantbot.analysis.validation import ValidationArtifact, policy_from_artifact
 from quantbot.backtest.engine import BacktestResult, WalkForwardBacktester
 from quantbot.config import get_settings
 from quantbot.data.base import BaseDataProvider
 from quantbot.data.dummy import DummyDataProvider
+from quantbot.data.snapshot_repo import DataMode, SnapshotRepository
 from quantbot.decision.engine import DecisionEngine
-from quantbot.decision.rules import NoBetRules
-from quantbot.decision.sizing import KellySizer
+from quantbot.decision.policy import DecisionPolicy, policy_for_mode
 from quantbot.logging import get_logger
 from quantbot.markets.odds import MarketEngine
 from quantbot.models.base import BaseModel, NotFittedError
 from quantbot.models.calibrated import CalibratedModel
 from quantbot.models.elo import EloModel
-from quantbot.schemas import InjuryStatus, League, Match, SignalType, ValueSignal
+from quantbot.schemas import InjuryStatus, League, Match, ValueSignal
 
 logger = get_logger(__name__)
 
@@ -51,6 +52,10 @@ class QuantBotOrchestrator:
         model: Prediction model refit per as_of (defaults to Elo).
         market_engine / analysis_engine / decision_engine: Pipeline stages.
         initial_bankroll: Starting bankroll for backtests.
+        decision_policy: Versioned policy (defaults from ``live`` flag).
+        live: When no policy/engine is passed, select live vs demo profile.
+        validation_artifact: Optional empirical release record; only ``VALID``
+            live artifacts unlock Kelly sizing.
     """
 
     def __init__(
@@ -62,12 +67,34 @@ class QuantBotOrchestrator:
         decision_engine: DecisionEngine | None = None,
         initial_bankroll: float = 1000.0,
         calibrator: BaseCalibrator | None = None,
-        min_team_matches: int = 0,
+        min_team_matches: int | None = None,
+        *,
+        decision_policy: DecisionPolicy | None = None,
+        live: bool = False,
+        snapshot_repo: SnapshotRepository | None = None,
+        persist_snapshots: bool | None = None,
+        validation_artifact: ValidationArtifact | None = None,
     ) -> None:
-        # Below this many finished matches for either team, issue no tip: a
-        # goals model fit on a handful of games per team is overconfident
-        # (extreme probabilities), so early-season data is not trustworthy.
-        self.min_team_matches = max(0, int(min_team_matches))
+        policy = decision_policy or policy_for_mode(live=live)
+        if min_team_matches is not None:
+            from dataclasses import replace
+
+            policy = replace(policy, min_team_matches=max(0, int(min_team_matches)))
+        # Explicit artifact only — never invent VALID from missing evidence.
+        # Optional auto-load of a previously saved live artifact (same scope
+        # matching is caller's responsibility via load_latest_artifact).
+        if validation_artifact is None and live:
+            from quantbot.analysis.validation import load_latest_artifact
+
+            try:
+                validation_artifact = load_latest_artifact(scope="live_default")
+            except Exception:  # noqa: BLE001
+                validation_artifact = None
+        if validation_artifact is not None:
+            policy = policy_from_artifact(validation_artifact, base=policy)
+        self.policy = policy
+        self.validation_artifact = validation_artifact
+        self.min_team_matches = policy.min_team_matches
         self.provider = provider or DummyDataProvider()
         base_model = model or EloModel()
         # Optionally wrap the model so calibrated probabilities reach the
@@ -79,20 +106,82 @@ class QuantBotOrchestrator:
         self.market_engine = market_engine or MarketEngine(method=settings.margin_method)
         self.analysis_engine = analysis_engine or AnalysisEngine()
         if decision_engine is None:
-            decision_engine = DecisionEngine(
-                rules=NoBetRules(
-                    min_edge=settings.min_edge,
-                    min_data_quality=settings.min_data_quality,
-                    min_model_confidence=settings.min_model_confidence,
-                ),
-                sizer=KellySizer(
-                    kelly_fraction=settings.kelly_fraction,
-                    max_fraction=0.05,
-                ),
-            )
+            decision_engine = DecisionEngine.from_policy(policy)
         self.decision_engine = decision_engine
         self.initial_bankroll = initial_bankroll
         self._totals_margin_method = settings.totals_margin_method
+        self._live = bool(live)
+        self._data_mode = DataMode.LIVE_REPLAY if live else DataMode.DEMO
+        self.snapshot_repo = snapshot_repo
+        # Live runs archive every pulled quote into SQLite (local "historical
+        # odds") so free API credits build a reusable archive over time.
+        self.persist_snapshots = bool(live) if persist_snapshots is None else bool(persist_snapshots)
+        if self.persist_snapshots and self.snapshot_repo is None:
+            self.snapshot_repo = SnapshotRepository()
+        self._last_run_manifest = None
+
+    @property
+    def last_run_manifest(self):
+        return self._last_run_manifest
+
+    def build_run_manifest(
+        self,
+        *,
+        as_of: datetime,
+        league: League | None = None,
+        season: str | None = None,
+        snapshot_ids: tuple[str, ...] = (),
+        persist: bool = True,
+    ):
+        """Freeze provenance for the current prediction batch (P2)."""
+
+        from quantbot.analysis.validation import pipeline_hash, policy_content_hash
+        from quantbot.runs import build_run_manifest, config_content_hash, save_manifest
+
+        settings = get_settings()
+        model = self.model
+        model_name = getattr(model, "name", model.__class__.__name__)
+        model_version = str(getattr(model, "version", "") or "")
+        calib_name = None
+        if hasattr(model, "calibrator") and model.calibrator is not None:
+            calib_name = model.calibrator.__class__.__name__
+        artifact = self.validation_artifact
+        manifest = build_run_manifest(
+            as_of=as_of,
+            data_mode=self._data_mode.value if hasattr(self._data_mode, "value") else str(self._data_mode),
+            model_name=model_name,
+            model_version=model_version,
+            policy_version=self.policy.version,
+            policy_hash=policy_content_hash(self.policy),
+            pipeline_hash=pipeline_hash(
+                model_name=model_name,
+                model_version=model_version,
+                shrinkage_mode=self.analysis_engine.shrinkage_mode.value,
+                calibrator=calib_name,
+            ),
+            config_hash=config_content_hash(
+                {
+                    "kelly_fraction": settings.kelly_fraction,
+                    "min_edge": settings.min_edge,
+                    "enable_ah_experimental": settings.enable_ah_experimental,
+                    "margin_method": settings.margin_method.value,
+                }
+            ),
+            snapshot_ids=snapshot_ids,
+            validation_artifact_id=None if artifact is None else artifact.artifact_id,
+            validation_status=(
+                None
+                if artifact is None
+                else artifact.effective_status().value
+            ),
+            calibrator_name=calib_name,
+            league=None if league is None else league.value,
+            season=season,
+        )
+        if persist:
+            save_manifest(manifest)
+        self._last_run_manifest = manifest
+        return manifest
 
     # --- Universe helpers ---
 
@@ -159,9 +248,43 @@ class QuantBotOrchestrator:
             entry = self.provider.get_latest_odds(match.match_id, as_of)
             if entry is None:
                 continue
+            from datetime import timedelta
+
+            from quantbot.markets.integrity import DEFAULT_MAX_QUOTE_AGE, check_1x2_odds
+
+            integrity = check_1x2_odds(
+                entry,
+                as_of=as_of,
+                kickoff=match.kickoff if self._live else None,
+                max_age=DEFAULT_MAX_QUOTE_AGE if self._live else timedelta(days=3650),
+            )
             prediction = model.predict(match)
-            market = self.market_engine.to_market_data(entry)
             snapshots = self.provider.get_odds(match.match_id, as_of)
+            if self.persist_snapshots and self.snapshot_repo is not None:
+                provider_name = getattr(self.provider, "provider_name", "unknown")
+                endpoint = f"provider://{provider_name}/odds"
+                fetched_at = datetime.now(timezone.utc)
+                try:
+                    for quote in snapshots or (entry,):
+                        self.snapshot_repo.put_odds(
+                            quote,
+                            provider=provider_name,
+                            endpoint=endpoint,
+                            data_mode=self._data_mode,
+                            fetched_at=fetched_at,
+                            available_at=quote.timestamp,
+                        )
+                    for totals in self.provider.get_totals_odds(match.match_id, as_of):
+                        self.snapshot_repo.put_totals(
+                            totals,
+                            provider=provider_name,
+                            endpoint=f"provider://{provider_name}/totals",
+                            data_mode=self._data_mode,
+                            fetched_at=fetched_at,
+                            available_at=totals.timestamp,
+                        )
+                except Exception:  # noqa: BLE001 — persistence must not break predict
+                    logger.warning("Failed to persist odds snapshot for %s", match.match_id)
             quality = DataQualitySignals(
                 home_matches=counts.get(match.home_team.team_id, 0),
                 away_matches=counts.get(match.away_team.team_id, 0),
@@ -171,20 +294,59 @@ class QuantBotOrchestrator:
                     and match.away_injury_status is not InjuryStatus.UNKNOWN
                 ),
             )
+            if integrity:
+                # Do not release EV/Kelly from a tainted book. Keep a minimal
+                # analysis shell so callers still receive a SignalReport.
+                from math import isfinite
+
+                from quantbot.analysis.confidence import ConfidenceLevel
+                from quantbot.analysis.engine import AnalysisResult
+                from quantbot.schemas import MatchOutcome, ValueMetrics
+
+                safe_odds = (
+                    float(entry.home)
+                    if isfinite(entry.home) and entry.home > 1.0
+                    else 1.01
+                )
+                p_home = float(max(0.0, min(1.0, prediction.home)))
+                placeholder = ValueMetrics(
+                    outcome=MatchOutcome.HOME,
+                    model_prob=p_home,
+                    fair_market_prob=0.5,
+                    decimal_odds=safe_odds,
+                    edge=p_home - 0.5,
+                    expected_value=p_home * safe_odds - 1.0,
+                )
+                analysis = AnalysisResult(
+                    match_id=match.match_id,
+                    metrics=(placeholder,),
+                    best_ev=placeholder,
+                    data_quality=0.0,
+                    model_confidence=0.0,
+                    confidence_level=ConfidenceLevel.LOW,
+                    ensemble_agreement=0.0,
+                    home_matches=quality.home_matches,
+                    away_matches=quality.away_matches,
+                )
+                signal = self.decision_engine.invalid_data_signal(
+                    match_id=match.match_id,
+                    timestamp=entry.timestamp,
+                    reasons=integrity,
+                    metrics=(),
+                )
+                reports.append(SignalReport(match=match, signal=signal, analysis=analysis))
+                continue
+
+            market = self.market_engine.to_market_data(entry)
             analysis = self.analysis_engine.analyze(
                 prediction, market, entry.decimal_odds(), quality
             )
-            if min(quality.home_matches, quality.away_matches) < self.min_team_matches:
-                # Too little history for this pairing: no reliable tip.
-                reports.append(
-                    SignalReport(
-                        match=match,
-                        signal=self._insufficient_data_signal(market, analysis),
-                        analysis=analysis,
-                    )
-                )
-                continue
-            signal = self.decision_engine.decide(analysis, market)
+            signal = self.decision_engine.decide(
+                analysis,
+                market,
+                home_matches=quality.home_matches,
+                away_matches=quality.away_matches,
+            )
             if use_basketball and isinstance(model, BasketballModel):
                 signal = self._maybe_prefer_nba_totals(
                     match=match,
@@ -205,45 +367,30 @@ class QuantBotOrchestrator:
                     signal_1x2=signal,
                     quality=quality,
                 )
-                signal = self._maybe_prefer_handicap(
-                    match=match,
-                    as_of=as_of,
-                    prediction=prediction,
-                    data_quality=analysis.data_quality,
-                    model_confidence=analysis.model_confidence,
-                    current=signal,
-                    quality=quality,
-                )
+                if get_settings().enable_ah_experimental:
+                    signal = self._maybe_prefer_ah(
+                        match=match,
+                        as_of=as_of,
+                        prediction=prediction,
+                        data_quality=analysis.data_quality,
+                        model_confidence=analysis.model_confidence,
+                        signal_current=signal,
+                        quality=quality,
+                    )
             reports.append(SignalReport(match=match, signal=signal, analysis=analysis))
 
         n_bets = sum(1 for r in reports if r.signal.is_bet)
+        self.build_run_manifest(as_of=as_of, league=league, season=season, persist=True)
         logger.info(
-            "Predicted %s %s as of %s: %d matches, %d value signals",
+            "Predicted %s %s as of %s: %d matches, %d value signals (run %s)",
             league.value,
             season,
             as_of.isoformat(),
             len(reports),
             n_bets,
+            None if self._last_run_manifest is None else self._last_run_manifest.run_id[:8],
         )
         return reports
-
-    def _insufficient_data_signal(
-        self, market, analysis: AnalysisResult
-    ) -> ValueSignal:
-        """A NO_BET signal used when a team has too little match history."""
-
-        return ValueSignal(
-            match_id=analysis.match_id,
-            timestamp=market.timestamp,
-            signal=SignalType.NO_BET,
-            model_confidence=analysis.model_confidence,
-            data_quality=analysis.data_quality,
-            stake_fraction=0.0,
-            rationale="insufficient team match history",
-            rationale_de="Zu wenig Spiele pro Team für einen verlässlichen Tipp.",
-            rationale_en="Too few matches per team for a reliable tip.",
-            metrics=analysis.metrics,
-        )
 
     def _maybe_prefer_totals(
         self,
@@ -286,6 +433,8 @@ class QuantBotOrchestrator:
             metrics=totals_metrics,
             data_quality=data_quality,
             model_confidence=model_confidence,
+            home_matches=None if quality is None else quality.home_matches,
+            away_matches=None if quality is None else quality.away_matches,
         )
         if not totals_signal.is_bet:
             return signal_1x2
@@ -295,7 +444,7 @@ class QuantBotOrchestrator:
             return totals_signal
         return signal_1x2
 
-    def _maybe_prefer_handicap(
+    def _maybe_prefer_ah(
         self,
         *,
         match: Match,
@@ -303,50 +452,55 @@ class QuantBotOrchestrator:
         prediction,
         data_quality: float,
         model_confidence: float,
-        current: ValueSignal,
+        signal_current: ValueSignal,
         quality: DataQualitySignals | None = None,
     ) -> ValueSignal:
-        """If an Asian-handicap tip clears the same rules with better EV, prefer it.
+        """Experimental AH: prefer when EV beats current tip; sizing stays gated."""
 
-        A safe no-op when the provider has no handicap odds for the match: the
-        current signal is returned unchanged.
-        """
-
-        from quantbot.analysis.value import handicap_metrics_from_prediction
-        from quantbot.markets.spread import SpreadMarketEngine
+        from quantbot.analysis.value import ah_metrics_from_prediction
+        from quantbot.markets.margin import remove_margin
         from quantbot.schemas.enums import DEFAULT_HANDICAP_LINE
 
         if prediction.score_matrix is None:
-            return current
-        spread_entry = self.provider.get_latest_spread_odds(
+            return signal_current
+        spread = self.provider.get_latest_spread(
             match.match_id, as_of, line=DEFAULT_HANDICAP_LINE
         )
-        if spread_entry is None:
-            return current
-        spread_engine = SpreadMarketEngine(method=self._totals_margin_method)
-        spread_market = spread_engine.to_market_data(spread_entry)
+        if spread is None:
+            return signal_current
         try:
-            spread_metrics = handicap_metrics_from_prediction(
-                prediction, spread_entry, spread_market
+            fair = remove_margin([spread.home, spread.away], "power")
+        except Exception:  # noqa: BLE001
+            return signal_current
+        try:
+            metrics = ah_metrics_from_prediction(
+                prediction,
+                spread,
+                fair_home=float(fair[0]),
+                fair_away=float(fair[1]),
             )
         except ValueError:
-            return current
-        # Same market-shrinkage discipline as 1X2 and totals.
-        spread_metrics = self.analysis_engine.shrink_totals_metrics(spread_metrics, quality)
-        spread_signal = self.decision_engine.decide_spread(
+            return signal_current
+        overround = 1.0 / spread.home + 1.0 / spread.away - 1.0
+        ah_signal = self.decision_engine.decide_ah(
             match_id=match.match_id,
-            market=spread_market,
-            metrics=spread_metrics,
+            timestamp=spread.timestamp,
+            metrics=metrics,
+            handicap_line=float(spread.line),
             data_quality=data_quality,
             model_confidence=model_confidence,
+            overround=overround,
+            home_matches=None if quality is None else quality.home_matches,
+            away_matches=None if quality is None else quality.away_matches,
+            ah_sizing_released=False,  # requires dedicated AH ValidationArtifact
         )
-        if not spread_signal.is_bet:
-            return current
-        if not current.is_bet:
-            return spread_signal
-        if (spread_signal.expected_value or 0.0) > (current.expected_value or 0.0):
-            return spread_signal
-        return current
+        if not ah_signal.is_bet:
+            return signal_current
+        if not signal_current.is_bet:
+            return ah_signal
+        if (ah_signal.expected_value or 0.0) > (signal_current.expected_value or 0.0):
+            return ah_signal
+        return signal_current
 
     def _maybe_prefer_nba_totals(
         self,
@@ -400,6 +554,8 @@ class QuantBotOrchestrator:
             metrics=metrics,
             data_quality=data_quality,
             model_confidence=model_confidence,
+            home_matches=None if quality is None else quality.home_matches,
+            away_matches=None if quality is None else quality.away_matches,
         )
         if not totals_signal.is_bet:
             return signal_ml

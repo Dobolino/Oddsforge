@@ -11,6 +11,7 @@ from quantbot.dashboard.slip import (
     build_safe_slip,
     format_ticket,
     make_plausible_slip,
+    slip_with_legs,
 )
 from quantbot.dashboard.ux import pages_for, UXMode
 from quantbot.orchestrator import QuantBotOrchestrator, SignalReport
@@ -45,8 +46,8 @@ def test_slip_flags_overconfident_chance_as_implausible() -> None:
     assert slip.combined_prob > 0.7
     assert not slip.is_plausible
     text = format_ticket(slip, lang="de")
-    assert "unrealistisch" in text
-    assert "78" not in text and "79" not in text  # no rosy percentage shown
+    assert "nicht belastbar" in text
+    assert "78.9" not in text and "Geschätzte Chance" not in text
 
 
 def test_make_plausible_slip_drops_overconfident_legs() -> None:
@@ -149,6 +150,7 @@ def test_safe_builder_never_returns_implausible_combo() -> None:
     slip = build_safe_slip(reports, lang="de", max_legs=5, bias="safe")
     assert slip is not None
     assert slip.is_plausible
+
 
 
 def test_totals_legs_skipped_when_team_history_thin() -> None:
@@ -408,9 +410,14 @@ def test_big_underdog_leg_flags_slip() -> None:
 
 def test_realistic_slip_stays_plausible() -> None:
     # Legs priced near their model probability -> small edge, believable combo.
-    slip = BettingSlip(legs=(_leg(1.7, 0.60), _leg(2.0, 0.52)), style="safe")
+    slip = BettingSlip(
+        legs=(_leg(1.7, 0.60, match_id="a"), _leg(2.0, 0.52, match_id="b")),
+        style="safe",
+    )
     assert slip.is_plausible
-    assert f"{slip.combined_prob * 100:.1f}" in format_ticket(slip, lang="de")
+    text = format_ticket(slip, lang="de")
+    assert "nicht belastbar" in text
+    assert f"{slip.combined_prob * 100:.1f}" in text  # diagnostic independence scenario
 
 
 def test_slip_page_hidden_for_beginner() -> None:

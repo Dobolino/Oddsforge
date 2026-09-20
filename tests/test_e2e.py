@@ -65,17 +65,18 @@ def test_min_team_matches_blocks_low_data_tips() -> None:
     assert reports  # matches still listed
     for report in reports:
         assert report.signal.signal is SignalType.NO_BET
-        assert report.signal.rationale_de
-        assert "pro team" in report.signal.rationale_de.lower()
+        assert report.signal.decision_status == "invalid_data"
+        assert "INVALID_DATA_HISTORY" in report.signal.reason_codes
+        assert "historie" in report.signal.rationale_de.lower()
 
 
 def test_min_team_matches_default_off() -> None:
-    """Default threshold (0) never triggers the low-data no-bet path."""
+    """Explicit zero threshold never triggers the low-data invalid path."""
 
-    default = QuantBotOrchestrator().predict(League.PREMIER_LEAGUE, SEASON)
+    default = QuantBotOrchestrator(min_team_matches=0).predict(League.PREMIER_LEAGUE, SEASON)
     assert default
     assert not any(
-        "pro team" in (r.signal.rationale_de or "").lower() for r in default
+        "INVALID_DATA_HISTORY" in (r.signal.reason_codes or ()) for r in default
     )
 
 

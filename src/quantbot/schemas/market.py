@@ -14,7 +14,6 @@ from pydantic import Field, model_validator
 
 from quantbot.schemas.base import PROB_SUM_TOLERANCE, QuantBotModel
 from quantbot.schemas.enums import (
-    HandicapSide,
     MarginMethod,
     MarketKind,
     MatchOutcome,
@@ -129,7 +128,7 @@ class Market(QuantBotModel):
         return dict(zip((item.name for item in self.outcomes), fair, strict=True))
 
     def settle(self, selection: str, home_score: int, away_score: int) -> SettlementStatus:
-        """Resolve a selection; exact integer-line ties return VOID."""
+        """Resolve a selection with typed push / half outcomes for line markets."""
 
         if home_score < 0 or away_score < 0:
             raise ValueError("scores must be non-negative")
@@ -147,26 +146,40 @@ class Market(QuantBotModel):
             actual = "home" if home_score > away_score else "away"
             return SettlementStatus.WON if selection == actual else SettlementStatus.LOST
         assert outcome.line is not None
-        if self.kind is MarketKind.TOTALS:
-            diff = home_score + away_score - outcome.line
-            if selection == "under":
-                diff = -diff
-        else:
-            diff = home_score - away_score if selection == "home" else away_score - home_score
-            diff += outcome.line
-        if abs(diff) < 1e-9:
-            return SettlementStatus.VOID
-        return SettlementStatus.WON if diff > 0 else SettlementStatus.LOST
+        from quantbot.markets.settlement import LineMarketKind, settle_line_market
+
+        kind = (
+            LineMarketKind.TOTALS
+            if self.kind is MarketKind.TOTALS
+            else LineMarketKind.SPREAD
+        )
+        result = settle_line_market(
+            kind=kind,
+            selection=selection,
+            line=outcome.line,
+            home_score=home_score,
+            away_score=away_score,
+            decimal_odds=outcome.price,
+        )
+        # Legacy callers treated whole-line ties as VOID; PUSH is preferred but
+        # VOID remains an alias for full-stake refund semantics.
+        if result.status is SettlementStatus.PUSH:
+            return SettlementStatus.PUSH
+        return result.status
 
     def payoff(self, selection: str, home_score: int, away_score: int) -> float:
-        """Gross decimal return per unit stake: win=price, loss=0, void=1."""
+        """Gross decimal return per unit stake (incl. half-win / half-loss)."""
+
+        from quantbot.markets.settlement import payoff_factor
 
         status = self.settle(selection, home_score, away_score)
+        if status in (SettlementStatus.PENDING, SettlementStatus.UNSUPPORTED):
+            raise ValueError(f"cannot compute payoff for {status.value}")
+        price = next(item.price for item in self.outcomes if item.name == selection)
+        # Map legacy VOID (moneyline unfinished) to full refund like PUSH.
         if status is SettlementStatus.VOID:
             return 1.0
-        if status is SettlementStatus.LOST:
-            return 0.0
-        return next(item.price for item in self.outcomes if item.name == selection)
+        return payoff_factor(status, price)
 
 
 class MarketData(QuantBotModel):
@@ -263,47 +276,4 @@ class TotalsMarketData(QuantBotModel):
         return {
             TotalsSide.OVER: 1.0 / self.fair_over,
             TotalsSide.UNDER: 1.0 / self.fair_under,
-        }
-
-
-class SpreadMarketData(QuantBotModel):
-    """Fair Asian-handicap probabilities for one line (margin removed).
-
-    ``line`` is the home handicap (negative when the home team is favored),
-    so unlike totals it may be zero-crossing or negative.
-    """
-
-    match_id: str = Field(min_length=1)
-    bookmaker: str = Field(min_length=1)
-    timestamp: datetime
-    method: MarginMethod
-    line: float
-    fair_home: float = Field(gt=0.0, lt=1.0)
-    fair_away: float = Field(gt=0.0, lt=1.0)
-    overround: float = Field(ge=0.0)
-    is_closing: bool = False
-
-    @model_validator(mode="after")
-    def _validate(self) -> SpreadMarketData:
-        if self.timestamp.tzinfo is None:
-            raise ValueError("timestamp must be timezone-aware")
-        if self.method is not MarginMethod.POWER:
-            raise ValueError("two-way spreads require Power margin removal")
-        if not isfinite(self.line):
-            raise ValueError("spread line must be finite")
-        total = self.fair_home + self.fair_away
-        if abs(total - 1.0) > PROB_SUM_TOLERANCE:
-            raise ValueError(f"fair spread probabilities must sum to 1.0, got {total}")
-        return self
-
-    def fair_probabilities(self) -> dict[HandicapSide, float]:
-        return {
-            HandicapSide.HOME: self.fair_home,
-            HandicapSide.AWAY: self.fair_away,
-        }
-
-    def fair_odds(self) -> dict[HandicapSide, float]:
-        return {
-            HandicapSide.HOME: 1.0 / self.fair_home,
-            HandicapSide.AWAY: 1.0 / self.fair_away,
         }
