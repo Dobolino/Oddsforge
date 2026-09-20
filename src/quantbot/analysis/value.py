@@ -10,10 +10,13 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from quantbot.schemas import (
+    HandicapSide,
     MarketData,
     MatchOutcome,
     Odds,
     Prediction,
+    SpreadMarketData,
+    SpreadOdds,
     TotalsMarketData,
     TotalsOdds,
     TotalsSide,
@@ -22,6 +25,7 @@ from quantbot.schemas import (
 
 _ORDER: tuple[MatchOutcome, ...] = (MatchOutcome.HOME, MatchOutcome.DRAW, MatchOutcome.AWAY)
 _TOTALS: tuple[TotalsSide, ...] = (TotalsSide.OVER, TotalsSide.UNDER)
+_HANDICAP: tuple[HandicapSide, ...] = (HandicapSide.HOME, HandicapSide.AWAY)
 
 
 def edge(model_prob: float, fair_market_prob: float) -> float:
@@ -214,6 +218,32 @@ class ValueCalculator:
             )
         return tuple(out)
 
+    def handicap_metrics(
+        self,
+        model_probs: dict[HandicapSide, float],
+        market: SpreadMarketData,
+        decimal_odds: dict[HandicapSide, float],
+    ) -> tuple[ValueMetrics, ...]:
+        """Home/Away value metrics for one Asian-handicap line."""
+
+        fair = market.fair_probabilities()
+        out: list[ValueMetrics] = []
+        for side in _HANDICAP:
+            mp = model_probs[side]
+            fp = fair[side]
+            od = decimal_odds[side]
+            out.append(
+                ValueMetrics(
+                    outcome=side,
+                    model_prob=mp,
+                    fair_market_prob=fp,
+                    decimal_odds=od,
+                    edge=edge(mp, fp),
+                    expected_value=expected_value(mp, od),
+                )
+            )
+        return tuple(out)
+
     @staticmethod
     def best_by_ev(metrics: Sequence[ValueMetrics]) -> ValueMetrics:
         return max(metrics, key=lambda m: m.expected_value)
@@ -235,3 +265,23 @@ def totals_metrics_from_prediction(
     model_probs = prediction.score_matrix.totals_probabilities(totals.line)
     calc = ValueCalculator()
     return calc.totals_metrics(model_probs, market, totals.decimal_odds())
+
+
+def handicap_metrics_from_prediction(
+    prediction: Prediction,
+    spread: SpreadOdds,
+    market: SpreadMarketData,
+) -> tuple[ValueMetrics, ...]:
+    """Derive Asian-handicap metrics from a score matrix and spread quote.
+
+    Raises ValueError for non-half lines (via ``handicap_probabilities``), so a
+    push-prone whole or quarter line is rejected upstream.
+    """
+
+    if prediction.score_matrix is None:
+        raise ValueError("prediction has no score_matrix for handicap")
+    home_cover, away_cover = prediction.score_matrix.handicap_probabilities(spread.line)
+    model_probs = {HandicapSide.HOME: home_cover, HandicapSide.AWAY: away_cover}
+    decimal_odds = {HandicapSide.HOME: spread.home, HandicapSide.AWAY: spread.away}
+    calc = ValueCalculator()
+    return calc.handicap_metrics(model_probs, market, decimal_odds)

@@ -13,9 +13,11 @@ from quantbot.decision.rules import KELLY_ZERO, NoBetRules, Reason, value_reason
 from quantbot.decision.sizing import KellySizer
 from quantbot.logging import get_logger
 from quantbot.schemas import (
+    HandicapSide,
     MarketData,
     MatchOutcome,
     SignalType,
+    SpreadMarketData,
     TotalsMarketData,
     TotalsSide,
     ValueSignal,
@@ -23,12 +25,14 @@ from quantbot.schemas import (
 
 logger = get_logger(__name__)
 
-_OUTCOME_TO_SIGNAL: dict[MatchOutcome | TotalsSide, SignalType] = {
+_OUTCOME_TO_SIGNAL: dict[MatchOutcome | TotalsSide | HandicapSide, SignalType] = {
     MatchOutcome.HOME: SignalType.VALUE_HOME,
     MatchOutcome.DRAW: SignalType.VALUE_DRAW,
     MatchOutcome.AWAY: SignalType.VALUE_AWAY,
     TotalsSide.OVER: SignalType.VALUE_OVER,
     TotalsSide.UNDER: SignalType.VALUE_UNDER,
+    HandicapSide.HOME: SignalType.VALUE_HANDICAP_HOME,
+    HandicapSide.AWAY: SignalType.VALUE_HANDICAP_AWAY,
 }
 
 
@@ -41,12 +45,13 @@ def _signal_from_reasons(
     model_confidence: float,
     data_quality: float,
     metrics,
-    chosen_outcome: MatchOutcome | TotalsSide | None = None,
+    chosen_outcome: MatchOutcome | TotalsSide | HandicapSide | None = None,
     edge: float | None = None,
     expected_value: float | None = None,
     decimal_odds: float | None = None,
     stake_fraction: float = 0.0,
     totals_line: float | None = None,
+    handicap_line: float | None = None,
 ) -> ValueSignal:
     return ValueSignal(
         match_id=match_id,
@@ -65,6 +70,7 @@ def _signal_from_reasons(
         reason_codes=tuple(r.code for r in reasons),
         metrics=metrics,
         totals_line=totals_line,
+        handicap_line=handicap_line,
     )
 
 
@@ -127,6 +133,31 @@ class DecisionEngine:
             totals_line=market.line,
         )
 
+    def decide_spread(
+        self,
+        *,
+        match_id: str,
+        market: SpreadMarketData,
+        metrics: tuple,
+        data_quality: float,
+        model_confidence: float,
+    ) -> ValueSignal:
+        """Same no-bet rules for an Asian-handicap candidate set."""
+
+        if not metrics:
+            raise ValueError("spread metrics must not be empty")
+        candidate = max(metrics, key=lambda m: m.expected_value)
+        return self._decide_candidate(
+            match_id=match_id,
+            timestamp=market.timestamp,
+            candidate=candidate,
+            metrics=metrics,
+            overround=market.overround,
+            data_quality=data_quality,
+            model_confidence=model_confidence,
+            handicap_line=market.line,
+        )
+
     def _decide_candidate(
         self,
         *,
@@ -137,7 +168,8 @@ class DecisionEngine:
         overround: float,
         data_quality: float,
         model_confidence: float,
-        totals_line: float | None,
+        totals_line: float | None = None,
+        handicap_line: float | None = None,
     ) -> ValueSignal:
         result = self.rules.evaluate(
             candidate,
@@ -196,4 +228,5 @@ class DecisionEngine:
             decimal_odds=candidate.decimal_odds,
             stake_fraction=stake,
             totals_line=totals_line,
+            handicap_line=handicap_line,
         )

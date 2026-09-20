@@ -14,6 +14,7 @@ from pydantic import Field, model_validator
 
 from quantbot.schemas.base import PROB_SUM_TOLERANCE, QuantBotModel
 from quantbot.schemas.enums import (
+    HandicapSide,
     MarginMethod,
     MarketKind,
     MatchOutcome,
@@ -262,4 +263,47 @@ class TotalsMarketData(QuantBotModel):
         return {
             TotalsSide.OVER: 1.0 / self.fair_over,
             TotalsSide.UNDER: 1.0 / self.fair_under,
+        }
+
+
+class SpreadMarketData(QuantBotModel):
+    """Fair Asian-handicap probabilities for one line (margin removed).
+
+    ``line`` is the home handicap (negative when the home team is favored),
+    so unlike totals it may be zero-crossing or negative.
+    """
+
+    match_id: str = Field(min_length=1)
+    bookmaker: str = Field(min_length=1)
+    timestamp: datetime
+    method: MarginMethod
+    line: float
+    fair_home: float = Field(gt=0.0, lt=1.0)
+    fair_away: float = Field(gt=0.0, lt=1.0)
+    overround: float = Field(ge=0.0)
+    is_closing: bool = False
+
+    @model_validator(mode="after")
+    def _validate(self) -> SpreadMarketData:
+        if self.timestamp.tzinfo is None:
+            raise ValueError("timestamp must be timezone-aware")
+        if self.method is not MarginMethod.POWER:
+            raise ValueError("two-way spreads require Power margin removal")
+        if not isfinite(self.line):
+            raise ValueError("spread line must be finite")
+        total = self.fair_home + self.fair_away
+        if abs(total - 1.0) > PROB_SUM_TOLERANCE:
+            raise ValueError(f"fair spread probabilities must sum to 1.0, got {total}")
+        return self
+
+    def fair_probabilities(self) -> dict[HandicapSide, float]:
+        return {
+            HandicapSide.HOME: self.fair_home,
+            HandicapSide.AWAY: self.fair_away,
+        }
+
+    def fair_odds(self) -> dict[HandicapSide, float]:
+        return {
+            HandicapSide.HOME: 1.0 / self.fair_home,
+            HandicapSide.AWAY: 1.0 / self.fair_away,
         }

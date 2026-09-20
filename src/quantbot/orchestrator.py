@@ -205,6 +205,15 @@ class QuantBotOrchestrator:
                     signal_1x2=signal,
                     quality=quality,
                 )
+                signal = self._maybe_prefer_handicap(
+                    match=match,
+                    as_of=as_of,
+                    prediction=prediction,
+                    data_quality=analysis.data_quality,
+                    model_confidence=analysis.model_confidence,
+                    current=signal,
+                    quality=quality,
+                )
             reports.append(SignalReport(match=match, signal=signal, analysis=analysis))
 
         n_bets = sum(1 for r in reports if r.signal.is_bet)
@@ -285,6 +294,59 @@ class QuantBotOrchestrator:
         if (totals_signal.expected_value or 0.0) > (signal_1x2.expected_value or 0.0):
             return totals_signal
         return signal_1x2
+
+    def _maybe_prefer_handicap(
+        self,
+        *,
+        match: Match,
+        as_of: datetime,
+        prediction,
+        data_quality: float,
+        model_confidence: float,
+        current: ValueSignal,
+        quality: DataQualitySignals | None = None,
+    ) -> ValueSignal:
+        """If an Asian-handicap tip clears the same rules with better EV, prefer it.
+
+        A safe no-op when the provider has no handicap odds for the match: the
+        current signal is returned unchanged.
+        """
+
+        from quantbot.analysis.value import handicap_metrics_from_prediction
+        from quantbot.markets.spread import SpreadMarketEngine
+        from quantbot.schemas.enums import DEFAULT_HANDICAP_LINE
+
+        if prediction.score_matrix is None:
+            return current
+        spread_entry = self.provider.get_latest_spread_odds(
+            match.match_id, as_of, line=DEFAULT_HANDICAP_LINE
+        )
+        if spread_entry is None:
+            return current
+        spread_engine = SpreadMarketEngine(method=self._totals_margin_method)
+        spread_market = spread_engine.to_market_data(spread_entry)
+        try:
+            spread_metrics = handicap_metrics_from_prediction(
+                prediction, spread_entry, spread_market
+            )
+        except ValueError:
+            return current
+        # Same market-shrinkage discipline as 1X2 and totals.
+        spread_metrics = self.analysis_engine.shrink_totals_metrics(spread_metrics, quality)
+        spread_signal = self.decision_engine.decide_spread(
+            match_id=match.match_id,
+            market=spread_market,
+            metrics=spread_metrics,
+            data_quality=data_quality,
+            model_confidence=model_confidence,
+        )
+        if not spread_signal.is_bet:
+            return current
+        if not current.is_bet:
+            return spread_signal
+        if (spread_signal.expected_value or 0.0) > (current.expected_value or 0.0):
+            return spread_signal
+        return current
 
     def _maybe_prefer_nba_totals(
         self,

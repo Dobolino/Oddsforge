@@ -12,9 +12,9 @@ from datetime import datetime
 from pydantic import Field, model_validator
 
 from quantbot.schemas.base import QuantBotModel
-from quantbot.schemas.enums import MatchOutcome, SignalType, TotalsSide
+from quantbot.schemas.enums import HandicapSide, MatchOutcome, SignalType, TotalsSide
 
-Selection = MatchOutcome | TotalsSide
+Selection = MatchOutcome | TotalsSide | HandicapSide
 
 
 class ValueMetrics(QuantBotModel):
@@ -82,6 +82,8 @@ class ValueSignal(QuantBotModel):
         model_confidence: 0-100 forecast-quality score (not a win probability).
         stake_fraction: Fraction of bankroll (theoretical), 0.0 for NO_BET.
         totals_line: Set when the tip is an Over/Under selection.
+        handicap_line: Set when the tip is an Asian-handicap selection (may be
+            negative when the home team is favored).
         reason_codes: Stable audit codes (e.g. NO_BET_LOW_EDGE, VALUE).
     """
 
@@ -104,6 +106,7 @@ class ValueSignal(QuantBotModel):
     reason_codes: tuple[str, ...] = Field(default_factory=tuple)
     metrics: tuple[ValueMetrics, ...] = Field(default_factory=tuple)
     totals_line: float | None = Field(default=None, gt=0.0)
+    handicap_line: float | None = None
 
     @model_validator(mode="after")
     def _validate(self) -> ValueSignal:
@@ -119,7 +122,12 @@ class ValueSignal(QuantBotModel):
             if self.chosen_outcome is None:
                 raise ValueError(f"{self.signal.value} requires a chosen_outcome")
             expected = _SIGNAL_TO_SELECTION[self.signal]
-            if self.chosen_outcome is not expected:
+            # Compare by type and value: home/away strings collide across
+            # MatchOutcome and HandicapSide, so identity alone is not enough.
+            if (
+                type(self.chosen_outcome) is not type(expected)
+                or self.chosen_outcome.value != expected.value
+            ):
                 raise ValueError(
                     f"{self.signal.value} must choose {expected.value}, "
                     f"got {self.chosen_outcome.value}"
@@ -127,8 +135,21 @@ class ValueSignal(QuantBotModel):
             if self.signal in (SignalType.VALUE_OVER, SignalType.VALUE_UNDER):
                 if self.totals_line is None:
                     raise ValueError("totals tips require totals_line")
-            elif self.totals_line is not None:
-                raise ValueError("1X2 tips must not set totals_line")
+                if self.handicap_line is not None:
+                    raise ValueError("totals tips must not set handicap_line")
+            elif self.signal in (
+                SignalType.VALUE_HANDICAP_HOME,
+                SignalType.VALUE_HANDICAP_AWAY,
+            ):
+                if self.handicap_line is None:
+                    raise ValueError("handicap tips require handicap_line")
+                if self.totals_line is not None:
+                    raise ValueError("handicap tips must not set totals_line")
+            else:
+                if self.totals_line is not None:
+                    raise ValueError("1X2 tips must not set totals_line")
+                if self.handicap_line is not None:
+                    raise ValueError("1X2 tips must not set handicap_line")
         return self
 
     @property
@@ -143,6 +164,10 @@ class ValueSignal(QuantBotModel):
             return None
         if isinstance(self.chosen_outcome, TotalsSide) and self.totals_line is not None:
             line = self.totals_line
+            line_s = str(int(line)) if float(line).is_integer() else str(line)
+            return f"{self.chosen_outcome.value}_{line_s}"
+        if isinstance(self.chosen_outcome, HandicapSide) and self.handicap_line is not None:
+            line = self.handicap_line
             line_s = str(int(line)) if float(line).is_integer() else str(line)
             return f"{self.chosen_outcome.value}_{line_s}"
         return self.chosen_outcome.value
@@ -163,4 +188,6 @@ _SIGNAL_TO_SELECTION: dict[SignalType, Selection] = {
     SignalType.VALUE_AWAY: MatchOutcome.AWAY,
     SignalType.VALUE_OVER: TotalsSide.OVER,
     SignalType.VALUE_UNDER: TotalsSide.UNDER,
+    SignalType.VALUE_HANDICAP_HOME: HandicapSide.HOME,
+    SignalType.VALUE_HANDICAP_AWAY: HandicapSide.AWAY,
 }

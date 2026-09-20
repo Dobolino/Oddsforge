@@ -13,7 +13,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from datetime import datetime
 
-from quantbot.schemas import League, Match, MatchStatus, Odds, TotalsOdds
+from quantbot.schemas import League, Match, MatchStatus, Odds, SpreadOdds, TotalsOdds
 
 
 def _require_aware(name: str, value: datetime) -> None:
@@ -45,6 +45,11 @@ class BaseDataProvider(ABC):
 
     def _fetch_totals_odds(self, match_id: str) -> Sequence[TotalsOdds]:
         """Return totals (Over/Under) snapshots for ``match_id`` (optional)."""
+
+        return ()
+
+    def _fetch_spread_odds(self, match_id: str) -> Sequence[SpreadOdds]:
+        """Return Asian-handicap snapshots for ``match_id`` (optional)."""
 
         return ()
 
@@ -148,6 +153,23 @@ class BaseDataProvider(ABC):
         """Most recent totals quote on or before ``as_of`` (optional line filter)."""
 
         snapshots = self.get_totals_odds(match_id, as_of)
+        if line is not None:
+            snapshots = [o for o in snapshots if abs(o.line - line) < 1e-9]
+        return snapshots[-1] if snapshots else None
+
+    def get_spread_odds(self, match_id: str, as_of: datetime) -> list[SpreadOdds]:
+        """Return spread snapshots recorded on or before ``as_of``, oldest first."""
+
+        _require_aware("as_of", as_of)
+        snapshots = [o for o in self._fetch_spread_odds(match_id) if o.timestamp <= as_of]
+        return sorted(snapshots, key=lambda o: o.timestamp)
+
+    def get_latest_spread_odds(
+        self, match_id: str, as_of: datetime, *, line: float | None = None
+    ) -> SpreadOdds | None:
+        """Most recent spread quote on or before ``as_of`` (optional line filter)."""
+
+        snapshots = self.get_spread_odds(match_id, as_of)
         if line is not None:
             snapshots = [o for o in snapshots if abs(o.line - line) < 1e-9]
         return snapshots[-1] if snapshots else None
