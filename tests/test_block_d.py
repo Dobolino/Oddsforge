@@ -115,11 +115,17 @@ def test_new_leagues_exist() -> None:
     assert League.LA_LIGA.value == "la_liga"
     assert League.SERIE_A.value == "serie_a"
     assert League.LIGUE_1.value == "ligue_1"
+    assert League.NATIONS_LEAGUE.value == "nations_league"
+    assert League.WORLD_CUP_QUALIFIERS_EUROPE.value == "world_cup_qualifiers_europe"
+    assert League.EURO_QUALIFICATION.value == "euro_qualification"
 
 
 def test_league_codes_present() -> None:
     assert football_data_code(League.SERIE_A) == "SA"
+    assert football_data_code(League.WORLD_CUP_QUALIFIERS_EUROPE) == "QUFA"
     assert odds_api_key(League.LA_LIGA) == "soccer_spain_la_liga"
+    assert odds_api_key(League.NATIONS_LEAGUE) == "soccer_uefa_nations_league"
+    assert odds_api_key(League.EURO_QUALIFICATION) == "soccer_uefa_euro_qualification"
 
 
 # --- Normalization ---
