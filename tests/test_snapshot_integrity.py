@@ -91,6 +91,23 @@ def test_integrity_flags_stale_and_after_kickoff() -> None:
     assert "INVALID_DATA_QUOTE_AFTER_KICKOFF" in codes
 
 
+def test_integrity_allows_older_quotes_far_from_kickoff() -> None:
+    from quantbot.markets.integrity import max_quote_age_for_kickoff
+
+    kickoff = datetime(2024, 10, 12, 15, tzinfo=timezone.utc)
+    as_of = datetime(2024, 10, 5, 12, tzinfo=timezone.utc)  # 7 days out
+    age = max_quote_age_for_kickoff(as_of=as_of, kickoff=kickoff)
+    assert age >= timedelta(days=3)
+
+    # 36h-old quote is stale near kickoff, but fine a week out.
+    quote = _odds(ts=as_of - timedelta(hours=36))
+    near = kickoff - timedelta(hours=12)
+    assert "INVALID_DATA_QUOTE_STALE" in {
+        r.code for r in check_1x2_odds(quote, as_of=near, kickoff=kickoff)
+    }
+    assert check_1x2_odds(quote, as_of=as_of, kickoff=kickoff) == ()
+
+
 def test_integrity_rejects_nan_odds() -> None:
     ts = datetime(2024, 10, 1, tzinfo=timezone.utc)
     # Bypass schema so the integrity helper can still flag non-finite values

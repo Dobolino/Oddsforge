@@ -291,13 +291,24 @@ class QuantBotOrchestrator:
                 continue
             from datetime import timedelta
 
-            from quantbot.markets.integrity import DEFAULT_MAX_QUOTE_AGE, check_1x2_odds
+            from quantbot.markets.integrity import (
+                DEFAULT_MAX_QUOTE_AGE,
+                check_1x2_odds,
+                max_quote_age_for_kickoff,
+            )
 
+            # Live: age limit scales with time-to-kickoff (distant fixtures
+            # keep the same book last_update for days). Demo: effectively off.
+            live_max_age = max_quote_age_for_kickoff(
+                as_of=as_of,
+                kickoff=match.kickoff,
+                base=DEFAULT_MAX_QUOTE_AGE,
+            )
             integrity = check_1x2_odds(
                 entry,
                 as_of=as_of,
                 kickoff=match.kickoff if self._live else None,
-                max_age=DEFAULT_MAX_QUOTE_AGE if self._live else timedelta(days=3650),
+                max_age=live_max_age if self._live else timedelta(days=3650),
             )
             snapshots = self.provider.get_odds(match.match_id, as_of)
             if self.persist_snapshots and self.snapshot_repo is not None:

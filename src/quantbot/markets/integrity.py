@@ -12,9 +12,37 @@ from math import isfinite
 from quantbot.decision.rules import Reason
 from quantbot.schemas import Odds, TotalsOdds
 
-# Heuristic default: documented as such — justify from provider refresh rates
-# when live evidence exists; not a hidden “sharp” whitelist.
+# Heuristic default for matches close to kickoff. Distant fixtures often keep
+# the same book ``last_update`` for days — a flat 24h gate then blocks every tip.
 DEFAULT_MAX_QUOTE_AGE = timedelta(hours=24)
+_NEAR_KICKOFF = timedelta(hours=48)
+_MID_HORIZON = timedelta(days=7)
+_MID_QUOTE_AGE = timedelta(days=3)
+_FAR_QUOTE_AGE = timedelta(days=7)
+
+
+def max_quote_age_for_kickoff(
+    *,
+    as_of: datetime,
+    kickoff: datetime | None,
+    base: timedelta = DEFAULT_MAX_QUOTE_AGE,
+) -> timedelta:
+    """Allow older quotes when kickoff is still far from ``as_of``.
+
+    Prematch books do not refresh every day for mid-week / next-week fixtures.
+    Near kickoff we keep the strict ``base`` (24h) gate.
+    """
+
+    if kickoff is None:
+        return base
+    if kickoff.tzinfo is None or as_of.tzinfo is None:
+        raise ValueError("as_of and kickoff must be timezone-aware")
+    lead = kickoff - as_of
+    if lead <= _NEAR_KICKOFF:
+        return base
+    if lead <= _MID_HORIZON:
+        return max(base, _MID_QUOTE_AGE)
+    return max(base, _FAR_QUOTE_AGE)
 
 INVALID_ODDS_NAN = Reason(
     code="INVALID_DATA_ODDS_NAN",
@@ -53,12 +81,17 @@ def check_1x2_odds(
     *,
     as_of: datetime,
     kickoff: datetime | None = None,
-    max_age: timedelta = DEFAULT_MAX_QUOTE_AGE,
+    max_age: timedelta | None = None,
 ) -> tuple[Reason, ...]:
     """Integrity reasons for a single-book 1X2 quote used as reference book."""
 
     if as_of.tzinfo is None or odds.timestamp.tzinfo is None:
         raise ValueError("as_of and odds.timestamp must be timezone-aware")
+    effective_max = (
+        max_age
+        if max_age is not None
+        else max_quote_age_for_kickoff(as_of=as_of, kickoff=kickoff)
+    )
     reasons: list[Reason] = []
     sides = (odds.home, odds.draw, odds.away)
     if any(not isfinite(x) for x in sides):
@@ -75,7 +108,7 @@ def check_1x2_odds(
         if odds.timestamp >= kickoff:
             reasons.append(INVALID_QUOTE_AFTER_KICKOFF)
     age = as_of - odds.timestamp
-    if age > max_age:
+    if age > effective_max:
         reasons.append(INVALID_QUOTE_STALE)
     return tuple(reasons)
 
@@ -85,10 +118,15 @@ def check_totals_odds(
     *,
     as_of: datetime,
     kickoff: datetime | None = None,
-    max_age: timedelta = DEFAULT_MAX_QUOTE_AGE,
+    max_age: timedelta | None = None,
 ) -> tuple[Reason, ...]:
     if as_of.tzinfo is None or odds.timestamp.tzinfo is None:
         raise ValueError("as_of and odds.timestamp must be timezone-aware")
+    effective_max = (
+        max_age
+        if max_age is not None
+        else max_quote_age_for_kickoff(as_of=as_of, kickoff=kickoff)
+    )
     reasons: list[Reason] = []
     sides = (odds.over, odds.under)
     if any(not isfinite(x) for x in sides) or not isfinite(odds.line):
@@ -100,6 +138,6 @@ def check_totals_odds(
             raise ValueError("kickoff must be timezone-aware")
         if odds.timestamp >= kickoff:
             reasons.append(INVALID_QUOTE_AFTER_KICKOFF)
-    if as_of - odds.timestamp > max_age:
+    if as_of - odds.timestamp > effective_max:
         reasons.append(INVALID_QUOTE_STALE)
     return tuple(reasons)

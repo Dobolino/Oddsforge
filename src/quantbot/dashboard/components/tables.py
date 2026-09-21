@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import datetime
 from html import escape
 
 import pandas as pd
@@ -29,6 +30,7 @@ from quantbot.orchestrator import SignalReport
 
 SIGNAL_COLUMNS = [
     "Match",
+    "Kickoff",
     "Signal",
     "Markt",
     "Model P",
@@ -42,6 +44,15 @@ SIGNAL_COLUMNS = [
     "Spiele",
     "Reason",
 ]
+
+
+def format_kickoff(kickoff: datetime, *, lang: str = "de") -> str:
+    """Compact kickoff for table cells (local wall clock of the aware datetime)."""
+
+    local = kickoff.astimezone() if kickoff.tzinfo is not None else kickoff
+    if lang.startswith("de"):
+        return local.strftime("%d.%m. %H:%M")
+    return local.strftime("%m/%d %H:%M")
 
 
 def _chosen_model_prob(signal) -> float | None:  # type: ignore[no-untyped-def]
@@ -83,6 +94,7 @@ def signals_dataframe(
         rows.append(
             {
                 "Match": f"{m.home_team.name} vs {m.away_team.name}",
+                "Kickoff": format_kickoff(m.kickoff, lang=lang),
                 "Tipp": tip,
                 "Markt": market_stance_label(s, lang),
                 "Begründung": why,
@@ -128,8 +140,8 @@ def render_signals_table(df: pd.DataFrame) -> None:  # pragma: no cover - Stream
             "Reason",
         }:
             config[col] = st.column_config.TextColumn(col, width="medium")
-        elif col in {"Odds", "Quote"}:
-            config[col] = st.column_config.TextColumn(col, width="small", help="Dezimalquote")
+        elif col in {"Kickoff", "Anstoß", "Odds", "Quote"}:
+            config[col] = st.column_config.TextColumn(col, width="small")
         else:
             config[col] = st.column_config.TextColumn(col, width="small")
     height = min(520, 38 * max(len(df), 1) + 40)
@@ -154,8 +166,9 @@ def colored_signals_table_html(
         mode = UXMode.ADVANCED
     columns = list(SIGNAL_COLUMNS_BY_MODE[mode])
     headers = "".join(
-        f'<th style="text-align:left;padding:0.45rem 0.55rem;border-bottom:2px solid #d1d5db;'
-        f'font-size:0.8rem;opacity:0.85;white-space:nowrap;">{escape(column_label(c, lang))}</th>'
+        f'<th style="text-align:left;padding:0.55rem 0.65rem;border-bottom:1px solid '
+        f'rgba(148,163,184,0.35);font-size:0.75rem;letter-spacing:0.02em;'
+        f'color:#94a3b8;font-weight:600;white-space:nowrap;">{escape(column_label(c, lang))}</th>'
         for c in columns
     )
     body_rows: list[str] = []
@@ -181,8 +194,16 @@ def colored_signals_table_html(
             stance_cell = colored_text_html(
                 stance_cell, "#1a7f37" if stance == "with" else "#c47a00"
             )
+        kickoff_txt = format_kickoff(m.kickoff, lang=lang)
         cells: dict[str, str] = {
-            "Match": escape(f"{m.home_team.name} vs {m.away_team.name}"),
+            "Match": (
+                f'<div style="font-weight:600;color:#e2e8f0;line-height:1.25;">'
+                f"{escape(m.home_team.name)} vs {escape(m.away_team.name)}</div>"
+            ),
+            "Kickoff": (
+                f'<span style="font-variant-numeric:tabular-nums;color:#94a3b8;'
+                f'white-space:nowrap;">{escape(kickoff_txt)}</span>'
+            ),
             "Signal": tip_cell,
             "Markt": stance_cell,
             "Model P": escape(format_model_prob(_chosen_model_prob(s))),
@@ -200,23 +221,27 @@ def colored_signals_table_html(
                 f"{getattr(report.analysis, 'home_matches', 0)}"
                 f"/{getattr(report.analysis, 'away_matches', 0)}"
             ),
-            "Reason": escape(why),
+            "Reason": (
+                f'<span style="color:#cbd5e1;font-size:0.85rem;">{escape(why)}</span>'
+            ),
         }
         tds = "".join(
-            f'<td style="padding:0.5rem 0.55rem;border-bottom:1px solid #e5e7eb;'
-            f'vertical-align:middle;font-size:0.9rem;">{cells[c]}</td>'
+            f'<td style="padding:0.65rem 0.65rem;border-bottom:1px solid '
+            f'rgba(148,163,184,0.18);vertical-align:middle;font-size:0.9rem;'
+            f'color:#e2e8f0;">{cells[c]}</td>'
             for c in columns
         )
         body_rows.append(f"<tr>{tds}</tr>")
     if not body_rows:
         empty = "Keine Spiele." if lang.startswith("de") else "No matches."
         body_rows.append(
-            f'<tr><td colspan="{len(columns)}" style="padding:0.75rem;opacity:0.7;">'
+            f'<tr><td colspan="{len(columns)}" style="padding:0.9rem;opacity:0.7;">'
             f"{escape(empty)}</td></tr>"
         )
     return (
-        '<div style="overflow-x:auto;max-width:100%;">'
-        '<table style="border-collapse:collapse;width:100%;min-width:640px;">'
+        '<div style="overflow-x:auto;max-width:100%;border:1px solid '
+        'rgba(148,163,184,0.22);border-radius:10px;background:rgba(15,23,42,0.35);">'
+        '<table style="border-collapse:collapse;width:100%;min-width:720px;">'
         f"<thead><tr>{headers}</tr></thead>"
         f'<tbody>{"".join(body_rows)}</tbody>'
         "</table></div>"
