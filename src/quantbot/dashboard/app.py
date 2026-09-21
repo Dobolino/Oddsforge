@@ -784,11 +784,14 @@ def _name_match_warnings(lang, provider, leagues) -> None:  # type: ignore[no-un
 
 
 def _window_key(leagues, season: str, live: bool) -> str:  # type: ignore[no-untyped-def]
-    return f"window::{','.join(lg.value for lg in leagues)}::{season}::{'live' if live else 'demo'}"
+    # Sort so league multi-select order never forks a second empty 3-day window.
+    ids = ",".join(sorted(lg.value for lg in leagues))
+    return f"window::{ids}::{season}::{'live' if live else 'demo'}"
 
 
 def _window_draft_key(leagues, season: str, live: bool) -> str:  # type: ignore[no-untyped-def]
-    return f"window_draft::{','.join(lg.value for lg in leagues)}::{season}::{'live' if live else 'demo'}"
+    ids = ",".join(sorted(lg.value for lg in leagues))
+    return f"window_draft::{ids}::{season}::{'live' if live else 'demo'}"
 
 
 def _fixture_days(orchestrator, leagues, season: str, start_d: date, end_d: date) -> list[tuple[date, list[str]]]:
@@ -822,10 +825,24 @@ def _default_window_bounds(orchestrator, leagues, season: str, live: bool):  # t
                 continue
         if start_default is None:
             start_default = datetime.now(timezone.utc).date()
-    # Demo fixtures are weekly — default to two weeks so several matchdays fit.
-    end_default = start_default + timedelta(days=2 if live else 13)
+    # Live: one week ahead so midweek internationals are not missed by the
+    # old 3-day default. Demo fixtures are weekly — keep two weeks.
+    end_default = start_default + timedelta(days=6 if live else 13)
     return start_default, end_default
 
+
+def _live_committed_window_is_stale(
+    committed_end: date,
+    today: date,
+    *,
+    max_past_days: int = 14,
+) -> bool:
+    """True when the whole committed window already ended too far in the past.
+
+    Future windows (e.g. international matchdays ~3 weeks out) must stay.
+    """
+
+    return (today - committed_end).days > max_past_days
 
 
 def _as_of_for_window(start_d: date, end_d: date, *, live: bool) -> datetime:
@@ -884,11 +901,12 @@ def _pick_window(
     if store not in st.session_state:
         st.session_state[store] = (start_default, end_default)
     elif live:
-        # Stale demo/old drafts (e.g. 2024) must not stick in Live — reset when
-        # the committed window is far from today.
+        # Only wipe stuck *past* windows (e.g. demo 2024 left in session).
+        # Do NOT reset future windows — Nations League / CL / Quali often sit
+        # >14 days ahead; abs()-reset made "Zeitraum übernehmen" look broken.
         today = datetime.now(timezone.utc).date()
-        committed0 = st.session_state[store][0]
-        if abs((committed0 - today).days) > 14:
+        committed_end = st.session_state[store][1]
+        if _live_committed_window_is_stale(committed_end, today):
             st.session_state[store] = (start_default, end_default)
             st.session_state[draft_store] = (start_default, end_default)
     if draft_store not in st.session_state:
@@ -904,14 +922,12 @@ def _pick_window(
     sync_key = f"{draft_store}::sync_input"
 
     def _set_draft(start: date, end: date, *, apply: bool = False) -> None:
-        # Never write ``input_key`` here: agenda buttons run *after* date_input
-        # is instantiated and Streamlit rejects mutating a widget key then.
-        # Flag a sync so the next run seeds date_input before it mounts.
+        # Never write ``input_key`` after date_input has mounted (agenda path).
+        # Flag sync so the next run seeds date_input before it mounts.
         st.session_state[draft_store] = (start, end)
         st.session_state[sync_key] = True
         if apply:
-            # Presets / agenda mean "show me these games" — commit immediately
-            # so the tips page does not stay on an empty Sep window.
+            # Presets / agenda mean "show these games now" — commit immediately.
             st.session_state[store] = (start, end)
 
     presets = ui.columns(3)
