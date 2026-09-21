@@ -1065,7 +1065,22 @@ def _signals_page(
         if upcoming_n:
             st.warning(t("sig.no_odds_matched", lang).format(n=upcoming_n))
         else:
-            st.info(t("sig.no_fixtures_in_window", lang))
+            draft_store = _window_draft_key(leagues, season, live)
+            draft = st.session_state.get(draft_store)
+            if (
+                draft is not None
+                and isinstance(draft, tuple)
+                and len(draft) == 2
+                and draft != (start_d, end_d)
+            ):
+                st.warning(
+                    t("sig.no_fixtures_pending_draft", lang).format(
+                        active=f"{start_d.isoformat()}–{end_d.isoformat()}",
+                        draft=f"{draft[0].isoformat()}–{draft[1].isoformat()}",
+                    )
+                )
+            else:
+                st.info(t("sig.no_fixtures_in_window", lang))
     if ux_mode is UXMode.BEGINNER:
         try:
             from quantbot.tracking import TipHistoryStore, tracker_path
