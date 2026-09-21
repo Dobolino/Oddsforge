@@ -36,6 +36,11 @@ ODDS_ARCHIVE_CODES: dict[League, str] = {
     League.WORLD_CUP_QUALIFIERS_EUROPE: "QUFA",
 }
 
+# Competitions that may load fixtures from The Odds API (no Free FD / paid FD).
+# Club leagues must NOT fall back here on Football-Data 429 — that burns odds
+# credits and invents thousands of unmatched "fixtures".
+_ODDS_FIXTURE_LEAGUES: frozenset[League] = frozenset(ODDS_ARCHIVE_CODES)
+
 
 def football_data_code(league: League) -> str:
     code = LEAGUE_CODES[league]["fd"]
@@ -50,6 +55,12 @@ def odds_api_key(league: League) -> str:
 
 def has_football_data(league: League) -> bool:
     return bool(LEAGUE_CODES.get(league, {}).get("fd"))
+
+
+def uses_odds_fixtures(league: League) -> bool:
+    """True when fixtures may come from The Odds API events/scores."""
+
+    return league in _ODDS_FIXTURE_LEAGUES
 
 
 def football_leagues() -> tuple[League, ...]:

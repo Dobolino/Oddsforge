@@ -28,6 +28,7 @@ from quantbot.data.providers.leagues import (
     football_data_code,
     has_football_data,
     odds_api_key,
+    uses_odds_fixtures,
 )
 from quantbot.data.providers.the_odds_api import TheOddsAPIProvider
 from quantbot.logging import get_logger
@@ -255,10 +256,10 @@ class LiveDataProvider(BaseDataProvider):
                         self._load_errors.append(msg)
                         league_matches = []
 
-                # Internationals without Free Football-Data (Nations League, Euro
-                # Quali) or FD paid-only failures: build the current season from
-                # Odds API events/scores. Prior seasons have no live events.
-                if not league_matches and year == season_year:
+                # Only Nations League / Quali use Odds API as a fixture source.
+                # Club leagues that hit Football-Data 429 must not fall back —
+                # that burns odds credits and creates unmatched pseudo-fixtures.
+                if not league_matches and year == season_year and uses_odds_fixtures(league):
                     try:
                         league_matches = self._matches_from_odds_api(league)
                     except Exception as exc:  # noqa: BLE001

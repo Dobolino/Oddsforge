@@ -883,6 +883,14 @@ def _pick_window(
     draft_store = _window_draft_key(leagues, season, live)
     if store not in st.session_state:
         st.session_state[store] = (start_default, end_default)
+    elif live:
+        # Stale demo/old drafts (e.g. 2024) must not stick in Live — reset when
+        # the committed window is far from today.
+        today = datetime.now(timezone.utc).date()
+        committed0 = st.session_state[store][0]
+        if abs((committed0 - today).days) > 14:
+            st.session_state[store] = (start_default, end_default)
+            st.session_state[draft_store] = (start_default, end_default)
     if draft_store not in st.session_state:
         st.session_state[draft_store] = st.session_state[store]
 
@@ -1043,9 +1051,10 @@ def _signals_page(
         upcoming_n = 0
         for league in leagues:
             try:
-                upcoming_n += len(
-                    orchestrator.provider.get_upcoming_matches(league, season, as_of)
-                )
+                for match in orchestrator.provider.get_upcoming_matches(league, season, as_of):
+                    day = match.kickoff.date()
+                    if start_d <= day <= end_d:
+                        upcoming_n += 1
             except Exception:  # noqa: BLE001
                 continue
         if upcoming_n:
