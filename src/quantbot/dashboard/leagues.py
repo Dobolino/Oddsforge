@@ -59,10 +59,18 @@ def format_league_choice(choice: str, lang: str = "de") -> str:
 
     if choice == ALL_LEAGUES:
         return t("ctrl.league_all", lang)
+    key = f"league.{choice}"
+    label = t(key, lang)
+    if label != key:
+        return label
     return choice.replace("_", " ").title()
 
 
 def league_title(league: League) -> str:
     """Short display name for section headers on the tips page."""
 
+    key = f"league.{league.value}"
+    label = t(key, "de")
+    if label != key:
+        return label
     return league.value.replace("_", " ").title()

@@ -34,6 +34,7 @@ _COMPETITION_TO_LEAGUE: dict[str, League] = {
     "SA": League.SERIE_A,
     "FL1": League.LIGUE_1,
     "CL": League.CHAMPIONS_LEAGUE,
+    "QUFA": League.WORLD_CUP_QUALIFIERS_EUROPE,
 }
 
 # Football-Data status -> QuantBot status.

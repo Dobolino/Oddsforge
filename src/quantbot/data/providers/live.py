@@ -24,7 +24,11 @@ from pathlib import Path
 from quantbot.data.base import BaseDataProvider
 from quantbot.data.finished_cache import CachingMatchProvider, FinishedMatchCache
 from quantbot.data.providers.football_data import FootballDataProvider
-from quantbot.data.providers.leagues import football_data_code, has_football_data, odds_api_key
+from quantbot.data.providers.leagues import (
+    football_data_code,
+    has_football_data,
+    odds_api_key,
+)
 from quantbot.data.providers.the_odds_api import TheOddsAPIProvider
 from quantbot.logging import get_logger
 from quantbot.schemas import League, Match, Odds, TotalsOdds
@@ -208,35 +212,95 @@ class LiveDataProvider(BaseDataProvider):
         # Newest season first, then the requested number of prior seasons.
         season_years = [season_year - offset for offset in range(self._history_seasons + 1)]
         for league in self._leagues:
-            if not has_football_data(league):
-                continue
+            # Current season first, then any requested prior seasons (backbone).
             for year in season_years:
-                try:
-                    league_matches = self._football.fetch_matches(
-                        football_data_code(league), season=year
-                    )
-                except TypeError:
-                    # Older fetchers without a season kwarg (current season only).
-                    if year != season_year:
-                        continue
+                league_matches: list[Match] = []
+                if has_football_data(league):
                     try:
-                        league_matches = self._football.fetch_matches(football_data_code(league))
-                    except Exception as exc:  # noqa: BLE001
-                        msg = f"{league.value}: fixtures — {exc}"
-                        logger.warning("Could not load %s fixtures: %s", league.value, exc)
+                        league_matches = self._football.fetch_matches(
+                            football_data_code(league), season=year
+                        )
+                    except TypeError:
+                        # Older fetchers without a season kwarg (current only).
+                        if year == season_year:
+                            try:
+                                league_matches = self._football.fetch_matches(
+                                    football_data_code(league)
+                                )
+                            except Exception as exc:  # noqa: BLE001
+                                msg = f"{league.value}: fixtures — {exc}"
+                                logger.warning("Could not load %s fixtures: %s", league.value, exc)
+                                self._load_errors.append(msg)
+                                league_matches = []
+                    except Exception as exc:  # noqa: BLE001 - one season/league must not break the rest
+                        msg = f"{league.value} {year}: fixtures — {exc}"
+                        logger.warning("Could not load %s %s fixtures: %s", league.value, year, exc)
                         self._load_errors.append(msg)
-                        continue
-                except Exception as exc:  # noqa: BLE001 - one season/league must not break the rest
-                    msg = f"{league.value} {year}: fixtures — {exc}"
-                    logger.warning("Could not load %s %s fixtures: %s", league.value, year, exc)
-                    self._load_errors.append(msg)
-                    continue
+                        league_matches = []
+
+                # Internationals without Free Football-Data (Nations League, Euro
+                # Quali) or FD paid-only failures: build the current season from
+                # Odds API events/scores. Prior seasons have no live events.
+                if not league_matches and year == season_year:
+                    try:
+                        league_matches = self._matches_from_odds_api(league)
+                    except Exception as exc:  # noqa: BLE001
+                        msg = f"{league.value}: odds-fixtures — {exc}"
+                        logger.warning("Could not load %s via Odds API fixtures: %s", league.value, exc)
+                        self._load_errors.append(msg)
+                        league_matches = []
+
                 for m in league_matches:
                     self._match_league[m.match_id] = league
                 matches.extend(league_matches)
         self._matches_cache = matches
         logger.info("Loaded %d fixtures across %d leagues", len(matches), len(self._leagues))
         return matches
+
+    def _finished_cache(self) -> FinishedMatchCache | None:
+        football = self._football
+        if isinstance(football, CachingMatchProvider):
+            return football.cache
+        cache = getattr(football, "cache", None)
+        return cache if isinstance(cache, FinishedMatchCache) else None
+
+    def _matches_from_odds_api(self, league: League) -> list[Match]:
+        """Upcoming from /odds events + recent finishes from /scores (+ local archive)."""
+
+        sport = odds_api_key(league)
+        by_id: dict[str, Match] = {}
+
+        cache = self._finished_cache()
+        if cache is not None:
+            for archived in cache.for_league(league):
+                by_id[archived.match_id] = archived
+
+        try:
+            events = self._odds.fetch_events(sport, regions=self._regions)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Odds events for %s failed: %s", league.value, exc)
+            events = []
+        for match in self._odds.events_to_matches(events, league=league):
+            by_id[match.match_id] = match
+
+        try:
+            scores = self._odds.fetch_scores(sport, days_from=3)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Odds scores for %s failed: %s", league.value, exc)
+            scores = []
+        finished = self._odds.events_to_matches(scores, league=league, finished_only=True)
+        for match in finished:
+            by_id[match.match_id] = match
+        if cache is not None and finished:
+            added = cache.put_finished(finished)
+            if added:
+                logger.info(
+                    "Archived %d finished %s matches from Odds API scores",
+                    added,
+                    league.value,
+                )
+
+        return list(by_id.values())
 
     # --- Odds (The Odds API), matched to fixtures by team names ---
 
@@ -271,40 +335,51 @@ class LiveDataProvider(BaseDataProvider):
             events = []
 
         used_fixture_ids: set[str] = set()
+        fixtures_by_id = {
+            m.match_id: m for m in (self._matches_cache or []) if m.league is league
+        }
         for event in events:
             odds_home_raw = event.get("home_team", "")
             odds_away_raw = event.get("away_team", "")
-            key = (normalize_team(odds_home_raw), normalize_team(odds_away_raw))
-            hit = index.get(key)
-            uncertain = False
-            score: float | None = None
+            event_id = str(event.get("id") or "")
+            # Odds-sourced fixtures reuse the Odds API event id as match_id.
+            if event_id and event_id in fixtures_by_id:
+                fixture = fixtures_by_id[event_id]
+                hit = (event_id, fixture.home_team.name, fixture.away_team.name)
+                uncertain = False
+                score = 1.0
+            else:
+                key = (normalize_team(odds_home_raw), normalize_team(odds_away_raw))
+                hit = index.get(key)
+                uncertain = False
+                score = None
 
-            if hit is None:
-                # Fuzzy fallback: best unused fixture pair above threshold.
-                best_key = None
-                best_score = 0.0
-                for fixture_key in index:
-                    if index[fixture_key][0] in used_fixture_ids:
-                        continue
-                    s = _pair_score(key, fixture_key)
-                    if s > best_score:
-                        best_score = s
-                        best_key = fixture_key
-                if best_key is not None and best_score >= _FUZZY_THRESHOLD:
-                    hit = index[best_key]
-                    uncertain = True
-                    score = best_score
-                else:
-                    report.unmatched_odds += 1
-                    report.issues.append(
-                        NameMatchIssue(
-                            kind="unmatched_odds",
-                            odds_home=str(odds_home_raw),
-                            odds_away=str(odds_away_raw),
-                            score=best_score if best_key is not None else None,
+                if hit is None:
+                    # Fuzzy fallback: best unused fixture pair above threshold.
+                    best_key = None
+                    best_score = 0.0
+                    for fixture_key in index:
+                        if index[fixture_key][0] in used_fixture_ids:
+                            continue
+                        s = _pair_score(key, fixture_key)
+                        if s > best_score:
+                            best_score = s
+                            best_key = fixture_key
+                    if best_key is not None and best_score >= _FUZZY_THRESHOLD:
+                        hit = index[best_key]
+                        uncertain = True
+                        score = best_score
+                    else:
+                        report.unmatched_odds += 1
+                        report.issues.append(
+                            NameMatchIssue(
+                                kind="unmatched_odds",
+                                odds_home=str(odds_home_raw),
+                                odds_away=str(odds_away_raw),
+                                score=best_score if best_key is not None else None,
+                            )
                         )
-                    )
-                    continue
+                        continue
 
             fd_id, fixture_home, fixture_away = hit
             if fd_id in used_fixture_ids:

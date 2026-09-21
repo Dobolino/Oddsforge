@@ -66,6 +66,9 @@ class League(str, Enum):
     SERIE_A = "serie_a"
     LIGUE_1 = "ligue_1"
     CHAMPIONS_LEAGUE = "champions_league"
+    NATIONS_LEAGUE = "nations_league"
+    WORLD_CUP_QUALIFIERS_EUROPE = "world_cup_qualifiers_europe"
+    EURO_QUALIFICATION = "euro_qualification"
     NBA = "nba"
 
 
@@ -145,6 +148,9 @@ LEAGUE_SPORT: dict[League, Sport] = {
     League.SERIE_A: Sport.FOOTBALL,
     League.LIGUE_1: Sport.FOOTBALL,
     League.CHAMPIONS_LEAGUE: Sport.FOOTBALL,
+    League.NATIONS_LEAGUE: Sport.FOOTBALL,
+    League.WORLD_CUP_QUALIFIERS_EUROPE: Sport.FOOTBALL,
+    League.EURO_QUALIFICATION: Sport.FOOTBALL,
     League.NBA: Sport.BASKETBALL,
 }
 

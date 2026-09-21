@@ -29,6 +29,9 @@ _COMPETITION_TO_LEAGUE: dict[str, League] = {
     "SA": League.SERIE_A,
     "FL1": League.LIGUE_1,
     "CL": League.CHAMPIONS_LEAGUE,
+    "QUFA": League.WORLD_CUP_QUALIFIERS_EUROPE,
+    "UNL": League.NATIONS_LEAGUE,
+    "ECQ": League.EURO_QUALIFICATION,
 }
 
 

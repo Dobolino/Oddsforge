@@ -7,7 +7,7 @@ file cache with TTL and a rate limiter to protect the API quota.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -16,11 +16,12 @@ import httpx
 from quantbot.data.providers.base_http import FileCache, RateLimiter, get_with_rate_limit_retry, redact_secrets
 from quantbot.logging import get_logger
 from quantbot.markets.odds import MarketEngine
-from quantbot.schemas import MarketData, Odds
+from quantbot.schemas import League, Match, MatchResult, MatchStatus, Odds, Team, MarketData, TotalsOdds
 
 logger = get_logger(__name__)
 
 _BASE_URL = "https://api.the-odds-api.com"
+_PREDICTION_LEAD = timedelta(hours=2)
 
 
 def _parse_iso(value: str) -> datetime:
@@ -30,6 +31,13 @@ def _parse_iso(value: str) -> datetime:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed
+
+
+def _slug(name: str) -> str:
+    cleaned = "".join(ch.lower() if ch.isalnum() else "_" for ch in name).strip("_")
+    while "__" in cleaned:
+        cleaned = cleaned.replace("__", "_")
+    return cleaned[:64] or "team"
 
 
 def _valid_decimal_odds(*prices: float) -> bool:
@@ -104,6 +112,82 @@ class TheOddsAPIProvider:
             "oddsFormat": "decimal",
         }
         return list(self._get(f"/v4/sports/{sport_key}/odds", params))
+
+    def fetch_scores(self, sport_key: str, *, days_from: int = 3) -> list[dict[str, Any]]:
+        """Recent/live scores (completed games limited by ``days_from``, max 3)."""
+
+        days = max(1, min(3, int(days_from)))
+        params = {
+            "apiKey": self.api_key,
+            "daysFrom": str(days),
+        }
+        return list(self._get(f"/v4/sports/{sport_key}/scores", params))
+
+    def events_to_matches(
+        self,
+        events: list[dict[str, Any]],
+        *,
+        league: League,
+        finished_only: bool = False,
+    ) -> list[Match]:
+        """Turn Odds API events/scores into QuantBot :class:`Match` rows."""
+
+        out: list[Match] = []
+        for event in events:
+            match = self.event_to_match(event, league=league)
+            if match is None:
+                continue
+            if finished_only and match.status is not MatchStatus.FINISHED:
+                continue
+            out.append(match)
+        return out
+
+    def event_to_match(self, event: dict[str, Any], *, league: League) -> Match | None:
+        """Map one Odds API event or score payload to a :class:`Match`."""
+
+        event_id = str(event.get("id") or "").strip()
+        home_name = str(event.get("home_team") or "").strip()
+        away_name = str(event.get("away_team") or "").strip()
+        commence = event.get("commence_time")
+        if not event_id or not home_name or not away_name or not commence:
+            return None
+        kickoff = _parse_iso(str(commence))
+        completed = bool(event.get("completed"))
+        scores = event.get("scores")
+        result: MatchResult | None = None
+        status = MatchStatus.SCHEDULED
+        observed_at: datetime | None = None
+        if completed and isinstance(scores, list) and len(scores) >= 2:
+            by_name = {
+                str(row.get("name", "")).strip(): row.get("score") for row in scores if isinstance(row, dict)
+            }
+            home_raw = by_name.get(home_name)
+            away_raw = by_name.get(away_name)
+            try:
+                if home_raw is not None and away_raw is not None:
+                    result = MatchResult(home_goals=int(home_raw), away_goals=int(away_raw))
+                    status = MatchStatus.FINISHED
+                    # Publication time must be after kickoff (schema guardrail).
+                    observed_at = max(kickoff + timedelta(hours=2), datetime.now(timezone.utc))
+            except (TypeError, ValueError):
+                result = None
+                observed_at = None
+                status = MatchStatus.SCHEDULED
+        season_start = kickoff.year if kickoff.month >= 7 else kickoff.year - 1
+        season = f"{season_start}-{season_start + 1}"
+        return Match(
+            match_id=event_id,
+            league=league,
+            season=season,
+            kickoff=kickoff,
+            prediction_timestamp=kickoff - _PREDICTION_LEAD,
+            home_team=Team(team_id=f"odds:{_slug(home_name)}", name=home_name),
+            away_team=Team(team_id=f"odds:{_slug(away_name)}", name=away_name),
+            status=status,
+            result=result,
+            result_available_at=observed_at,
+            status_available_at=observed_at if status is MatchStatus.FINISHED else None,
+        )
 
     # --- Transformation to DTOs ---
 
