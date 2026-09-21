@@ -903,22 +903,26 @@ def _pick_window(
     input_key = f"{draft_store}::input"
     sync_key = f"{draft_store}::sync_input"
 
-    def _set_draft(start: date, end: date) -> None:
+    def _set_draft(start: date, end: date, *, apply: bool = False) -> None:
         # Never write ``input_key`` here: agenda buttons run *after* date_input
         # is instantiated and Streamlit rejects mutating a widget key then.
         # Flag a sync so the next run seeds date_input before it mounts.
         st.session_state[draft_store] = (start, end)
         st.session_state[sync_key] = True
+        if apply:
+            # Presets / agenda mean "show me these games" — commit immediately
+            # so the tips page does not stay on an empty Sep window.
+            st.session_state[store] = (start, end)
 
     presets = ui.columns(3)
     if presets[0].button(t("ctrl.range_today", lang), width="stretch", key=f"{draft_store}::today"):
-        _set_draft(start_default, start_default)
+        _set_draft(start_default, start_default, apply=True)
         st.rerun()
     if presets[1].button(t("ctrl.range_3d", lang), width="stretch", key=f"{draft_store}::3d"):
-        _set_draft(start_default, start_default + timedelta(days=2))
+        _set_draft(start_default, start_default + timedelta(days=2), apply=True)
         st.rerun()
     if presets[2].button(t("ctrl.range_7d", lang), width="stretch", key=f"{draft_store}::7d"):
-        _set_draft(start_default, start_default + timedelta(days=6))
+        _set_draft(start_default, start_default + timedelta(days=6), apply=True)
         st.rerun()
 
     _apply_window_input_sync(st.session_state, input_key, sync_key, st.session_state[draft_store])
@@ -947,17 +951,18 @@ def _pick_window(
             for day, labels in days[:12]:
                 cols = ui.columns([1, 3])
                 if cols[0].button(day.isoformat(), key=f"{draft_store}::day::{day.isoformat()}"):
-                    _set_draft(day, day)
+                    _set_draft(day, day, apply=True)
                     st.rerun()
                 preview = ", ".join(labels[:2])
                 if len(labels) > 2:
                     preview += f" (+{len(labels) - 2})"
                 cols[1].caption(preview)
 
-    pending = st.session_state[draft_store] != committed
+    pending = st.session_state[draft_store] != st.session_state[store]
     if pending:
         ui.warning(t("ctrl.window_pending", lang))
     else:
+        committed = st.session_state[store]
         ui.caption(
             t("ctrl.window_active", lang).format(
                 start=committed[0].isoformat(),
