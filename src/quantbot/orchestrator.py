@@ -291,10 +291,14 @@ class QuantBotOrchestrator:
                 continue
             from datetime import timedelta
 
+            from dataclasses import replace
+
             from quantbot.markets.integrity import (
                 DEFAULT_MAX_QUOTE_AGE,
+                apply_stale_quality_penalty,
                 check_1x2_odds,
                 max_quote_age_for_kickoff,
+                partition_integrity,
             )
 
             # Live: age limit scales with time-to-kickoff (distant fixtures
@@ -310,6 +314,7 @@ class QuantBotOrchestrator:
                 kickoff=match.kickoff if self._live else None,
                 max_age=live_max_age if self._live else timedelta(days=3650),
             )
+            hard_integrity, soft_integrity = partition_integrity(integrity)
             snapshots = self.provider.get_odds(match.match_id, as_of)
             if self.persist_snapshots and self.snapshot_repo is not None:
                 provider_name = getattr(self.provider, "provider_name", "unknown")
@@ -345,9 +350,9 @@ class QuantBotOrchestrator:
                     and match.away_injury_status is not InjuryStatus.UNKNOWN
                 ),
             )
-            if integrity:
-                # Do not release EV/Kelly from a tainted book. Keep a minimal
-                # analysis shell so callers still receive a SignalReport.
+            if hard_integrity:
+                # Hard blockers only (NaN / range / incomplete / after kickoff).
+                # Stale quotes are soft — they do not enter this branch.
                 # Intentionally ignore model output here — invalid quotes must
                 # not depend on Prediction field names (avoids AttributeError).
                 from math import isfinite
@@ -384,7 +389,7 @@ class QuantBotOrchestrator:
                 signal = self.decision_engine.invalid_data_signal(
                     match_id=match.match_id,
                     timestamp=entry.timestamp,
-                    reasons=integrity,
+                    reasons=hard_integrity,
                     metrics=(),
                 )
                 reports.append(SignalReport(match=match, signal=signal, analysis=analysis))
@@ -395,12 +400,44 @@ class QuantBotOrchestrator:
             analysis = self.analysis_engine.analyze(
                 prediction, market, entry.decimal_odds(), quality
             )
+            if soft_integrity:
+                # Soft stale: continue value path with −25% data quality.
+                analysis = replace(
+                    analysis,
+                    data_quality=apply_stale_quality_penalty(analysis.data_quality),
+                )
             signal = self.decision_engine.decide(
                 analysis,
                 market,
                 home_matches=quality.home_matches,
                 away_matches=quality.away_matches,
             )
+            if soft_integrity:
+                # Keep soft integrity warning visible; status stays VALUE_/NO_BET
+                # (not invalid_data) so UI can separate integrity hint vs no-value.
+                extra_codes = tuple(r.code for r in soft_integrity)
+                extra_de = " | ".join(r.de for r in soft_integrity if r.de)
+                extra_en = " | ".join(r.en for r in soft_integrity if r.en)
+                signal = signal.model_copy(
+                    update={
+                        "reason_codes": tuple(signal.reason_codes) + extra_codes,
+                        "rationale_de": (
+                            f"{signal.rationale_de} | {extra_de}"
+                            if signal.rationale_de and extra_de
+                            else signal.rationale_de or extra_de
+                        ),
+                        "rationale_en": (
+                            f"{signal.rationale_en} | {extra_en}"
+                            if signal.rationale_en and extra_en
+                            else signal.rationale_en or extra_en
+                        ),
+                        "rationale": (
+                            f"{signal.rationale} | {extra_en}"
+                            if signal.rationale and extra_en
+                            else signal.rationale or extra_en
+                        ),
+                    }
+                )
             if use_basketball and isinstance(model, BasketballModel):
                 signal = self._maybe_prefer_nba_totals(
                     match=match,

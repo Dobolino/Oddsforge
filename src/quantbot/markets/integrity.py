@@ -1,7 +1,9 @@
 """Prematch market integrity checks (quotes, completeness, staleness).
 
-These checks produce ``INVALID_DATA_*`` reasons for the DecisionPolicy path.
-They do not invent fair probabilities or silently swap margin methods.
+Hard blockers (NaN, range, incomplete book, quote after kickoff) abort the
+value path. Stale quotes are a **soft** quality penalty — analysis continues
+with reduced ``data_quality`` so free-tier APIs with laggy ``last_update`` do
+not halt every tip as ``invalid_data``.
 """
 
 from __future__ import annotations
@@ -19,6 +21,9 @@ _NEAR_KICKOFF = timedelta(hours=48)
 _MID_HORIZON = timedelta(days=7)
 _MID_QUOTE_AGE = timedelta(days=3)
 _FAR_QUOTE_AGE = timedelta(days=7)
+
+# Soft penalty applied to AnalysisResult.data_quality when quotes are stale.
+STALE_QUALITY_PENALTY = 0.25
 
 
 def max_quote_age_for_kickoff(
@@ -43,6 +48,7 @@ def max_quote_age_for_kickoff(
     if lead <= _MID_HORIZON:
         return max(base, _MID_QUOTE_AGE)
     return max(base, _FAR_QUOTE_AGE)
+
 
 INVALID_ODDS_NAN = Reason(
     code="INVALID_DATA_ODDS_NAN",
@@ -70,10 +76,41 @@ INVALID_QUOTE_AFTER_KICKOFF = Reason(
 )
 INVALID_QUOTE_STALE = Reason(
     code="INVALID_DATA_QUOTE_STALE",
-    de="Quote zu alt relativ zum Prognosezeitpunkt — gesperrt.",
-    en="Quote too stale relative to prediction time — blocked.",
-    technical="odds older than configured max age before as_of",
+    de="Quote älter als üblich — Datenqualität um 25 % reduziert (kein Hard-Block).",
+    en="Quote older than usual — data quality reduced by 25% (not a hard block).",
+    technical="odds older than configured max age before as_of; soft quality penalty",
 )
+
+_HARD_INTEGRITY_CODES = frozenset(
+    {
+        INVALID_ODDS_NAN.code,
+        INVALID_ODDS_RANGE.code,
+        INVALID_BOOK_INCOMPLETE.code,
+        INVALID_QUOTE_AFTER_KICKOFF.code,
+    }
+)
+
+
+def is_hard_integrity(reason: Reason) -> bool:
+    """True when the reason must abort EV/Kelly (not merely a quality warning)."""
+
+    return reason.code in _HARD_INTEGRITY_CODES
+
+
+def partition_integrity(
+    reasons: tuple[Reason, ...],
+) -> tuple[tuple[Reason, ...], tuple[Reason, ...]]:
+    """Split integrity reasons into (hard blockers, soft quality warnings)."""
+
+    hard = tuple(r for r in reasons if is_hard_integrity(r))
+    soft = tuple(r for r in reasons if not is_hard_integrity(r))
+    return hard, soft
+
+
+def apply_stale_quality_penalty(data_quality: float) -> float:
+    """Reduce data quality by ``STALE_QUALITY_PENALTY`` (floor at 0)."""
+
+    return round(max(0.0, float(data_quality) * (1.0 - STALE_QUALITY_PENALTY)), 2)
 
 
 def check_1x2_odds(

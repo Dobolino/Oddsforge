@@ -92,7 +92,7 @@ def test_integrity_flags_stale_and_after_kickoff() -> None:
 
 
 def test_integrity_allows_older_quotes_far_from_kickoff() -> None:
-    from quantbot.markets.integrity import max_quote_age_for_kickoff
+    from quantbot.markets.integrity import max_quote_age_for_kickoff, partition_integrity
 
     kickoff = datetime(2024, 10, 12, 15, tzinfo=timezone.utc)
     as_of = datetime(2024, 10, 5, 12, tzinfo=timezone.utc)  # 7 days out
@@ -102,10 +102,26 @@ def test_integrity_allows_older_quotes_far_from_kickoff() -> None:
     # 36h-old quote is stale near kickoff, but fine a week out.
     quote = _odds(ts=as_of - timedelta(hours=36))
     near = kickoff - timedelta(hours=12)
-    assert "INVALID_DATA_QUOTE_STALE" in {
-        r.code for r in check_1x2_odds(quote, as_of=near, kickoff=kickoff)
-    }
+    near_reasons = check_1x2_odds(quote, as_of=near, kickoff=kickoff)
+    assert "INVALID_DATA_QUOTE_STALE" in {r.code for r in near_reasons}
+    hard, soft = partition_integrity(near_reasons)
+    assert hard == ()
+    assert soft and soft[0].code == "INVALID_DATA_QUOTE_STALE"
     assert check_1x2_odds(quote, as_of=as_of, kickoff=kickoff) == ()
+
+
+def test_stale_is_soft_partition() -> None:
+    from quantbot.markets.integrity import (
+        INVALID_ODDS_NAN,
+        INVALID_QUOTE_STALE,
+        apply_stale_quality_penalty,
+        partition_integrity,
+    )
+
+    hard, soft = partition_integrity((INVALID_QUOTE_STALE, INVALID_ODDS_NAN))
+    assert [r.code for r in hard] == ["INVALID_DATA_ODDS_NAN"]
+    assert [r.code for r in soft] == ["INVALID_DATA_QUOTE_STALE"]
+    assert apply_stale_quality_penalty(80.0) == pytest.approx(60.0)
 
 
 def test_integrity_rejects_nan_odds() -> None:
@@ -244,8 +260,46 @@ def test_predict_integrity_shell_uses_prob_home_not_home() -> None:
     )
     reports = orch.predict(League.PREMIER_LEAGUE, "2024-2025")
     assert reports
+    # Stale-only is a soft quality penalty — must NOT abort as invalid_data.
+    assert all(
+        (r.signal.decision_status or "").lower() != "invalid_data" for r in reports
+    )
     assert any(
-        (r.signal.decision_status or "").lower() == "invalid_data"
-        or "INVALID_DATA" in (r.signal.reason_codes or ())
-        for r in reports
+        "INVALID_DATA_QUOTE_STALE" in (r.signal.reason_codes or ()) for r in reports
+    )
+
+
+def test_hard_integrity_still_blocks_nan_odds() -> None:
+    from datetime import timedelta
+
+    from quantbot.data.dummy import DummyDataProvider
+    from quantbot.orchestrator import QuantBotOrchestrator
+    from quantbot.schemas import League, MarketKind, Odds
+
+    class _NanOddsProvider(DummyDataProvider):
+        def _fetch_odds(self, match_id: str):  # type: ignore[no-untyped-def]
+            match = next(m for m in self._fetch_matches() if m.match_id == match_id)
+            return (
+                Odds.model_construct(
+                    match_id=match_id,
+                    bookmaker="nan_book",
+                    timestamp=match.kickoff - timedelta(hours=2),
+                    home=float("nan"),
+                    draw=3.40,
+                    away=3.50,
+                    kind=MarketKind.ONE_X_TWO,
+                    is_closing=False,
+                ),
+            )
+
+    orch = QuantBotOrchestrator(
+        provider=_NanOddsProvider(),
+        live=True,
+        min_team_matches=0,
+        persist_snapshots=False,
+    )
+    reports = orch.predict(League.PREMIER_LEAGUE, "2024-2025")
+    assert reports
+    assert any(
+        (r.signal.decision_status or "").lower() == "invalid_data" for r in reports
     )

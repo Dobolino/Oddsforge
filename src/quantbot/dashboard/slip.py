@@ -110,10 +110,43 @@ class BettingSlip:
         return len(ids) == len(set(ids))
 
     @property
-    def geschaetzte_chance(self) -> str:
-        """Never present the independence product as a reliable combo chance."""
+    def is_unrealistic_chance(self) -> bool:
+        """True when independence product implies absurd combined return.
 
+        Triggers when ``P_gesamt * Gesamtquote > 2.5`` or any single leg
+        odds exceed 8.0 — typical early-season overconfidence.
+        """
+
+        if not self.legs:
+            return False
+        if not all(
+            isfinite(leg.odds) and leg.odds > 1.0 and isfinite(leg.model_prob)
+            for leg in self.legs
+        ):
+            return True
+        return (
+            self.combined_prob * self.combined_odds > _MAX_PLAUSIBLE_COMBINED_RETURN_FACTOR
+            or any(leg.odds > _MAX_PLAUSIBLE_LEG_ODDS for leg in self.legs)
+        )
+
+    @property
+    def geschaetzte_chance(self) -> str:
+        """Never present the independence product as a reliable combo chance.
+
+        Unrealistic products are labelled explicitly; otherwise ``n/a``.
+        """
+
+        if self.is_unrealistic_chance:
+            return "unrealistisch"
         return "n/a"
+
+    @property
+    def chance_warning(self) -> str | None:
+        """German warning when :attr:`geschaetzte_chance` is unrealistisch."""
+
+        if self.geschaetzte_chance == "unrealistisch":
+            return "Modellwerte zu hoch, meist zu wenig Daten. Nicht verlässlich."
+        return None
 
     @property
     def independence_scenario_pct(self) -> float | None:
@@ -534,7 +567,10 @@ def format_ticket(
         lines.append(f"║  Einheiten:         {stake:>8.2f}         ║")
         lines.append(f"║  Gesamtquote:       {slip.combined_odds:>8.2f}         ║")
         lines.append(f"║  Sim. Auszahlung:   {payout:>8.2f}         ║")
-        lines.append("║  Kombi-P: nicht belastbar             ║")
+        if slip.geschaetzte_chance == "unrealistisch":
+            lines.append("║  Kombi-P: unrealistisch               ║")
+        else:
+            lines.append("║  Kombi-P: nicht belastbar             ║")
         scen = slip.independence_scenario_pct
         if scen is not None:
             lines.append(f"║  Unabh.-Szenario*:  {scen:>7.1f} %        ║")
@@ -542,17 +578,24 @@ def format_ticket(
         lines.append(f"║  Units:             {stake:>8.2f}         ║")
         lines.append(f"║  Combined odds:     {slip.combined_odds:>8.2f}         ║")
         lines.append(f"║  Sim. payout:       {payout:>8.2f}         ║")
-        lines.append("║  Combo P: not reliable                ║")
+        if slip.geschaetzte_chance == "unrealistisch":
+            lines.append("║  Combo P: unrealistic                 ║")
+        else:
+            lines.append("║  Combo P: not reliable                ║")
         scen = slip.independence_scenario_pct
         if scen is not None:
             lines.append(f"║  Indep. scenario*:  {scen:>7.1f} %        ║")
     lines.append("╠══════════════════════════════════════╣")
     if de:
         lines.append("║  * Produkt der Einzel-P (Diagnostik)  ║")
+        if slip.chance_warning:
+            lines.append("║  Modellwerte zu hoch / wenig Daten.   ║")
         if not slip.is_plausible:
             lines.append("║  ⚠ Ausreißer — kein Freigabe-P.       ║")
     else:
         lines.append("║  * Product of leg probs (diagnostic)  ║")
+        if slip.chance_warning:
+            lines.append("║  Model probs too high / thin data.    ║")
         if not slip.is_plausible:
             lines.append("║  ⚠ Outlier — not a released P.        ║")
     lines.append("╠══════════════════════════════════════╣")

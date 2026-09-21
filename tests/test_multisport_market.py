@@ -40,12 +40,18 @@ def _leg(index: int, *, odds: float, prob: float) -> SlipLeg:
 def test_slip_multiplies_probs_and_flags_required_thresholds() -> None:
     slip = BettingSlip((_leg(1, odds=2.0, prob=0.6), _leg(2, odds=2.0, prob=0.5)), "safe")
     assert slip.combined_prob == pytest.approx(0.3)
+    assert slip.combined_prob == pytest.approx(0.6 * 0.5)  # product, never average
     assert slip.geschaetzte_chance == "n/a"
+    assert slip.chance_warning is None
     assert slip.independence_scenario_pct == pytest.approx(30.0)
     inflated = BettingSlip((_leg(1, odds=4.0, prob=0.4), _leg(2, odds=4.0, prob=0.4)), "safe")
     assert inflated.combined_prob * inflated.combined_odds > 2.5
+    assert inflated.geschaetzte_chance == "unrealistisch"
+    assert inflated.chance_warning is not None
+    assert "Modellwerte zu hoch" in inflated.chance_warning
     assert inflated.independence_scenario_pct is None
     longshot = BettingSlip((_leg(1, odds=8.01, prob=0.15),), "safe")
+    assert longshot.geschaetzte_chance == "unrealistisch"
     assert longshot.independence_scenario_pct is None
 
 
@@ -103,13 +109,17 @@ def test_integer_totals_and_spreads_refund_on_push() -> None:
         (spread, "away", 103, 100),
     ):
         result = ExecutionSimulator.settle_market(market, selection, 100.0, home, away)
-        assert result.status is SettlementStatus.PUSH
+        assert result.status is SettlementStatus.VOID
         assert result.payoff == 1.0
         assert result.pnl == 0.0
+    assert totals.settle("over", 1, 1) is SettlementStatus.VOID
     assert totals.settle("over", 2, 1) is SettlementStatus.WON
     assert totals.settle("under", 2, 1) is SettlementStatus.LOST
     assert spread.margin_method is MarginMethod.POWER
     assert sum(spread.fair_probabilities().values()) == pytest.approx(1.0)
+    demargined = totals.with_fair_probs()
+    assert all(o.fair_prob is not None for o in demargined.outcomes)
+    assert abs(sum(o.fair_prob or 0.0 for o in demargined.outcomes) - 1.0) < 1e-9
 
 
 def test_market_rejects_inconsistent_lines_and_outcomes() -> None:
