@@ -110,6 +110,8 @@ set "OK_FILES=1"
 if not exist "src\quantbot\data\basketball.py" set "OK_FILES=0"
 findstr /C:"\"settings\": t(\"page.settings\"" "src\quantbot\dashboard\app.py" >nul 2>nul
 if errorlevel 1 set "OK_FILES=0"
+findstr /C:"p_home = 1.0 / 3.0" "src\quantbot\orchestrator.py" >nul 2>nul
+if errorlevel 1 set "OK_FILES=0"
 
 if "%UPDATED%"=="1" if "%OK_FILES%"=="1" (
   echo ==================================================

@@ -107,6 +107,8 @@ PY
 verify_main_files() {
   [ -f "src/quantbot/data/basketball.py" ] || return 1
   grep -q '"settings": t("page.settings"' src/quantbot/dashboard/app.py 2>/dev/null || return 1
+  # Integrity shell must not read Prediction.home / .prob_home (crash fix).
+  grep -q 'p_home = 1.0 / 3.0' src/quantbot/orchestrator.py 2>/dev/null || return 1
   return 0
 }
 

@@ -191,13 +191,19 @@ def test_odds_cache_ttl_defaults_protect_credits() -> None:
 
 
 def test_predict_integrity_shell_uses_prob_home_not_home() -> None:
-    """Regression: invalid-odds shell must use Prediction.prob_home (not .home)."""
+    """Regression: invalid-odds shell must not touch Prediction attributes."""
 
+    import inspect
     from datetime import timedelta
 
     from quantbot.data.dummy import DummyDataProvider
     from quantbot.orchestrator import QuantBotOrchestrator
     from quantbot.schemas import League, Odds
+
+    source = inspect.getsource(QuantBotOrchestrator.predict)
+    assert "prediction.home" not in source
+    # Integrity placeholder must not depend on model output field names.
+    assert "prediction.prob_home" not in source
 
     class _StaleOddsProvider(DummyDataProvider):
         def _fetch_odds(self, match_id: str):  # type: ignore[no-untyped-def]

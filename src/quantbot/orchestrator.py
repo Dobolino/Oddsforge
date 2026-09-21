@@ -258,7 +258,6 @@ class QuantBotOrchestrator:
                 kickoff=match.kickoff if self._live else None,
                 max_age=DEFAULT_MAX_QUOTE_AGE if self._live else timedelta(days=3650),
             )
-            prediction = model.predict(match)
             snapshots = self.provider.get_odds(match.match_id, as_of)
             if self.persist_snapshots and self.snapshot_repo is not None:
                 provider_name = getattr(self.provider, "provider_name", "unknown")
@@ -297,6 +296,8 @@ class QuantBotOrchestrator:
             if integrity:
                 # Do not release EV/Kelly from a tainted book. Keep a minimal
                 # analysis shell so callers still receive a SignalReport.
+                # Intentionally ignore model output here — invalid quotes must
+                # not depend on Prediction field names (avoids AttributeError).
                 from math import isfinite
 
                 from quantbot.analysis.confidence import ConfidenceLevel
@@ -308,7 +309,7 @@ class QuantBotOrchestrator:
                     if isfinite(entry.home) and entry.home > 1.0
                     else 1.01
                 )
-                p_home = float(max(0.0, min(1.0, prediction.prob_home)))
+                p_home = 1.0 / 3.0
                 placeholder = ValueMetrics(
                     outcome=MatchOutcome.HOME,
                     model_prob=p_home,
@@ -337,6 +338,7 @@ class QuantBotOrchestrator:
                 reports.append(SignalReport(match=match, signal=signal, analysis=analysis))
                 continue
 
+            prediction = model.predict(match)
             market = self.market_engine.to_market_data(entry)
             analysis = self.analysis_engine.analyze(
                 prediction, market, entry.decimal_odds(), quality
