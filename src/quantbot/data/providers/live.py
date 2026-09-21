@@ -137,6 +137,7 @@ class LiveDataProvider(BaseDataProvider):
         odds: TheOddsAPIProvider,
         leagues: Sequence[League],
         regions: str = "eu,uk",
+        history_seasons: int = 0,
     ) -> None:
         if not leagues:
             raise ValueError("at least one league is required")
@@ -144,6 +145,9 @@ class LiveDataProvider(BaseDataProvider):
         self._odds = odds
         self._leagues = list(leagues)
         self._regions = regions
+        # Also load this many prior seasons of fixtures/results, so the model
+        # has a backbone early in the current season.
+        self._history_seasons = max(0, int(history_seasons))
         self._matches_cache: list[Match] | None = None
         self._match_league: dict[str, League] = {}
         self._odds_cache: dict[League, dict[str, list[Odds]]] = {}
@@ -201,30 +205,35 @@ class LiveDataProvider(BaseDataProvider):
 
         matches: list[Match] = []
         season_year = self._season_start_year()
+        # Newest season first, then the requested number of prior seasons.
+        season_years = [season_year - offset for offset in range(self._history_seasons + 1)]
         for league in self._leagues:
             if not has_football_data(league):
                 continue
-            try:
-                league_matches = self._football.fetch_matches(
-                    football_data_code(league), season=season_year
-                )
-            except TypeError:
-                # Older fetchers without a season kwarg.
+            for year in season_years:
                 try:
-                    league_matches = self._football.fetch_matches(football_data_code(league))
-                except Exception as exc:  # noqa: BLE001
-                    msg = f"{league.value}: fixtures — {exc}"
-                    logger.warning("Could not load %s fixtures: %s", league.value, exc)
+                    league_matches = self._football.fetch_matches(
+                        football_data_code(league), season=year
+                    )
+                except TypeError:
+                    # Older fetchers without a season kwarg (current season only).
+                    if year != season_year:
+                        continue
+                    try:
+                        league_matches = self._football.fetch_matches(football_data_code(league))
+                    except Exception as exc:  # noqa: BLE001
+                        msg = f"{league.value}: fixtures — {exc}"
+                        logger.warning("Could not load %s fixtures: %s", league.value, exc)
+                        self._load_errors.append(msg)
+                        continue
+                except Exception as exc:  # noqa: BLE001 - one season/league must not break the rest
+                    msg = f"{league.value} {year}: fixtures — {exc}"
+                    logger.warning("Could not load %s %s fixtures: %s", league.value, year, exc)
                     self._load_errors.append(msg)
                     continue
-            except Exception as exc:  # noqa: BLE001 - one league must not break the rest
-                msg = f"{league.value}: fixtures — {exc}"
-                logger.warning("Could not load %s fixtures: %s", league.value, exc)
-                self._load_errors.append(msg)
-                continue
-            for m in league_matches:
-                self._match_league[m.match_id] = league
-            matches.extend(league_matches)
+                for m in league_matches:
+                    self._match_league[m.match_id] = league
+                matches.extend(league_matches)
         self._matches_cache = matches
         logger.info("Loaded %d fixtures across %d leagues", len(matches), len(self._leagues))
         return matches
@@ -401,6 +410,7 @@ def build_live_provider(
     fixture_ttl_seconds: float = DEFAULT_FIXTURE_CACHE_TTL_SECONDS,
     min_interval: float = 1.0,
     regions: str = "eu,uk",
+    history_seasons: int = 0,
 ) -> LiveDataProvider:
     """Build a :class:`LiveDataProvider` from API keys and a cache directory.
 
@@ -428,4 +438,6 @@ def build_live_provider(
         ttl_seconds=odds_ttl,
         min_interval=min_interval,
     )
-    return LiveDataProvider(football, odds, leagues, regions=regions)
+    return LiveDataProvider(
+        football, odds, leagues, regions=regions, history_seasons=history_seasons
+    )

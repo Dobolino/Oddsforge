@@ -35,6 +35,24 @@ logger = get_logger(__name__)
 _FAR_FUTURE = datetime(2100, 1, 1, tzinfo=timezone.utc)
 
 
+def previous_season(season: str) -> str | None:
+    """Return the season label one year earlier, or ``None`` if unparseable.
+
+    Handles the ``"YYYY-YYYY"`` labels the providers emit (e.g. ``"2026-2027"``
+    -> ``"2025-2026"``) and a bare ``"YYYY"``.
+    """
+
+    text = str(season).strip()
+    if "-" in text:
+        start, _, end = text.partition("-")
+        if start.isdigit() and end.isdigit():
+            return f"{int(start) - 1}-{int(end) - 1}"
+        return None
+    if text.isdigit():
+        return str(int(text) - 1)
+    return None
+
+
 @dataclass(frozen=True)
 class SignalReport:
     """A prediction for one match: the match, its signal, and the analysis."""
@@ -68,6 +86,7 @@ class QuantBotOrchestrator:
         initial_bankroll: float = 1000.0,
         calibrator: BaseCalibrator | None = None,
         min_team_matches: int | None = None,
+        fit_prior_seasons: int = 0,
         *,
         decision_policy: DecisionPolicy | None = None,
         live: bool = False,
@@ -95,6 +114,10 @@ class QuantBotOrchestrator:
         self.policy = policy
         self.validation_artifact = validation_artifact
         self.min_team_matches = policy.min_team_matches
+        # Fit on the current season plus this many prior seasons, so early in a
+        # season the model has a backbone instead of learning from a handful of
+        # games. Time-decay weighting (on the model) fades the older games.
+        self.fit_prior_seasons = max(0, int(fit_prior_seasons))
         self.provider = provider or DummyDataProvider()
         base_model = model or EloModel()
         # Optionally wrap the model so calibrated probabilities reach the
@@ -190,6 +213,24 @@ class QuantBotOrchestrator:
 
         return self.provider.get_matches(league, season, _FAR_FUTURE)
 
+    def fit_universe(self, league: League, season: str) -> list[Match]:
+        """Fitting data: the season plus ``fit_prior_seasons`` earlier seasons.
+
+        Prior-season matches provide a backbone early in a season. They are all
+        in the past, so temporal isolation is unaffected (the model still fits
+        only on matches finished before ``as_of``). Missing prior seasons (demo
+        data, promoted teams) simply contribute nothing.
+        """
+
+        matches = list(self.universe(league, season))
+        current = season
+        for _ in range(self.fit_prior_seasons):
+            current = previous_season(current)
+            if current is None:
+                break
+            matches.extend(self.provider.get_matches(league, current, _FAR_FUTURE))
+        return matches
+
     def default_as_of(self, league: League, season: str) -> datetime:
         """A mid-season instant: the prediction time of the median fixture.
 
@@ -232,7 +273,7 @@ class QuantBotOrchestrator:
         from quantbot.models.basketball import BasketballModel
         from quantbot.schemas.enums import DEFAULT_NBA_TOTALS_LINE, Sport, sport_for_league
 
-        universe = self.universe(league, season)
+        universe = self.fit_universe(league, season)
         use_basketball = sport_for_league(league) is Sport.BASKETBALL
         model = BasketballModel() if use_basketball else self.model
         try:

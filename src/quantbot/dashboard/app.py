@@ -400,6 +400,8 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
                     odds_key,
                     football_leagues,
                     cache_dir=Path.home() / ".quantbot" / "cache",
+                    # Load last season too, so early-season fits have a backbone.
+                    history_seasons=1,
                 )
             basketball_provider = BasketballDataProvider()
             if live_provider is not None and basketball_leagues:
@@ -460,7 +462,9 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
 
     orchestrator = QuantBotOrchestrator(
         provider=provider,
-        model=DixonColesModel(min_matches=5),
+        # Time-decay weighting (xi ~= 198-day half-life) lets last season act as
+        # a backbone that fades as the new season's games accumulate.
+        model=DixonColesModel(min_matches=5, time_decay_xi=0.0035),
         # Calibrate 1X2 probabilities against out-of-sample history (disables
         # itself gracefully when there is too little data); Platt is robust for
         # small samples.
@@ -469,6 +473,8 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
         # sparse-fit overconfidence does not turn into false value.
         analysis_engine=AnalysisEngine(market_shrinkage=True),
         min_team_matches=3,
+        # Fit on the current season plus last season (live mode loads both).
+        fit_prior_seasons=1,
         live=live,
     )
     mode = "live" if live else "demo"
