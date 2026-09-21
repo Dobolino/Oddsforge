@@ -225,6 +225,9 @@ class DixonColesModel(BaseModel):
         self._home_adv: float = 0.0
         self._rho: float = 0.0 if use_xg else rho_init
         self._last_grid: ScoreGridResult | None = None
+        # The tau -> independent-Poisson fallback is expected for extreme
+        # lambda/rho combinations; warn once per fit instead of per prediction.
+        self._tau_invalid_warned = False
 
     @property
     def rho(self) -> float:
@@ -263,6 +266,7 @@ class DixonColesModel(BaseModel):
             raise ValueError(
                 f"need at least {self.min_matches} matches to fit, got {len(ordered)}"
             )
+        self._tau_invalid_warned = False
 
         teams = sorted({t for m in ordered for t in (m.home_team.team_id, m.away_team.team_id)})
         self._teams = teams
@@ -459,7 +463,7 @@ class DixonColesModel(BaseModel):
             grid = independent * tau
             # After tau, cells must stay finite and non-negative.
             if not (np.all(np.isfinite(grid)) and np.all(grid >= 0.0)):
-                logger.warning(
+                self._warn_tau_once(
                     "Dixon-Coles tau produced invalid cells; using independent Poisson grid"
                 )
                 grid = independent
@@ -467,7 +471,7 @@ class DixonColesModel(BaseModel):
             else:
                 tau_applied = True
         elif not tau_ok:
-            logger.warning(
+            self._warn_tau_once(
                 "Invalid Dixon-Coles tau factors; using independent Poisson grid"
             )
             grid = independent
@@ -510,6 +514,13 @@ class DixonColesModel(BaseModel):
         )
         self._last_grid = result
         return result
+
+    def _warn_tau_once(self, message: str) -> None:
+        """Warn once per fit; the fallback is expected, not a per-match anomaly."""
+
+        if not self._tau_invalid_warned:
+            logger.warning(message)
+            self._tau_invalid_warned = True
 
     def score_matrix(self, home_id: str, away_id: str) -> np.ndarray:
         """Normalized scoreline probability grid (see :meth:`build_score_grid`)."""

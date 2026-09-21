@@ -35,6 +35,18 @@ from quantbot.schemas import League, Match, Odds, TotalsOdds
 
 logger = get_logger(__name__)
 
+# Round-robin domestic top flights where last season is a meaningful backbone
+# for team strength. Cups and national-team competitions are excluded.
+_HISTORY_LEAGUES: frozenset[League] = frozenset(
+    {
+        League.PREMIER_LEAGUE,
+        League.BUNDESLIGA,
+        League.LA_LIGA,
+        League.SERIE_A,
+        League.LIGUE_1,
+    }
+)
+
 # Common club-name tokens dropped during normalization.
 _DROP_TOKENS = {
     "fc", "cf", "afc", "sc", "ac", "as", "ssc", "rc", "cd", "ud", "fk", "bk",
@@ -209,9 +221,14 @@ class LiveDataProvider(BaseDataProvider):
 
         matches: list[Match] = []
         season_year = self._season_start_year()
-        # Newest season first, then the requested number of prior seasons.
-        season_years = [season_year - offset for offset in range(self._history_seasons + 1)]
         for league in self._leagues:
+            # Prior seasons are a backbone only for round-robin domestic leagues
+            # where the same teams play a full season. For cups and national-team
+            # competitions last season is a different field, so load the current
+            # season only — and skip the extra Football-Data calls that otherwise
+            # hammer the free-tier rate limit.
+            history = self._history_seasons if league in _HISTORY_LEAGUES else 0
+            season_years = [season_year - offset for offset in range(history + 1)]
             # Current season first, then any requested prior seasons (backbone).
             for year in season_years:
                 league_matches: list[Match] = []

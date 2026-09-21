@@ -105,6 +105,19 @@ def test_live_provider_loads_history_seasons(monkeypatch) -> None:
         fake, odds=object(), leagues=[League.PREMIER_LEAGUE], history_seasons=1
     )
     matches = provider._fetch_matches()
-    # Current (2026) and one prior (2025) season requested.
+    # Current (2026) and one prior (2025) season requested for a domestic league.
     assert set(fake.seasons_requested) == {2026, 2025}
     assert len(matches) == 2
+
+
+def test_history_skipped_for_non_domestic_league(monkeypatch) -> None:
+    from quantbot.data.providers.live import LiveDataProvider
+
+    monkeypatch.setattr(LiveDataProvider, "_season_start_year", lambda self: 2026)
+    fake = _FakeFootball()
+    # Champions League is a cup, not a round-robin backbone: current season only.
+    provider = LiveDataProvider(
+        fake, odds=object(), leagues=[League.CHAMPIONS_LEAGUE], history_seasons=1
+    )
+    provider._fetch_matches()
+    assert set(fake.seasons_requested) == {2026}
