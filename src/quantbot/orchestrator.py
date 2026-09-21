@@ -308,7 +308,7 @@ class QuantBotOrchestrator:
                     if isfinite(entry.home) and entry.home > 1.0
                     else 1.01
                 )
-                p_home = float(max(0.0, min(1.0, prediction.home)))
+                p_home = float(max(0.0, min(1.0, prediction.prob_home)))
                 placeholder = ValueMetrics(
                     outcome=MatchOutcome.HOME,
                     model_prob=p_home,

@@ -188,3 +188,41 @@ def test_odds_cache_ttl_defaults_protect_credits() -> None:
     assert DEFAULT_ODDS_CACHE_TTL_SECONDS >= 3600.0
     assert DEFAULT_ODDS_CACHE_TTL_SECONDS <= 7200.0
     assert DEFAULT_FIXTURE_CACHE_TTL_SECONDS >= 1800.0
+
+
+def test_predict_integrity_shell_uses_prob_home_not_home() -> None:
+    """Regression: invalid-odds shell must use Prediction.prob_home (not .home)."""
+
+    from datetime import timedelta
+
+    from quantbot.data.dummy import DummyDataProvider
+    from quantbot.orchestrator import QuantBotOrchestrator
+    from quantbot.schemas import League, Odds
+
+    class _StaleOddsProvider(DummyDataProvider):
+        def _fetch_odds(self, match_id: str):  # type: ignore[no-untyped-def]
+            match = next(m for m in self._fetch_matches() if m.match_id == match_id)
+            return (
+                Odds(
+                    match_id=match_id,
+                    bookmaker="stale_book",
+                    timestamp=match.kickoff - timedelta(hours=48),
+                    home=2.10,
+                    draw=3.40,
+                    away=3.50,
+                ),
+            )
+
+    orch = QuantBotOrchestrator(
+        provider=_StaleOddsProvider(),
+        live=True,
+        min_team_matches=0,
+        persist_snapshots=False,
+    )
+    reports = orch.predict(League.PREMIER_LEAGUE, "2024-2025")
+    assert reports
+    assert any(
+        (r.signal.decision_status or "").lower() == "invalid_data"
+        or "INVALID_DATA" in (r.signal.reason_codes or ())
+        for r in reports
+    )
