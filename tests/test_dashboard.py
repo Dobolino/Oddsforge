@@ -131,6 +131,7 @@ def test_signals_dataframe_columns() -> None:
     beginner = tables.signals_dataframe(reports, mode=UXMode.BEGINNER, lang="de")
     assert list(beginner.columns) == [
         "Spiel",
+        "Anstoß",
         "Modell-Signal",
         "Marktbezug",
         "Spiele (H/A)",
