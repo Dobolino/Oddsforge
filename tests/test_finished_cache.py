@@ -136,3 +136,30 @@ def test_cold_start_falls_back_to_previous_season(tmp_path: Path) -> None:
     got = provider.fetch_matches("PL", season=2026)
     assert {m.match_id for m in got} == {"old-1"}
     assert api.last_season in (2026, 2025, 2024, None)
+
+
+def test_thin_archive_triggers_full_finished_backfill(tmp_path: Path) -> None:
+    """Warm path with a thin season archive must re-fetch all FINISHED rows."""
+
+    thin = _match("thin-1", finished=True, kickoff=datetime(2024, 8, 20, tzinfo=UTC))
+    more = [
+        _match(
+            f"fin-{i}",
+            finished=True,
+            kickoff=datetime(2024, 8, 20, tzinfo=UTC) + timedelta(days=i),
+        )
+        for i in range(2, 45)
+    ]
+    upcoming = _match("open-thin", finished=False, kickoff=datetime(2025, 3, 1, tzinfo=UTC))
+    api = FakeMatchAPI([thin, *more, upcoming])
+    cache = FinishedMatchCache(tmp_path / "thin.json")
+    # Seed a deliberately thin archive (1 finished) so warm path backfills.
+    cache.put_finished([thin])
+    provider = CachingMatchProvider(api, cache)
+
+    got = provider.fetch_matches("PL", season=2024)
+    finished_ids = {m.match_id for m in got if m.is_finished}
+    assert "thin-1" in finished_ids
+    assert len(finished_ids) >= 40
+    assert "open-thin" in {m.match_id for m in got}
+    assert any(status == "FINISHED" for status in [api.last_status])

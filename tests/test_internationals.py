@@ -14,6 +14,8 @@ from quantbot.schemas.enums import Sport, sport_for_league
 
 
 def test_international_league_mappings() -> None:
+    from quantbot.data.providers.leagues import uses_odds_fixtures
+
     assert odds_api_key(League.NATIONS_LEAGUE) == "soccer_uefa_nations_league"
     assert odds_api_key(League.WORLD_CUP_QUALIFIERS_EUROPE) == (
         "soccer_fifa_world_cup_qualifiers_europe"
@@ -24,6 +26,12 @@ def test_international_league_mappings() -> None:
     assert not has_football_data(League.NATIONS_LEAGUE)
     assert not has_football_data(League.EURO_QUALIFICATION)
     assert LEAGUE_CODES[League.NATIONS_LEAGUE]["fd"] == ""
+    assert uses_odds_fixtures(League.NATIONS_LEAGUE)
+    assert uses_odds_fixtures(League.EURO_QUALIFICATION)
+    assert uses_odds_fixtures(League.WORLD_CUP_QUALIFIERS_EUROPE)
+    assert not uses_odds_fixtures(League.SERIE_A)
+    assert not uses_odds_fixtures(League.CHAMPIONS_LEAGUE)
+    assert not uses_odds_fixtures(League.NBA)
     for league in (
         League.NATIONS_LEAGUE,
         League.WORLD_CUP_QUALIFIERS_EUROPE,

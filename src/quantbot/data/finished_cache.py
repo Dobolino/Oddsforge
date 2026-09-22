@@ -22,6 +22,12 @@ logger = get_logger(__name__)
 # Football-Data status filter: everything that can still change.
 _OPEN_STATUSES = "SCHEDULED,TIMED,IN_PLAY,PAUSED,POSTPONED,SUSPENDED,CANCELLED"
 
+# Warm archives that only ever received a partial cold dump (e.g. first API
+# page / early matchdays) never re-fetch older FINISHED rows — only the last
+# ~3 days. Below this count for the requested season we force a full FINISHED
+# backfill so team H/A samples reflect the real season (not stuck at 2/2).
+_THIN_SEASON_FINISHED = 40
+
 _COMPETITION_TO_LEAGUE: dict[str, League] = {
     "PL": League.PREMIER_LEAGUE,
     "BL1": League.BUNDESLIGA,
@@ -238,8 +244,40 @@ class CachingMatchProvider:
                 season=season - 1,
                 allow_unfiltered_fallback=True,
             )
+
+        season_label = f"{season}-{season + 1}" if season is not None else None
+        archived_season_n = (
+            sum(1 for m in archived if m.season == season_label)
+            if season_label is not None
+            else len(archived)
+        )
+        thin_archive = archived_season_n < _THIN_SEASON_FINISHED
+
         recent_finished: list[Match] = []
-        if self.cache.last_updated is not None:
+        if thin_archive and season is not None:
+            # Full-season FINISHED backfill — fixes archives stuck after a thin
+            # first cold fetch (UI shows Spiele 2/2 despite many matchdays).
+            try:
+                recent_finished = self._call_inner(
+                    competition,
+                    status="FINISHED",
+                    season=season,
+                    allow_unfiltered_fallback=True,
+                )
+                logger.info(
+                    "Thin finished archive for %s %s (%d < %d) — full FINISHED backfill (%d rows)",
+                    competition,
+                    season,
+                    archived_season_n,
+                    _THIN_SEASON_FINISHED,
+                    len(recent_finished),
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Full finished backfill failed for %s: %s", competition, exc
+                )
+                recent_finished = []
+        elif self.cache.last_updated is not None:
             since = self.cache.last_updated.astimezone(timezone.utc).date()
             date_from = (since - timedelta(days=3)).isoformat()
             # Football-Data rejects (400) date filters combined with ``season``.

@@ -23,17 +23,30 @@ from quantbot.schemas.enums import (
 
 
 class MarketOutcome(QuantBotModel):
-    """One quoted selection, with its own handicap or totals line when needed."""
+    """One quoted selection, with its own handicap or totals line when needed.
+
+    ``name`` is the canonical key (home/draw/away/over/under). ``label`` is an
+    optional display alias. ``fair_prob`` is set after margin removal when the
+    caller materialises a demargined book.
+    """
 
     name: str = Field(min_length=1)
+    label: str | None = None
     line: float | None = None
     price: float = Field(gt=1.0)
+    fair_prob: float | None = Field(default=None, ge=0.0, le=1.0)
 
     @model_validator(mode="after")
     def _finite(self) -> MarketOutcome:
         if not isfinite(self.price) or (self.line is not None and not isfinite(self.line)):
             raise ValueError("market price and line must be finite")
+        if self.fair_prob is not None and not isfinite(self.fair_prob):
+            raise ValueError("fair_prob must be finite")
         return self
+
+    @property
+    def display_label(self) -> str:
+        return self.label if self.label else self.name
 
 
 class Market(QuantBotModel):
@@ -117,18 +130,37 @@ class Market(QuantBotModel):
 
     @property
     def margin_method(self) -> MarginMethod:
-        return MarginMethod.SHIN if self.kind is MarketKind.ONE_X_TWO else MarginMethod.POWER
+        from quantbot.markets.demargin import method_for_market
+
+        return method_for_market(self.kind)
 
     def fair_probabilities(self) -> dict[str, float]:
         """Remove the margin with Shin for 1X2 and Power for every two-way market."""
 
-        from quantbot.markets.margin import remove_margin
+        from quantbot.markets.demargin import demargin_prices
 
-        fair = remove_margin([item.price for item in self.outcomes], self.margin_method.value)
+        fair = demargin_prices([item.price for item in self.outcomes], kind=self.kind)
         return dict(zip((item.name for item in self.outcomes), fair, strict=True))
 
+    def with_fair_probs(self) -> Market:
+        """Return a copy whose outcomes carry demargined ``fair_prob`` values."""
+
+        fair = self.fair_probabilities()
+        return self.model_copy(
+            update={
+                "outcomes": tuple(
+                    outcome.model_copy(update={"fair_prob": fair[outcome.name]})
+                    for outcome in self.outcomes
+                )
+            }
+        )
+
     def settle(self, selection: str, home_score: int, away_score: int) -> SettlementStatus:
-        """Resolve a selection with typed push / half outcomes for line markets."""
+        """Resolve a selection with typed push / half outcomes for line markets.
+
+        Integer-line exact hits refund the stake as :attr:`SettlementStatus.VOID`
+        (same payoff factor 1.0 as PUSH) so multi-sport callers share one name.
+        """
 
         if home_score < 0 or away_score < 0:
             raise ValueError("scores must be non-negative")
@@ -161,10 +193,9 @@ class Market(QuantBotModel):
             away_score=away_score,
             decimal_odds=outcome.price,
         )
-        # Legacy callers treated whole-line ties as VOID; PUSH is preferred but
-        # VOID remains an alias for full-stake refund semantics.
+        # Exact integer-line hit: expose VOID (full refund) at the Market API.
         if result.status is SettlementStatus.PUSH:
-            return SettlementStatus.PUSH
+            return SettlementStatus.VOID
         return result.status
 
     def payoff(self, selection: str, home_score: int, away_score: int) -> float:

@@ -45,6 +45,10 @@ class SettlementStatus(str, Enum):
 
     Payoff factors: WIN=o, LOSS=0, PUSH/VOID=1, HALF_WIN=(o+1)/2, HALF_LOSS=0.5.
     PENDING / UNSUPPORTED never invent a refund.
+
+    Integer-line exact hits (totals/spreads) settle as PUSH at the line engine
+    and as VOID via :class:`Market.settle` / :data:`OutcomeSettlement` so
+    callers that expect a full-stake refund see a stable name.
     """
 
     WON = "won"
@@ -55,6 +59,10 @@ class SettlementStatus(str, Enum):
     HALF_LOSS = "half_loss"
     PENDING = "pending"
     UNSUPPORTED = "unsupported"
+
+
+# Public alias used by multi-sport / handicap docs and external reviews.
+OutcomeSettlement = SettlementStatus
 
 
 class League(str, Enum):

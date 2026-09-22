@@ -133,8 +133,10 @@ _STRINGS: dict[str, dict[str, str]] = {
     },
     "ctrl.window_apply": {"de": "Zeitraum übernehmen", "en": "Apply date range"},
     "ctrl.window_pending": {
-        "de": "Entwurf noch nicht übernommen.",
-        "en": "Draft not applied yet.",
+        "de": "Entwurf noch nicht übernommen — Tipps nutzen den alten Zeitraum. "
+              "Unten „Zeitraum übernehmen“ drücken (oder Agenda-Tag / Heute / 3 Tage / 7 Tage).",
+        "en": "Draft not applied — tips still use the old window. "
+              "Press “Apply date range” below (or Agenda day / Today / 3 days / 7 days).",
     },
     "ctrl.window_active": {
         "de": "Aktiv: {start} – {end}",
@@ -142,8 +144,14 @@ _STRINGS: dict[str, dict[str, str]] = {
     },
     "ctrl.date_range": {"de": "Spieltage (von–bis)", "en": "Matchdays (from–to)"},
     "ctrl.date_range_hint": {
-        "de": "Nur Spiele in diesem Zeitraum.",
-        "en": "Only fixtures in this window.",
+        "de": "Nur Spiele im aktiven Zeitraum. Nach Datum ändern: „Zeitraum übernehmen“.",
+        "en": "Only fixtures in the active window. After changing dates: “Apply date range”.",
+    },
+    "sig.no_fixtures_pending_draft": {
+        "de": "Im aktiven Zeitraum ({active}) keine Spiele — aber Entwurf ist {draft}. "
+              "Klicke „Zeitraum übernehmen“ in der Sidebar.",
+        "en": "No fixtures in the active window ({active}) — draft is {draft}. "
+              "Click “Apply date range” in the sidebar.",
     },
     "slip.from_tips": {
         "de": "Aus Modell-Signalen: kurze Kombi mit hoher Modell-P.",

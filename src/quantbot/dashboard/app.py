@@ -785,11 +785,14 @@ def _name_match_warnings(lang, provider, leagues) -> None:  # type: ignore[no-un
 
 
 def _window_key(leagues, season: str, live: bool) -> str:  # type: ignore[no-untyped-def]
-    return f"window::{','.join(lg.value for lg in leagues)}::{season}::{'live' if live else 'demo'}"
+    # Sort so league multi-select order never forks a second empty 3-day window.
+    ids = ",".join(sorted(lg.value for lg in leagues))
+    return f"window::{ids}::{season}::{'live' if live else 'demo'}"
 
 
 def _window_draft_key(leagues, season: str, live: bool) -> str:  # type: ignore[no-untyped-def]
-    return f"window_draft::{','.join(lg.value for lg in leagues)}::{season}::{'live' if live else 'demo'}"
+    ids = ",".join(sorted(lg.value for lg in leagues))
+    return f"window_draft::{ids}::{season}::{'live' if live else 'demo'}"
 
 
 def _fixture_days(orchestrator, leagues, season: str, start_d: date, end_d: date) -> list[tuple[date, list[str]]]:
@@ -823,10 +826,24 @@ def _default_window_bounds(orchestrator, leagues, season: str, live: bool):  # t
                 continue
         if start_default is None:
             start_default = datetime.now(timezone.utc).date()
-    # Demo fixtures are weekly — default to two weeks so several matchdays fit.
-    end_default = start_default + timedelta(days=2 if live else 13)
+    # Live: one week ahead so midweek internationals are not missed by the
+    # old 3-day default. Demo fixtures are weekly — keep two weeks.
+    end_default = start_default + timedelta(days=6 if live else 13)
     return start_default, end_default
 
+
+def _live_committed_window_is_stale(
+    committed_end: date,
+    today: date,
+    *,
+    max_past_days: int = 14,
+) -> bool:
+    """True when the whole committed window already ended too far in the past.
+
+    Future windows (e.g. international matchdays ~3 weeks out) must stay.
+    """
+
+    return (today - committed_end).days > max_past_days
 
 
 def _as_of_for_window(start_d: date, end_d: date, *, live: bool) -> datetime:
@@ -884,6 +901,15 @@ def _pick_window(
     draft_store = _window_draft_key(leagues, season, live)
     if store not in st.session_state:
         st.session_state[store] = (start_default, end_default)
+    elif live:
+        # Only wipe stuck *past* windows (e.g. demo 2024 left in session).
+        # Do NOT reset future windows — Nations League / CL / Quali often sit
+        # >14 days ahead; abs()-reset made "Zeitraum übernehmen" look broken.
+        today = datetime.now(timezone.utc).date()
+        committed_end = st.session_state[store][1]
+        if _live_committed_window_is_stale(committed_end, today):
+            st.session_state[store] = (start_default, end_default)
+            st.session_state[draft_store] = (start_default, end_default)
     if draft_store not in st.session_state:
         st.session_state[draft_store] = st.session_state[store]
 
@@ -896,22 +922,24 @@ def _pick_window(
     input_key = f"{draft_store}::input"
     sync_key = f"{draft_store}::sync_input"
 
-    def _set_draft(start: date, end: date) -> None:
-        # Never write ``input_key`` here: agenda buttons run *after* date_input
-        # is instantiated and Streamlit rejects mutating a widget key then.
-        # Flag a sync so the next run seeds date_input before it mounts.
+    def _set_draft(start: date, end: date, *, apply: bool = False) -> None:
+        # Never write ``input_key`` after date_input has mounted (agenda path).
+        # Flag sync so the next run seeds date_input before it mounts.
         st.session_state[draft_store] = (start, end)
         st.session_state[sync_key] = True
+        if apply:
+            # Presets / agenda mean "show these games now" — commit immediately.
+            st.session_state[store] = (start, end)
 
     presets = ui.columns(3)
     if presets[0].button(t("ctrl.range_today", lang), width="stretch", key=f"{draft_store}::today"):
-        _set_draft(start_default, start_default)
+        _set_draft(start_default, start_default, apply=True)
         st.rerun()
     if presets[1].button(t("ctrl.range_3d", lang), width="stretch", key=f"{draft_store}::3d"):
-        _set_draft(start_default, start_default + timedelta(days=2))
+        _set_draft(start_default, start_default + timedelta(days=2), apply=True)
         st.rerun()
     if presets[2].button(t("ctrl.range_7d", lang), width="stretch", key=f"{draft_store}::7d"):
-        _set_draft(start_default, start_default + timedelta(days=6))
+        _set_draft(start_default, start_default + timedelta(days=6), apply=True)
         st.rerun()
 
     _apply_window_input_sync(st.session_state, input_key, sync_key, st.session_state[draft_store])
@@ -940,17 +968,18 @@ def _pick_window(
             for day, labels in days[:12]:
                 cols = ui.columns([1, 3])
                 if cols[0].button(day.isoformat(), key=f"{draft_store}::day::{day.isoformat()}"):
-                    _set_draft(day, day)
+                    _set_draft(day, day, apply=True)
                     st.rerun()
                 preview = ", ".join(labels[:2])
                 if len(labels) > 2:
                     preview += f" (+{len(labels) - 2})"
                 cols[1].caption(preview)
 
-    pending = st.session_state[draft_store] != committed
+    pending = st.session_state[draft_store] != st.session_state[store]
     if pending:
         ui.warning(t("ctrl.window_pending", lang))
     else:
+        committed = st.session_state[store]
         ui.caption(
             t("ctrl.window_active", lang).format(
                 start=committed[0].isoformat(),
@@ -1050,15 +1079,31 @@ def _signals_page(
         upcoming_n = 0
         for league in leagues:
             try:
-                upcoming_n += len(
-                    orchestrator.provider.get_upcoming_matches(league, season, as_of)
-                )
+                for match in orchestrator.provider.get_upcoming_matches(league, season, as_of):
+                    day = match.kickoff.date()
+                    if start_d <= day <= end_d:
+                        upcoming_n += 1
             except Exception:  # noqa: BLE001
                 continue
         if upcoming_n:
             st.warning(t("sig.no_odds_matched", lang).format(n=upcoming_n))
         else:
-            st.info(t("sig.no_fixtures_in_window", lang))
+            draft_store = _window_draft_key(leagues, season, live)
+            draft = st.session_state.get(draft_store)
+            if (
+                draft is not None
+                and isinstance(draft, tuple)
+                and len(draft) == 2
+                and draft != (start_d, end_d)
+            ):
+                st.warning(
+                    t("sig.no_fixtures_pending_draft", lang).format(
+                        active=f"{start_d.isoformat()}–{end_d.isoformat()}",
+                        draft=f"{draft[0].isoformat()}–{draft[1].isoformat()}",
+                    )
+                )
+            else:
+                st.info(t("sig.no_fixtures_in_window", lang))
     if ux_mode is UXMode.BEGINNER:
         try:
             from quantbot.tracking import TipHistoryStore, tracker_path

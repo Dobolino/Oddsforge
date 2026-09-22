@@ -3,7 +3,13 @@
 from __future__ import annotations
 
 from quantbot.markets.arbitrage import ArbitrageEngine, ArbitrageOpportunity
-from quantbot.markets.integrity import check_1x2_odds, check_totals_odds
+from quantbot.markets.demargin import demargin_prices, method_for_market
+from quantbot.markets.integrity import (
+    apply_stale_quality_penalty,
+    check_1x2_odds,
+    check_totals_odds,
+    partition_integrity,
+)
 from quantbot.markets.margin import (
     booksum,
     implied_probabilities,
@@ -46,6 +52,10 @@ __all__ = [
     "validate_odds",
     "check_1x2_odds",
     "check_totals_odds",
+    "partition_integrity",
+    "apply_stale_quality_penalty",
+    "demargin_prices",
+    "method_for_market",
     "actual_totals_label",
     "tip_label_for",
     "ClvResult",

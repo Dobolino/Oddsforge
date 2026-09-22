@@ -45,8 +45,10 @@ def test_slip_flags_overconfident_chance_as_implausible() -> None:
     slip = BettingSlip(legs=tuple(_leg(1.7, 0.95) for _ in range(5)), style="safe")
     assert slip.combined_prob > 0.7
     assert not slip.is_plausible
+    assert slip.geschaetzte_chance == "unrealistisch"
     text = format_ticket(slip, lang="de")
-    assert "nicht belastbar" in text
+    assert "unrealistisch" in text
+    assert "Modellwerte zu hoch" in text
     assert "78.9" not in text and "Geschätzte Chance" not in text
 
 

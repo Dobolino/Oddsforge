@@ -186,7 +186,7 @@ def test_market_settle_uses_push_for_whole_line() -> None:
             MarketOutcome(name="under", line=2.0, price=1.9),
         ),
     )
-    assert totals.settle("over", 1, 1) is SettlementStatus.PUSH
+    assert totals.settle("over", 1, 1) is SettlementStatus.VOID
     assert totals.payoff("over", 1, 1) == pytest.approx(1.0)
 
 
