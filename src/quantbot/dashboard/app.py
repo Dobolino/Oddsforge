@@ -14,6 +14,7 @@ import streamlit as st
 from quantbot import __version__
 from quantbot.dashboard.components import (
     beginner_tip_cards,
+    best_tips_dataframe,
     clv_distribution_figure,
     equity_curve_figure,
     metrics_dataframe,
@@ -992,11 +993,17 @@ def _filter_by_kickoff(reports, start_d: date, end_d: date):  # type: ignore[no-
 
 
 def _rank_value_reports(reports):  # type: ignore[no-untyped-def]
-    """Value tips by edge first, then remaining matches (stable secondary order)."""
+    """Value tips by composite score first, then remaining matches.
+
+    The score blends likelihood, value and data reliability (see
+    ``ux.tip_score``); edge and kickoff break ties for a stable order.
+    """
+
+    from quantbot.dashboard.ux import tip_score
 
     bets = sorted(
         (r for r in reports if r.signal.is_bet),
-        key=lambda r: (-float(r.signal.edge or 0.0), r.match.kickoff),
+        key=lambda r: (-tip_score(r.signal), -float(r.signal.edge or 0.0), r.match.kickoff),
     )
     others = [r for r in reports if not r.signal.is_bet]
     return bets + others
@@ -1101,6 +1108,13 @@ def _signals_page(
     c1.metric(t("sig.matches", lang), len(reports))
     c2.metric(t("sig.values", lang), n_bets)
     c3.metric(t("sig.value_share", lang), f"{value_pct:.0f}%")
+
+    # Cross-league ranking of the strongest tips (likelihood + value + data).
+    if n_bets:
+        st.subheader(t("sig.best_tips_title", lang))
+        st.caption(t("sig.best_tips_hint", lang))
+        render_signals_table(best_tips_dataframe(reports, lang=lang, limit=10))
+
     # Cap the main table when almost every match is "value" (early-season noise).
     top_n = 12 if ux_mode is UXMode.ADVANCED else 20
     ranked = _rank_value_reports(reports)

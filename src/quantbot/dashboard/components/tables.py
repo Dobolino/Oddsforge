@@ -9,6 +9,7 @@ import pandas as pd
 
 from quantbot.analysis.value import format_edge_band_pp, format_ev_pct, format_model_prob
 from quantbot.backtest.metrics import BacktestMetrics
+from quantbot.dashboard.leagues import league_title
 from quantbot.dashboard.ux import (
     SIGNAL_COLUMNS_BY_MODE,
     UXMode,
@@ -18,9 +19,11 @@ from quantbot.dashboard.ux import (
     market_stance_label,
     plain_signal_label,
     reason_for_mode,
+    risk_label,
     signal_display_line,
     stake_display,
     tip_badge_html,
+    tip_score,
     tone_color_for_confidence,
     tone_color_for_signed,
     validation_label,
@@ -109,6 +112,51 @@ def signals_dataframe(
     columns = list(SIGNAL_COLUMNS_BY_MODE[mode])
     df = pd.DataFrame(rows, columns=columns)
     return df.rename(columns={c: column_label(c, lang) for c in df.columns})
+
+
+def best_tips_dataframe(
+    reports: Sequence[SignalReport],
+    *,
+    lang: str = "de",
+    limit: int = 10,
+) -> pd.DataFrame:
+    """Top value tips across all leagues, ranked by composite score.
+
+    One flat, cross-league ranking so the strongest tips surface first, each
+    with its score and a risk badge. No-bets are excluded.
+    """
+
+    bets = [r for r in reports if r.signal.is_bet]
+    bets.sort(
+        key=lambda r: (-tip_score(r.signal), -float(r.signal.edge or 0.0), r.match.kickoff)
+    )
+    rank_lbl = "Rang" if lang.startswith("de") else "Rank"
+    match_lbl = "Spiel" if lang.startswith("de") else "Match"
+    league_lbl = "Liga" if lang.startswith("de") else "League"
+    tip_lbl = "Tipp" if lang.startswith("de") else "Tip"
+    score_lbl = "Score"
+    risk_lbl = "Risiko" if lang.startswith("de") else "Risk"
+    odds_lbl = "Quote" if lang.startswith("de") else "Odds"
+
+    rows: list[dict[str, object]] = []
+    for i, report in enumerate(bets[:limit], start=1):
+        s = report.signal
+        m = report.match
+        rows.append(
+            {
+                rank_lbl: i,
+                match_lbl: f"{m.home_team.name} vs {m.away_team.name}",
+                league_lbl: league_title(m.league),
+                tip_lbl: plain_signal_label(s.signal, lang, line=signal_display_line(s)),
+                score_lbl: f"{tip_score(s):.0f}",
+                risk_lbl: risk_label(s, lang),
+                odds_lbl: "—" if s.decimal_odds is None else f"{s.decimal_odds:.2f}",
+            }
+        )
+    return pd.DataFrame(
+        rows,
+        columns=[rank_lbl, match_lbl, league_lbl, tip_lbl, score_lbl, risk_lbl, odds_lbl],
+    )
 
 
 def render_signals_table(df: pd.DataFrame) -> None:  # pragma: no cover - Streamlit UI

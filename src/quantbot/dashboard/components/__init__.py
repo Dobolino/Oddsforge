@@ -12,6 +12,7 @@ from quantbot.dashboard.components.charts import (
 )
 from quantbot.dashboard.components.tables import (
     beginner_tip_cards,
+    best_tips_dataframe,
     colored_signals_table_html,
     metrics_dataframe,
     render_colored_signals_table,
@@ -27,6 +28,7 @@ __all__ = [
     "reliability_diagram_figure",
     "scoreline_heatmap_figure",
     "beginner_tip_cards",
+    "best_tips_dataframe",
     "colored_signals_table_html",
     "metrics_dataframe",
     "render_colored_signals_table",

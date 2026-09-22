@@ -152,6 +152,77 @@ def market_stance_label(signal: ValueSignal, lang: str = "de") -> str:
     return entry.get(lang) or entry["de"]
 
 
+# --- Best-tips ranking -------------------------------------------------------
+#
+# One transparent 0-100 score per tip, blending three things a good tip needs:
+#   * likelihood  — how probable the model thinks the tipped outcome is,
+#   * value       — expected net return (edge over the fair market price),
+#   * reliability — how trustworthy the inputs are (data coverage + agreement).
+# Value is weighted a touch above likelihood because the edge is what makes a
+# tip worth taking, but a low-data or coin-flip tip is pulled down. The score is
+# a ranking aid, never a promise: a high score still loses often.
+
+# Expected value at which the value component saturates (+12% net return).
+_VALUE_SATURATION = 0.12
+_LIKELIHOOD_WEIGHT = 0.45
+_VALUE_WEIGHT = 0.55
+
+_RISK_LABELS: dict[str, dict[str, str]] = {
+    "safe": {"de": "🟢 sicherer", "en": "🟢 safer"},
+    "balanced": {"de": "🟡 ausgewogen", "en": "🟡 balanced"},
+    "risky": {"de": "🔴 riskant", "en": "🔴 risky"},
+}
+
+
+def chosen_model_prob(signal: ValueSignal) -> float | None:
+    """Model probability of the tipped outcome, or ``None`` for a no-bet."""
+
+    if not signal.is_bet or signal.chosen_outcome is None or not signal.metrics:
+        return None
+    chosen = next(
+        (m for m in signal.metrics if m.outcome is signal.chosen_outcome), None
+    )
+    return chosen.model_prob if chosen is not None else None
+
+
+def tip_score(signal: ValueSignal) -> float:
+    """Composite 0-100 ranking score (0 for a no-bet). See module note above."""
+
+    if not signal.is_bet:
+        return 0.0
+    prob = chosen_model_prob(signal)
+    likelihood = prob if prob is not None else 0.0
+    ev = signal.expected_value or 0.0
+    value = max(0.0, min(ev / _VALUE_SATURATION, 1.0))
+    reliability = 0.5 * (signal.data_quality / 100.0) + 0.5 * (
+        signal.model_confidence / 100.0
+    )
+    combined = reliability * (_LIKELIHOOD_WEIGHT * likelihood + _VALUE_WEIGHT * value)
+    return round(100.0 * max(0.0, min(combined, 1.0)), 1)
+
+
+def risk_level(signal: ValueSignal) -> str:
+    """Risk bucket from how likely the tipped outcome is: safe/balanced/risky."""
+
+    prob = chosen_model_prob(signal)
+    if prob is None:
+        return "balanced"
+    if prob >= 0.60:
+        return "safe"
+    if prob >= 0.45:
+        return "balanced"
+    return "risky"
+
+
+def risk_label(signal: ValueSignal, lang: str = "de") -> str:
+    """Localized risk badge, or ``—`` for a no-bet."""
+
+    if not signal.is_bet:
+        return "—"
+    entry = _RISK_LABELS[risk_level(signal)]
+    return entry.get(lang) or entry["de"]
+
+
 def validation_label(signal: ValueSignal, lang: str = "de") -> str:
     """Short validation / decision-status label for tables and cards."""
 

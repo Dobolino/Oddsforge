@@ -801,6 +801,11 @@ _STRINGS: dict[str, dict[str, str]] = {
     },
     "sig.matches": {"de": "Ausgewertete Spiele", "en": "Matches evaluated"},
     "sig.values": {"de": "Value-Signale", "en": "Value signals"},
+    "sig.best_tips_title": {"de": "Beste Tipps (alle Ligen)", "en": "Best tips (all leagues)"},
+    "sig.best_tips_hint": {
+        "de": "Rangliste nach einem Score aus Wahrscheinlichkeit, Value und Datenqualität. Höher ist besser. Das Risiko zeigt, wie wahrscheinlich der Tipp laut Modell eintrifft.",
+        "en": "Ranked by a score from likelihood, value and data quality. Higher is better. Risk shows how likely the tip is per the model.",
+    },
     "sig.avg_edge": {"de": "Ø Edge (pp)", "en": "Avg edge (pp)"},
     "sig.avg_stake": {"de": "Ø Kelly-Einsatz", "en": "Avg Kelly stake"},
     "sig.table": {"de": "Signale", "en": "Signals"},
