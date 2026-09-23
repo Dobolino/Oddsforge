@@ -283,6 +283,23 @@ class QuantBotOrchestrator:
         use_basketball = sport_for_league(league) is Sport.BASKETBALL
         model = BasketballModel() if use_basketball else self.model
         upcoming = list(self.provider.get_upcoming_matches(league, season, as_of))
+        finished_n = sum(1 for m in universe if m.result_known_before(as_of))
+        # High-Risk + empty history (Nations League / odds-only cups): skip the
+        # doomed Dixon-Coles fit and tip from market quotes immediately.
+        if (
+            self.policy.force_best_ev_on_no_bet
+            and finished_n == 0
+            and upcoming
+            and not use_basketball
+        ):
+            logger.info(
+                "%s %s: 0 finished before %s — High-Risk market tips for %d fixtures",
+                league.value,
+                season,
+                as_of.isoformat(),
+                len(upcoming),
+            )
+            return self._high_risk_market_fallback(upcoming, as_of=as_of)
         try:
             model.fit_until(universe, as_of)
         except (ValueError, NotFittedError) as exc:
@@ -292,10 +309,18 @@ class QuantBotOrchestrator:
             logger.warning("Model not fitted for %s %s: %s", league.value, season, exc)
             if self.policy.force_best_ev_on_no_bet:
                 return self._high_risk_market_fallback(upcoming, as_of=as_of)
-            return [
+            shells = [
                 self._shell_report(match, as_of=as_of, reasons=(MODEL_NOT_FIT,))
                 for match in upcoming
             ]
+            logger.info(
+                "Listed %s %s without tips (model not fit, finished=%d, upcoming=%d)",
+                league.value,
+                season,
+                finished_n,
+                len(shells),
+            )
+            return shells
         counts = self._team_counts(universe, as_of)
 
         reports: list[SignalReport] = []

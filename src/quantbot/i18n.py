@@ -190,6 +190,10 @@ _STRINGS: dict[str, dict[str, str]] = {
         "de": "Warum kein Signal? Kein ausreichend belastbarer Value — das ist ein normales Ergebnis, kein Fehler.",
         "en": "Why no signal? No sufficiently robust value — that is a normal outcome, not a failure.",
     },
+    "sig.thin_history_high_risk_hint": {
+        "de": "Zu wenig Historie für ein Modell (z. B. Nations League). High-Risk in der Seitenleiste einschalten → Markt-Tipps + Tippschein (nur Simulation).",
+        "en": "Too little history for a model (e.g. Nations League). Turn on High-Risk in the sidebar → market tips + slip (simulation only).",
+    },
     "sig.exploratory": {
         "de": "Explorativ — Modell nicht empirisch freigegeben; kein Simulations-Einsatz.",
         "en": "Exploratory — model not empirically released; no simulated stake.",

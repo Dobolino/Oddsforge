@@ -183,6 +183,47 @@ def test_high_risk_market_fallback_tips_when_model_not_fit() -> None:
     assert len(slip.legs) >= 1
 
 
+def test_high_risk_zero_finished_skips_fit_for_market_tips() -> None:
+    """Empty finished archive (Nations League cold start) → market tips under High-Risk."""
+
+    class _NoFinished(DummyDataProvider):
+        def get_matches(self, league, season, as_of):  # type: ignore[no-untyped-def]
+            # Simulate odds-only cup with fixtures but no finished archive.
+            return [
+                m.model_copy(update={"status": MatchStatus.SCHEDULED, "result": None})
+                for m in super().get_matches(league, season, as_of)
+            ]
+
+        def get_latest_odds(self, match_id: str, as_of):  # type: ignore[no-untyped-def]
+            base = super().get_latest_odds(match_id, as_of)
+            if base is not None:
+                return base
+            return Odds(
+                match_id=match_id,
+                bookmaker="synth",
+                timestamp=as_of,
+                home=1.85,
+                draw=3.50,
+                away=4.20,
+            )
+
+    orch = QuantBotOrchestrator(
+        provider=_NoFinished(),
+        model=DixonColesModel(min_matches=5),
+        live=False,
+        min_team_matches=0,
+        persist_snapshots=False,
+        decision_policy=high_risk_policy(),
+        fit_prior_seasons=0,
+    )
+    as_of = datetime(2024, 10, 5, 13, tzinfo=UTC)
+    reports = orch.predict(League.PREMIER_LEAGUE, "2024-2025", as_of)
+    assert reports
+    bets = [r for r in reports if r.signal.is_bet]
+    assert bets
+    assert all("VALUE_HIGH_RISK_MARKET_FALLBACK" in r.signal.reason_codes for r in bets)
+
+
 def test_slip_high_risk_keeps_thin_totals_legs() -> None:
     from quantbot.schemas.enums import Sport
 
