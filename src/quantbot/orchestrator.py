@@ -22,7 +22,12 @@ from quantbot.data.base import BaseDataProvider
 from quantbot.data.dummy import DummyDataProvider
 from quantbot.data.snapshot_repo import DataMode, SnapshotRepository
 from quantbot.decision.engine import DecisionEngine
-from quantbot.decision.policy import DecisionPolicy, policy_for_mode
+from quantbot.decision.policy import (
+    MISSING_ODDS,
+    MODEL_NOT_FIT,
+    DecisionPolicy,
+    policy_for_mode,
+)
 from quantbot.logging import get_logger
 from quantbot.markets.odds import MarketEngine
 from quantbot.models.base import BaseModel, NotFittedError
@@ -276,18 +281,31 @@ class QuantBotOrchestrator:
         universe = self.fit_universe(league, season)
         use_basketball = sport_for_league(league) is Sport.BASKETBALL
         model = BasketballModel() if use_basketball else self.model
+        upcoming = list(self.provider.get_upcoming_matches(league, season, as_of))
         try:
             model.fit_until(universe, as_of)
         except (ValueError, NotFittedError) as exc:
-            # Not enough finished matches to fit at all (very early season).
+            # Not enough finished matches to fit — still list every fixture.
             logger.warning("Model not fitted for %s %s: %s", league.value, season, exc)
-            return []
+            return [
+                self._shell_report(match, as_of=as_of, reasons=(MODEL_NOT_FIT,))
+                for match in upcoming
+            ]
         counts = self._team_counts(universe, as_of)
 
         reports: list[SignalReport] = []
-        for match in self.provider.get_upcoming_matches(league, season, as_of):
+        for match in upcoming:
             entry = self.provider.get_latest_odds(match.match_id, as_of)
             if entry is None:
+                reports.append(
+                    self._shell_report(
+                        match,
+                        as_of=as_of,
+                        reasons=(MISSING_ODDS,),
+                        home_matches=counts.get(match.home_team.team_id, 0),
+                        away_matches=counts.get(match.away_team.team_id, 0),
+                    )
+                )
                 continue
             from datetime import timedelta
 
@@ -482,6 +500,48 @@ class QuantBotOrchestrator:
             None if self._last_run_manifest is None else self._last_run_manifest.run_id[:8],
         )
         return reports
+
+    def _shell_report(
+        self,
+        match: Match,
+        *,
+        as_of: datetime,
+        reasons: tuple,
+        home_matches: int = 0,
+        away_matches: int = 0,
+    ) -> SignalReport:
+        """List a fixture without a usable model/odds path (always visible)."""
+
+        from quantbot.analysis.confidence import ConfidenceLevel
+        from quantbot.analysis.engine import AnalysisResult
+        from quantbot.schemas import MatchOutcome, ValueMetrics
+
+        placeholder = ValueMetrics(
+            outcome=MatchOutcome.HOME,
+            model_prob=1.0 / 3.0,
+            fair_market_prob=0.5,
+            decimal_odds=1.01,
+            edge=(1.0 / 3.0) - 0.5,
+            expected_value=(1.0 / 3.0) * 1.01 - 1.0,
+        )
+        analysis = AnalysisResult(
+            match_id=match.match_id,
+            metrics=(),
+            best_ev=placeholder,
+            data_quality=0.0,
+            model_confidence=0.0,
+            confidence_level=ConfidenceLevel.LOW,
+            ensemble_agreement=0.0,
+            home_matches=home_matches,
+            away_matches=away_matches,
+        )
+        signal = self.decision_engine.invalid_data_signal(
+            match_id=match.match_id,
+            timestamp=as_of,
+            reasons=reasons,
+            metrics=(),
+        )
+        return SignalReport(match=match, signal=signal, analysis=analysis)
 
     def _maybe_prefer_totals(
         self,

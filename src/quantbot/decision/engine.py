@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from quantbot.analysis.engine import AnalysisResult
 from quantbot.decision.policy import (
+    HIGH_RISK_FORCED,
     MODEL_UNVALIDATED_NO_SIZING,
     DecisionPolicy,
     DecisionStatus,
@@ -182,6 +183,7 @@ class DecisionEngine:
         totals_line: float | None,
         home_matches: int | None,
         away_matches: int | None,
+        handicap_line: float | None = None,
     ) -> ValueSignal:
         invalid = validate_candidate_inputs(
             model_prob=getattr(candidate, "model_prob", None),
@@ -191,6 +193,19 @@ class DecisionEngine:
             min_team_matches=self.policy.min_team_matches,
         )
         if invalid:
+            forced = self._forced_high_risk_value(
+                match_id=match_id,
+                timestamp=timestamp,
+                candidate=candidate,
+                metrics=metrics,
+                data_quality=data_quality,
+                model_confidence=model_confidence,
+                totals_line=totals_line,
+                handicap_line=handicap_line,
+                prior_reasons=invalid,
+            )
+            if forced is not None:
+                return forced
             logger.debug("INVALID_DATA %s: %s", match_id, "; ".join(r.code for r in invalid))
             return _signal_from_reasons(
                 match_id=match_id,
@@ -211,6 +226,19 @@ class DecisionEngine:
             model_confidence=model_confidence,
         )
         if not result.passed:
+            forced = self._forced_high_risk_value(
+                match_id=match_id,
+                timestamp=timestamp,
+                candidate=candidate,
+                metrics=metrics,
+                data_quality=data_quality,
+                model_confidence=model_confidence,
+                totals_line=totals_line,
+                handicap_line=handicap_line,
+                prior_reasons=result.reasons,
+            )
+            if forced is not None:
+                return forced
             logger.debug("NO_BET %s: %s", match_id, result.join(technical=True))
             return _signal_from_reasons(
                 match_id=match_id,
@@ -227,6 +255,19 @@ class DecisionEngine:
 
         stake = self.sizer.stake_fraction(candidate.model_prob, candidate.decimal_odds)
         if stake <= 0.0:
+            forced = self._forced_high_risk_value(
+                match_id=match_id,
+                timestamp=timestamp,
+                candidate=candidate,
+                metrics=metrics,
+                data_quality=data_quality,
+                model_confidence=model_confidence,
+                totals_line=totals_line,
+                handicap_line=handicap_line,
+                prior_reasons=(KELLY_ZERO,),
+            )
+            if forced is not None:
+                return forced
             return _signal_from_reasons(
                 match_id=match_id,
                 timestamp=timestamp,
@@ -293,8 +334,68 @@ class DecisionEngine:
             decimal_odds=candidate.decimal_odds,
             stake_fraction=stake_out,
             totals_line=totals_line,
+            handicap_line=handicap_line,
             sizing_allowed=sizing_ok,
             p_final=float(candidate.model_prob),
+        )
+
+    def _forced_high_risk_value(
+        self,
+        *,
+        match_id: str,
+        timestamp,
+        candidate,
+        metrics,
+        data_quality: float,
+        model_confidence: float,
+        totals_line: float | None,
+        handicap_line: float | None,
+        prior_reasons: tuple[Reason, ...],
+    ) -> ValueSignal | None:
+        """High-risk UI: release best-EV side as exploratory VALUE (stake 0)."""
+
+        if not self.policy.force_best_ev_on_no_bet:
+            return None
+        if not self.policy.allow_exploratory_value_signals:
+            return None
+        model_prob = getattr(candidate, "model_prob", None)
+        decimal_odds = getattr(candidate, "decimal_odds", None)
+        outcome = getattr(candidate, "outcome", None)
+        if outcome is None or outcome not in _OUTCOME_TO_SIGNAL:
+            return None
+        if model_prob is None or decimal_odds is None:
+            return None
+        from math import isfinite
+
+        if not isfinite(model_prob) or not 0.0 <= float(model_prob) <= 1.0:
+            return None
+        if not isfinite(decimal_odds) or float(decimal_odds) <= 1.0:
+            return None
+        edge = float(getattr(candidate, "edge", 0.0) or 0.0)
+        ev = float(getattr(candidate, "expected_value", 0.0) or 0.0)
+        reasons = tuple(prior_reasons) + (
+            HIGH_RISK_FORCED,
+            MODEL_UNVALIDATED_NO_SIZING,
+        )
+        return _signal_from_reasons(
+            match_id=match_id,
+            timestamp=timestamp,
+            signal=_OUTCOME_TO_SIGNAL[outcome],
+            reasons=reasons,
+            model_confidence=model_confidence,
+            data_quality=data_quality,
+            metrics=metrics,
+            policy=self.policy,
+            decision_status=DecisionStatus.VALUE_EXPLORATORY,
+            chosen_outcome=outcome,
+            edge=edge,
+            expected_value=ev,
+            decimal_odds=float(decimal_odds),
+            stake_fraction=0.0,
+            totals_line=totals_line,
+            handicap_line=handicap_line,
+            sizing_allowed=False,
+            p_final=float(model_prob),
         )
 
     def decide_ah(

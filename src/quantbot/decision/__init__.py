@@ -10,6 +10,7 @@ from quantbot.decision.policy import (
     ValidationStatus,
     demo_policy,
     demo_tracker_policy,
+    high_risk_policy,
     live_policy,
     policy_for_mode,
 )
@@ -28,6 +29,7 @@ __all__ = [
     "KellySizer",
     "demo_policy",
     "demo_tracker_policy",
+    "high_risk_policy",
     "live_policy",
     "policy_for_mode",
 ]

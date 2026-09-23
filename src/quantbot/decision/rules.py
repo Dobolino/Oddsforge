@@ -13,7 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from math import isfinite
 
-_MAX_PLAUSIBLE_EV = 0.50
+_DEFAULT_MAX_PLAUSIBLE_EV = 0.50
 
 
 @dataclass(frozen=True)
@@ -54,6 +54,7 @@ class NoBetRules:
         min_data_quality: Minimum 0-100 data-quality score.
         min_model_confidence: Minimum 0-100 forecast-quality score.
         min_odds / max_odds: Extreme-odds filter (illiquid or unstable prices).
+        max_plausible_ev: Soft cap on EV; above this is treated as unrealistic.
     """
 
     min_ev: float = 0.0
@@ -63,6 +64,7 @@ class NoBetRules:
     min_model_confidence: float = 55.0
     min_odds: float = 1.2
     max_odds: float = 15.0
+    max_plausible_ev: float = _DEFAULT_MAX_PLAUSIBLE_EV
 
     def evaluate(
         self,
@@ -77,14 +79,15 @@ class NoBetRules:
             raise TypeError("metric must be a ValueMetrics instance")
 
         reasons: list[Reason] = []
+        max_ev = self.max_plausible_ev
 
-        if not isfinite(metric.expected_value) or metric.expected_value > _MAX_PLAUSIBLE_EV:
+        if not isfinite(metric.expected_value) or metric.expected_value > max_ev:
             reasons.append(
                 Reason(
                     code="NO_BET_UNREALISTIC_EV",
                     de="Modellabweichung ungewöhnlich groß; Datenqualität prüfen.",
                     en="Model deviation unusually large; check data quality.",
-                    technical=f"ev {metric.expected_value!r} exceeds quality threshold {_MAX_PLAUSIBLE_EV:.2f}",
+                    technical=f"ev {metric.expected_value!r} exceeds quality threshold {max_ev:.2f}",
                 )
             )
 
