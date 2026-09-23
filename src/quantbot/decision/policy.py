@@ -83,6 +83,12 @@ MODEL_NOT_FIT = Reason(
     en="Model could not fit (too little history) — match still listed.",
     technical="model.fit_until raised NotFittedError/ValueError",
 )
+HIGH_RISK_MARKET_FALLBACK = Reason(
+    code="VALUE_HIGH_RISK_MARKET_FALLBACK",
+    de="High-Risk: Markt-Favorit (kein Modell-Fit) — nur explorativ, kein Einsatz.",
+    en="High-risk: market favourite (no model fit) — exploratory only, no stake.",
+    technical="force_best_ev_on_no_bet market-implied tip after model fit failure",
+)
 
 
 @dataclass(frozen=True)
