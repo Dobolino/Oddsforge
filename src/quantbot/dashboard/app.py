@@ -474,8 +474,10 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
     from quantbot.decision import high_risk_policy, policy_for_mode
 
     decision_policy = high_risk_policy() if high_risk else policy_for_mode(live=live)
-    # Nations League / early cups: allow a thinner fit when High-Risk is on.
-    dc_min_matches = 3 if high_risk else 5
+    # Nations League / early cups often have 0–few finished rows in the local
+    # archive (Odds API scores only cover ~3 days). High-Risk uses a tiny fit
+    # floor and falls back to market tips when even that fails.
+    dc_min_matches = 1 if high_risk else 5
     team_min = 0 if high_risk else 3
 
     orchestrator = QuantBotOrchestrator(
@@ -1099,6 +1101,16 @@ def _signals_page(
     st.caption(
         t("sig.value_rate", lang).format(k=n_bets, n=len(reports), pct=f"{value_pct:.0f}")
     )
+    if (
+        reports
+        and n_bets == 0
+        and not st.session_state.get("global_high_risk", False)
+        and any(
+            "INVALID_DATA_MODEL_NOT_FIT" in (r.signal.reason_codes or ())
+            for r in reports
+        )
+    ):
+        st.info(t("sig.thin_history_high_risk_hint", lang))
     if live and not reports:
         upcoming_n = 0
         for league in leagues:
