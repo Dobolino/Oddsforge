@@ -260,12 +260,19 @@ def test_predict_integrity_shell_uses_prob_home_not_home() -> None:
     )
     reports = orch.predict(League.PREMIER_LEAGUE, "2024-2025")
     assert reports
+    # Fixtures without a quote are still listed (missing-odds shells).
+    priced = [
+        r
+        for r in reports
+        if "INVALID_DATA_MISSING_ODDS" not in (r.signal.reason_codes or ())
+    ]
+    assert priced
     # Stale-only is a soft quality penalty — must NOT abort as invalid_data.
     assert all(
-        (r.signal.decision_status or "").lower() != "invalid_data" for r in reports
+        (r.signal.decision_status or "").lower() != "invalid_data" for r in priced
     )
     assert any(
-        "INVALID_DATA_QUOTE_STALE" in (r.signal.reason_codes or ()) for r in reports
+        "INVALID_DATA_QUOTE_STALE" in (r.signal.reason_codes or ()) for r in priced
     )
 
 

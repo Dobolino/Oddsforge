@@ -458,14 +458,31 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
             )
         )
 
+    high_risk = st.sidebar.toggle(
+        t("ctrl.high_risk", lang),
+        value=bool(st.session_state.get("global_high_risk", False)),
+        key="global_high_risk",
+        help=t("ctrl.high_risk_help", lang),
+    )
+    if high_risk:
+        st.sidebar.warning(t("ctrl.high_risk_warn", lang))
+    # Keep tip-slip builders aligned with the sidebar risk profile.
+    st.session_state["slip_high_risk"] = bool(high_risk)
+
     from quantbot.analysis.calibration import PlattScaler
     from quantbot.analysis.engine import AnalysisEngine
+    from quantbot.decision import high_risk_policy, policy_for_mode
+
+    decision_policy = high_risk_policy() if high_risk else policy_for_mode(live=live)
+    # Nations League / early cups: allow a thinner fit when High-Risk is on.
+    dc_min_matches = 3 if high_risk else 5
+    team_min = 0 if high_risk else 3
 
     orchestrator = QuantBotOrchestrator(
         provider=provider,
         # Time-decay weighting (xi ~= 198-day half-life) lets last season act as
         # a backbone that fades as the new season's games accumulate.
-        model=DixonColesModel(min_matches=5, time_decay_xi=0.0035),
+        model=DixonColesModel(min_matches=dc_min_matches, time_decay_xi=0.0035),
         # Calibrate 1X2 probabilities against out-of-sample history (disables
         # itself gracefully when there is too little data); Platt is robust for
         # small samples.
@@ -473,13 +490,19 @@ def _render() -> None:  # pragma: no cover - requires Streamlit runtime
         # Pull model probabilities toward the fair market when data is thin, so
         # sparse-fit overconfidence does not turn into false value.
         analysis_engine=AnalysisEngine(market_shrinkage=True),
-        min_team_matches=3,
+        min_team_matches=team_min,
         # Fit on the current season plus last season (live mode loads both).
         fit_prior_seasons=1,
         live=live,
+        decision_policy=decision_policy,
     )
     mode = "live" if live else "demo"
+    # Cache key must distinguish High-Risk predict runs without polluting
+    # tip-history path names (tracker_path uses ``mode``).
+    cache_mode = f"{mode}|high_risk" if high_risk else mode
     C = _install_cache()
+    # Bind cache_mode into helpers that call C["predict"].
+    st.session_state["_predict_cache_mode"] = cache_mode
 
     with st.expander(t("page.settings", lang) + " · API", expanded=False):
         _api_status_badges(
@@ -1005,9 +1028,10 @@ def _pick_window(
 def _predict_leagues(C, orchestrator, mode, leagues, season, as_of_iso: str):  # type: ignore[no-untyped-def]
     """Run predictions for every selected league and concatenate reports."""
 
+    cache_mode = st.session_state.get("_predict_cache_mode", mode)
     reports = []
     for league in leagues:
-        reports.extend(C["predict"](orchestrator, mode, league.value, season, as_of_iso))
+        reports.extend(C["predict"](orchestrator, cache_mode, league.value, season, as_of_iso))
     return reports
 
 
@@ -1144,7 +1168,7 @@ def _signals_page(
                             f"</div>"
                         )
                 st.caption(t("sig.tip_legend", lang))
-            with st.expander(t("sig.all_matches", lang), expanded=False):
+            with st.expander(t("sig.all_matches", lang), expanded=not bets):
                 render_signals_table(signals_dataframe(lg_reports, mode=UXMode.BEGINNER, lang=lang))
         # Accumulators stay out of Simple mode (Gemini/Claude review).
         return
@@ -1414,19 +1438,14 @@ def _slip_page(
         )
         st.caption(t("slip.orient_hint", lang))
 
-        high_risk = False
-        if not beginner:
-            high_risk = st.checkbox(
-                t("slip.high_risk", lang),
-                value=bool(st.session_state.get("slip_high_risk", False)),
-                key="slip_high_risk",
-                help=t("slip.high_risk_help", lang),
+        high_risk = bool(st.session_state.get("global_high_risk", False))
+        if high_risk:
+            st.markdown(
+                f'<p style="color:#b91c1c;font-weight:700;">{t("ctrl.high_risk_warn", lang)}</p>',
+                unsafe_allow_html=True,
             )
-            if high_risk:
-                st.markdown(
-                    f'<p style="color:#b91c1c;font-weight:700;">{t("slip.high_risk_warn", lang)}</p>',
-                    unsafe_allow_html=True,
-                )
+        elif not beginner:
+            st.caption(t("slip.high_risk_sidebar_hint", lang))
 
         stake_local = st.number_input(
             t("slip.stake", lang),
@@ -1492,7 +1511,7 @@ def _slip_page(
 
     smart_ids = st.session_state.pop("slip_smart_override", None)
     orient_used = st.session_state.get("slip_orient", "safe")
-    high_risk_used = bool(st.session_state.get("slip_high_risk", False))
+    high_risk_used = bool(st.session_state.get("global_high_risk", False))
 
     with st.expander(t("slip.adjust", lang), expanded=False):
         if smart_ids:

@@ -65,6 +65,24 @@ MODEL_UNVALIDATED_NO_SIZING = Reason(
     en="Model not empirically released — exploratory only, no simulated stake.",
     technical="validation_status is not VALID; sizing blocked",
 )
+HIGH_RISK_FORCED = Reason(
+    code="VALUE_HIGH_RISK_FORCED",
+    de="High-Risk: bestes EV trotz dünner Daten — nur explorativ, kein Einsatz.",
+    en="High-risk: best EV despite thin data — exploratory only, no stake.",
+    technical="force_best_ev_on_no_bet released exploratory VALUE",
+)
+MISSING_ODDS = Reason(
+    code="INVALID_DATA_MISSING_ODDS",
+    de="Keine Marktquote für dieses Spiel — wird trotzdem in der Liste gezeigt.",
+    en="No market odds for this match — still listed for visibility.",
+    technical="get_latest_odds returned None",
+)
+MODEL_NOT_FIT = Reason(
+    code="INVALID_DATA_MODEL_NOT_FIT",
+    de="Modell konnte nicht fitten (zu wenig Historie) — Spiel bleibt sichtbar.",
+    en="Model could not fit (too little history) — match still listed.",
+    technical="model.fit_until raised NotFittedError/ValueError",
+)
 
 
 @dataclass(frozen=True)
@@ -97,6 +115,9 @@ class DecisionPolicy:
     require_validation_for_sizing: bool = True
     # Exploratory VALUE_* display when filters pass but validation is missing.
     allow_exploratory_value_signals: bool = True
+    # High-risk UI: if all filters fail, still surface the best-EV side as
+    # exploratory VALUE (stake 0) so every priced match gets a recommendation.
+    force_best_ev_on_no_bet: bool = False
 
     def rules(self) -> NoBetRules:
         return NoBetRules(
@@ -107,6 +128,7 @@ class DecisionPolicy:
             min_model_confidence=self.min_model_confidence,
             min_odds=self.min_odds,
             max_odds=self.max_odds,
+            max_plausible_ev=self.max_plausible_ev,
         )
 
     def sizer(self) -> KellySizer:
@@ -170,6 +192,32 @@ def demo_tracker_policy() -> DecisionPolicy:
         require_validation_for_sizing=False,
         allow_exploratory_value_signals=True,
         min_team_matches=0,
+    )
+
+
+def high_risk_policy(settings: Settings | None = None) -> DecisionPolicy:
+    """Explicit high-risk profile: thin history (Nations League) still gets tips.
+
+    Still exploratory (no Kelly sizing without validation). Does not place bets.
+    """
+
+    s = settings or get_settings()
+    return DecisionPolicy(
+        profile=PolicyProfile.LIVE,
+        validation_status=ValidationStatus.UNVALIDATED,
+        min_ev=-0.02,
+        min_edge=0.0,
+        max_overround=0.25,
+        min_data_quality=0.0,
+        min_model_confidence=0.0,
+        min_odds=1.05,
+        max_odds=25.0,
+        max_plausible_ev=1.5,
+        min_team_matches=0,
+        kelly_fraction=min(0.05, float(s.kelly_fraction)),
+        require_validation_for_sizing=True,
+        allow_exploratory_value_signals=True,
+        force_best_ev_on_no_bet=True,
     )
 
 

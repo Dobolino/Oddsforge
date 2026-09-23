@@ -157,12 +157,19 @@ class BettingSlip:
         return self.combined_prob * 100.0
 
 
-def _leg_from_report(report: SignalReport, lang: str, role: str) -> SlipLeg | None:
+def _leg_from_report(
+    report: SignalReport,
+    lang: str,
+    role: str,
+    *,
+    allow_high_risk: bool = False,
+) -> SlipLeg | None:
     signal = report.signal
     if not signal.is_bet or signal.chosen_outcome is None or signal.decimal_odds is None:
         return None
     # Early-season totals (O/U) are the usual source of "unrealistisch" slips.
-    if isinstance(signal.chosen_outcome, TotalsSide):
+    # High-risk mode keeps them so thin cups (Nations League) still fill a slip.
+    if isinstance(signal.chosen_outcome, TotalsSide) and not allow_high_risk:
         home_n = int(getattr(report.analysis, "home_matches", 0) or 0)
         away_n = int(getattr(report.analysis, "away_matches", 0) or 0)
         if min(home_n, away_n) < _MIN_GAMES_FOR_TOTALS_SLIP:
@@ -217,13 +224,21 @@ def _stance_text(stance: str, de: bool) -> str:
     return ""
 
 
-def _value_legs(reports: list[SignalReport], lang: str, *, bias: str = "safe") -> list[SlipLeg]:
+def _value_legs(
+    reports: list[SignalReport],
+    lang: str,
+    *,
+    bias: str = "safe",
+    allow_high_risk: bool = False,
+) -> list[SlipLeg]:
     legs: list[SlipLeg] = []
     for report in reports:
-        leg = _leg_from_report(report, lang, role="core")
+        leg = _leg_from_report(report, lang, role="core", allow_high_risk=allow_high_risk)
         # Keep big-underdog legs out of a slip entirely: an odds > 8.0 pick
         # (<12.5% implied) does not belong on a high-model-P accumulator.
-        if leg is not None and leg.odds <= _MAX_PLAUSIBLE_LEG_ODDS:
+        # High-risk lifts the underdog cap so thin cups can still fill a slip.
+        odds_cap = 25.0 if allow_high_risk else _MAX_PLAUSIBLE_LEG_ODDS
+        if leg is not None and leg.odds <= odds_cap:
             legs.append(leg)
     if bias == "safe":
         # Strict "Sicher": with the market, short prices, prefer 1X2 over totals.
@@ -335,7 +350,7 @@ def build_safe_slip(
     """
 
     filter_bias = "balanced" if (allow_high_risk and bias == "safe") else bias
-    legs = _value_legs(reports, lang, bias=filter_bias)
+    legs = _value_legs(reports, lang, bias=filter_bias, allow_high_risk=allow_high_risk)
     if not legs:
         return None
     legs.sort(key=_leg_sort_key(filter_bias))
@@ -369,7 +384,7 @@ def build_boosted_slip(
     """Safer core tips plus higher-odds legs to lift the combined price."""
 
     filter_bias = "balanced" if (allow_high_risk and bias == "safe") else bias
-    legs = _value_legs(reports, lang, bias=filter_bias)
+    legs = _value_legs(reports, lang, bias=filter_bias, allow_high_risk=allow_high_risk)
     if not legs:
         return None
 

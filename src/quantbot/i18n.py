@@ -677,6 +677,22 @@ _STRINGS: dict[str, dict[str, str]] = {
     "ctrl.range_3d": {"de": "3 Tage", "en": "3 days"},
     "ctrl.range_7d": {"de": "7 Tage", "en": "7 days"},
     "ctrl.season": {"de": "Saison", "en": "Season"},
+    "ctrl.high_risk": {
+        "de": "High-Risk (alle Tipps)",
+        "en": "High-Risk (all tips)",
+    },
+    "ctrl.high_risk_help": {
+        "de": "Lockert Filter bei dünner Historie (z. B. Nations League). Zeigt überall den besten EV-Tipp und füllt den Tippschein — nur explorativ, kein Einsatz.",
+        "en": "Relaxes filters on thin history (e.g. Nations League). Surfaces best-EV tips everywhere and fills the slip — exploratory only, no stake.",
+    },
+    "ctrl.high_risk_warn": {
+        "de": "⚠ HIGH-RISK — Tipps trotz dünner Daten. Nur Simulation, kein echter Einsatz.",
+        "en": "⚠ HIGH-RISK — tips despite thin data. Simulation only, no real stake.",
+    },
+    "slip.high_risk_sidebar_hint": {
+        "de": "High-Risk steht in der Seitenleiste (für Tipps + Tippschein).",
+        "en": "High-Risk is in the sidebar (for tips + slip).",
+    },
     "ctrl.as_of": {"de": "Prognosedatum (Stand)", "en": "Prediction date (as of)"},
     "ctrl.as_of_today": {"de": "Auf heute setzen", "en": "Jump to today"},
     "ctrl.as_of_hint_live": {
