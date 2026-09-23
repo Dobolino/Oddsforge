@@ -129,8 +129,41 @@ def test_predict_lists_matches_without_odds() -> None:
 
 
 def test_predict_lists_matches_when_model_not_fit() -> None:
+    """Without High-Risk, model-not-fit still lists fixtures as shells."""
+
     orch = QuantBotOrchestrator(
         provider=DummyDataProvider(),
+        model=DixonColesModel(min_matches=10_000),
+        live=False,
+        min_team_matches=0,
+        persist_snapshots=False,
+        decision_policy=live_policy(),
+    )
+    reports = orch.predict(League.PREMIER_LEAGUE, "2024-2025")
+    assert reports
+    assert all(not r.signal.is_bet for r in reports)
+    assert all("INVALID_DATA_MODEL_NOT_FIT" in r.signal.reason_codes for r in reports)
+
+
+def test_high_risk_market_fallback_tips_when_model_not_fit() -> None:
+    """High-Risk + no model fit + odds → exploratory tip (Nations League case)."""
+
+    class _AllOdds(DummyDataProvider):
+        def get_latest_odds(self, match_id: str, as_of):  # type: ignore[no-untyped-def]
+            base = super().get_latest_odds(match_id, as_of)
+            if base is not None:
+                return base
+            return Odds(
+                match_id=match_id,
+                bookmaker="synth",
+                timestamp=as_of,
+                home=2.10,
+                draw=3.40,
+                away=3.50,
+            )
+
+    orch = QuantBotOrchestrator(
+        provider=_AllOdds(),
         model=DixonColesModel(min_matches=10_000),
         live=False,
         min_team_matches=0,
@@ -139,7 +172,15 @@ def test_predict_lists_matches_when_model_not_fit() -> None:
     )
     reports = orch.predict(League.PREMIER_LEAGUE, "2024-2025")
     assert reports
-    assert all("INVALID_DATA_MODEL_NOT_FIT" in r.signal.reason_codes for r in reports)
+    bets = [r for r in reports if r.signal.is_bet]
+    assert bets, "High-Risk must tip every priced fixture when the model cannot fit"
+    assert all(r.signal.stake_fraction == 0.0 for r in bets)
+    assert all("VALUE_HIGH_RISK_MARKET_FALLBACK" in r.signal.reason_codes for r in bets)
+    assert all("INVALID_DATA_MODEL_NOT_FIT" in r.signal.reason_codes for r in bets)
+    # Tip slip can be built from these exploratory legs.
+    slip = build_safe_slip(bets, lang="de", max_legs=6, bias="balanced", allow_high_risk=True)
+    assert slip is not None
+    assert len(slip.legs) >= 1
 
 
 def test_slip_high_risk_keeps_thin_totals_legs() -> None:

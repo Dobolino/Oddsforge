@@ -23,6 +23,7 @@ from quantbot.data.dummy import DummyDataProvider
 from quantbot.data.snapshot_repo import DataMode, SnapshotRepository
 from quantbot.decision.engine import DecisionEngine
 from quantbot.decision.policy import (
+    HIGH_RISK_MARKET_FALLBACK,
     MISSING_ODDS,
     MODEL_NOT_FIT,
     DecisionPolicy,
@@ -286,7 +287,11 @@ class QuantBotOrchestrator:
             model.fit_until(universe, as_of)
         except (ValueError, NotFittedError) as exc:
             # Not enough finished matches to fit — still list every fixture.
+            # High-Risk: tip from market odds so slips can still be built
+            # (Nations League / cups often have quotes but almost no history).
             logger.warning("Model not fitted for %s %s: %s", league.value, season, exc)
+            if self.policy.force_best_ev_on_no_bet:
+                return self._high_risk_market_fallback(upcoming, as_of=as_of)
             return [
                 self._shell_report(match, as_of=as_of, reasons=(MODEL_NOT_FIT,))
                 for match in upcoming
@@ -500,6 +505,107 @@ class QuantBotOrchestrator:
             None if self._last_run_manifest is None else self._last_run_manifest.run_id[:8],
         )
         return reports
+
+    def _high_risk_market_fallback(
+        self,
+        upcoming: Sequence[Match],
+        *,
+        as_of: datetime,
+    ) -> list[SignalReport]:
+        """Exploratory tips from quotes when the model cannot fit at all.
+
+        Used only under High-Risk (``force_best_ev_on_no_bet``). Builds a
+        market-implied prediction that slightly prefers the favourite so
+        ``decide`` releases an exploratory VALUE tip (stake 0).
+        """
+
+        from quantbot.schemas import Prediction
+
+        reports: list[SignalReport] = []
+        for match in upcoming:
+            entry = self.provider.get_latest_odds(match.match_id, as_of)
+            if entry is None:
+                reports.append(
+                    self._shell_report(
+                        match,
+                        as_of=as_of,
+                        reasons=(MODEL_NOT_FIT, MISSING_ODDS),
+                    )
+                )
+                continue
+            market = self.market_engine.to_market_data(entry)
+            prediction = self._market_favourite_prediction(match, market)
+            quality = DataQualitySignals(
+                home_matches=0,
+                away_matches=0,
+                n_bookmakers=1,
+                injuries_known=False,
+            )
+            analysis = self.analysis_engine.analyze(
+                prediction, market, entry.decimal_odds(), quality
+            )
+            signal = self.decision_engine.decide(
+                analysis,
+                market,
+                home_matches=0,
+                away_matches=0,
+            )
+            fallback_reasons = (MODEL_NOT_FIT, HIGH_RISK_MARKET_FALLBACK)
+            extra_codes = tuple(r.code for r in fallback_reasons)
+            extra_de = " | ".join(r.de for r in fallback_reasons)
+            extra_en = " | ".join(r.en for r in fallback_reasons)
+            signal = signal.model_copy(
+                update={
+                    "reason_codes": tuple(signal.reason_codes) + extra_codes,
+                    "rationale_de": (
+                        f"{signal.rationale_de} | {extra_de}"
+                        if signal.rationale_de
+                        else extra_de
+                    ),
+                    "rationale_en": (
+                        f"{signal.rationale_en} | {extra_en}"
+                        if signal.rationale_en
+                        else extra_en
+                    ),
+                    "rationale": (
+                        f"{signal.rationale} | {extra_en}"
+                        if signal.rationale
+                        else extra_en
+                    ),
+                }
+            )
+            reports.append(SignalReport(match=match, signal=signal, analysis=analysis))
+
+        n_bets = sum(1 for r in reports if r.signal.is_bet)
+        logger.info(
+            "High-risk market fallback as of %s: %d matches, %d exploratory tips",
+            as_of.isoformat(),
+            len(reports),
+            n_bets,
+        )
+        return reports
+
+    @staticmethod
+    def _market_favourite_prediction(match: Match, market) -> "Prediction":
+        """Slightly boost the market favourite so High-Risk has a tip side."""
+
+        from quantbot.schemas import Prediction
+
+        probs = [float(market.fair_home), float(market.fair_draw), float(market.fair_away)]
+        fav_i = max(range(3), key=lambda i: probs[i])
+        boosted = list(probs)
+        boosted[fav_i] = min(0.92, boosted[fav_i] + 0.04)
+        total = sum(boosted)
+        boosted = [p / total for p in boosted]
+        return Prediction(
+            match_id=match.match_id,
+            model_name="high_risk_market",
+            prediction_timestamp=match.prediction_timestamp,
+            prob_home=boosted[0],
+            prob_draw=boosted[1],
+            prob_away=boosted[2],
+            confidence=20.0,
+        )
 
     def _shell_report(
         self,
